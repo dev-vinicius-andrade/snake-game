@@ -1,4 +1,4 @@
-﻿namespace Library.Extensions.DependencyInjection.Extensions;
+﻿namespace Library.Extensions.DependencyInjection.Abstractions;
 
 public abstract class BaseAppSettings
 {

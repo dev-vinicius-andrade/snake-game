@@ -19,7 +19,4 @@
 	<ItemGroup>
 	  <ProjectReference Include="..\Library.Commons\Library.Commons.csproj" />
 	</ItemGroup>
-	<ItemGroup>
-	  <Folder Include="Abstractions\" />
-	</ItemGroup>
 </Project>

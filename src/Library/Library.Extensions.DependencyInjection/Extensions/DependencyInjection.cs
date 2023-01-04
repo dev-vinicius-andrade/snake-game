@@ -1,6 +1,8 @@
 ﻿using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Library.Extensions.DependencyInjection.Abstractions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Library.Extensions.DependencyInjection.Extensions;
@@ -36,6 +38,18 @@ public static class DependencyInjection
       }, lifetime);
 
         return services;
+    }
+
+    public static TAppSettings AddAppSettings<TAppSettings>(this IServiceCollection services,
+        IConfiguration configuration, string sectionName = BaseAppSettings.DefaultSectionName,
+        ServiceLifetime lifetime = ServiceLifetime.Scoped)
+    where TAppSettings:BaseAppSettings
+    {
+        var appSettingsSection = configuration.GetSection(sectionName);
+        var appSettings = appSettingsSection.Get<TAppSettings>();
+        if (appSettings == null) throw new NullReferenceException(nameof(appSettings));
+        services.Configure<TAppSettings>(appSettingsSection);
+        return appSettings;
     }
     public static void Add<TService>(
       this IServiceCollection services,
