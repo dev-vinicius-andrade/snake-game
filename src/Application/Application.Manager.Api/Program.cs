@@ -1,4 +1,6 @@
 
+using Library.Commons.Api.Contants;
+
 namespace Application.Manager.Api
 {
     public class Program
@@ -28,7 +30,7 @@ namespace Application.Manager.Api
 
             app.UseAuthorization();
 
-            app.UseHealthChecks("/health");
+            app.UseHealthChecks(HealthCheckDefaultValues.HealthCheckPath);
             app.MapControllers();
 
             app.Run();

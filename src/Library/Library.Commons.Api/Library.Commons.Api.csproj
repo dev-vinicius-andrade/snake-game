@@ -10,4 +10,8 @@
 		<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.1" />
 		<PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
 	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Contants\" />
+	</ItemGroup>
 </Project>
