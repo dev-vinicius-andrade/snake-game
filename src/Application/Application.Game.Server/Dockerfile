@@ -1,0 +1,27 @@
+#See https://aka.ms/containerfastmode to understand how Visual Studio uses this Dockerfile to build your images for faster debugging.
+
+FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS base
+WORKDIR /app
+EXPOSE 80
+EXPOSE 443
+
+FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
+WORKDIR /src
+COPY ["Application/Application.Game.Server/Application.Game.Server.csproj", "Application/Application.Game.Server/"]
+COPY ["Library/Library.Commons.Game.Server/Library.Commons.Game.Server.csproj", "Library/Library.Commons.Game.Server/"]
+COPY ["Application/Application.Manager.Api/Application.Manager.Api.csproj", "Application/Application.Manager.Api/"]
+COPY ["Library/Library.Commons.Api/Library.Commons.Api.csproj", "Library/Library.Commons.Api/"]
+COPY ["Library/Library.Commons/Library.Commons.csproj", "Library/Library.Commons/"]
+COPY ["Library/Library.Extensions.DependencyInjection/Library.Extensions.DependencyInjection.csproj", "Library/Library.Extensions.DependencyInjection/"]
+RUN dotnet restore "Application/Application.Game.Server/Application.Game.Server.csproj"
+COPY . .
+WORKDIR "/src/Application/Application.Game.Server"
+RUN dotnet build "Application.Game.Server.csproj" -c Release -o /app/build
+
+FROM build AS publish
+RUN dotnet publish "Application.Game.Server.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "Application.Game.Server.dll"]
