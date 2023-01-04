@@ -12,6 +12,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Folder Include="Contants\" />
+	  <ProjectReference Include="..\Library.Commons\Library.Commons.csproj" />
+	  <ProjectReference Include="..\Library.Extensions.DependencyInjection\Library.Extensions.DependencyInjection.csproj" />
 	</ItemGroup>
 </Project>
