@@ -1,0 +1,103 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"launch": {
+		"configurations": [
+			{
+				"type": "chrome",
+				"request": "launch",
+				"name": "launch:chrome",
+				"url": "http://localhost:5143",
+				"webRoot": "${workspaceFolder}/src",
+				"sourceMaps": true,
+				"sourceMapPathOverrides": {
+					"src/*": "${webRoot}/*",
+				},
+				"skipFiles": [
+					"<node_internals>/**/*.js",
+					"**/<node_internals>/**/*.js",
+					"**/node_modules/**/*.js",
+					"**/runtime.js",
+					"**/polyfills.js",
+					"**/vendor.js",
+					"**/analytics.js"
+				],
+				"preLaunchTask": "serve"
+			},
+		],
+	},
+	"tasks": {
+		"version": "2.0.0",
+		"tasks": [
+			{
+				"label": "npm:install",
+				"type": "shell",
+				"command": "npm install",
+				"linux": {
+					"command": "if [ -d ${workspaceFolder}/node_modules ]; then npm install fi"
+				},
+				"windows": {
+					"command": "cmd",
+					"args": [
+						"/C",
+						"if not exist ${workspaceFolder}/node_modules  npm install"
+					],
+				},
+				"options": {
+					"cwd": "${workspaceFolder}"
+				},
+			},
+			{
+				"label": "serve",
+				"type": "shell",
+				"command": "npm run serve",
+				"options": {
+					"cwd": "${workspaceFolder}"
+				},
+				"isBackground": true,
+				"dependsOn": [
+					"npm:install"
+				],
+				"problemMatcher": [
+					{
+						"base": "$tsc-watch",
+						"background": {
+							"activeOnStart": true,
+							"beginsPattern": "VITE v",
+							"endsPattern": "ready in"
+						}
+					}
+				]
+			},
+		],
+	},
+  	"settings": {
+		"editor.formatOnSave": true,
+	},
+	"extensions": {
+			"recommendations": [
+				"hollowtree.vue-snippets",
+				"esbenp.prettier-vscode",
+				"leizongmin.node-module-intellisense",
+				"formulahendry.auto-rename-tag",
+				"formulahendry.auto-close-tag",
+				"dbaeumer.vscode-eslint",
+				"mgmcdermott.vscode-language-babel",
+				"editorconfig.editorconfig",
+				"xabikos.javascriptsnippets",
+				"stylelint.vscode-stylelint",
+				"fabiospampinato.vscode-highlight",
+				"github.vscode-pull-request-github",
+				"vue.volar",
+				"antfu.iconify",
+				"cipchk.cssrem",
+				"sonarsource.sonarlint-vscode",
+				"antfu.goto-alias",
+				"Vue.vscode-typescript-vue-plugin"
+			]
+	},
+}
+
