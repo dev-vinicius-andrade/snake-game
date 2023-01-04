@@ -1,0 +1,8 @@
+version: '3.4'
+
+services:
+  application.manager.api:
+    image: ${DOCKER_REGISTRY-}applicationmanagerapi
+    build:
+      context: .
+      dockerfile: Application/Application.Manager.Api/Dockerfile
