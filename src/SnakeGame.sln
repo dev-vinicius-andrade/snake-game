@@ -24,15 +24,15 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Library.Commons.Api", "Libr
 EndProject
 Project("{E53339B2-1760-4266-BCC7-CA923CBCF16C}") = "docker-compose", "docker-compose.dcproj", "{05E5B29B-35B5-45AD-8BB5-AFDF4584B308}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Library.Commons.Game.Server", "Library\Library.Commons.Game.Server\Library.Commons.Game.Server.csproj", "{B0F1D4A0-222C-4A2A-8C61-0B0A380C07D5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Library.Commons.Game.Server", "Library\Library.Commons.Game.Server\Library.Commons.Game.Server.csproj", "{B0F1D4A0-222C-4A2A-8C61-0B0A380C07D5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Application.Game.Server", "Application\Application.Game.Server\Application.Game.Server.csproj", "{F5A89C5B-3B1C-4AF9-AAFD-9D603AD887C5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Application.Game.Server", "Application\Application.Game.Server\Application.Game.Server.csproj", "{F5A89C5B-3B1C-4AF9-AAFD-9D603AD887C5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Library.Commons", "Library\Library.Commons\Library.Commons.csproj", "{00C8AABF-7AAE-4000-80D8-40FF6339E903}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Library.Commons", "Library\Library.Commons\Library.Commons.csproj", "{00C8AABF-7AAE-4000-80D8-40FF6339E903}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Library.Extensions.DependencyInjection", "Library\Library.Extensions.DependencyInjection\Library.Extensions.DependencyInjection.csproj", "{0C1CA229-7322-427A-9AB9-1EEBB7B6A82B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Library.Extensions.DependencyInjection", "Library\Library.Extensions.DependencyInjection\Library.Extensions.DependencyInjection.csproj", "{0C1CA229-7322-427A-9AB9-1EEBB7B6A82B}"
 EndProject
-Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "Application.ui", "Application\Application.Ui\Application.ui.esproj", "{F3CB61B6-C7CB-4150-B6B5-225A13D38338}"
+Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "Application.Ui", "Application\Application.Ui\Application.Ui.esproj", "{F3CB61B6-C7CB-4150-B6B5-225A13D38338}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
