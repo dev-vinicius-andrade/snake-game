@@ -10,7 +10,7 @@ public static class Logging
 
     {
         loggerBuilder.ClearProviders();
-        hostBuilder.UseSerilog();
+        hostBuilder.UseSerilog((hostBuilderContext, loggerConfiguration) => loggerConfiguration.ReadFrom.Configuration(hostBuilderContext.Configuration));
         return loggerBuilder;
     }
 }
