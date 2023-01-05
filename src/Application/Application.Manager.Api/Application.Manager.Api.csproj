@@ -8,20 +8,24 @@
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     <DockerfileContext>..\..</DockerfileContext>
     <DockerComposeProjectPath>..\..\docker-compose.dcproj</DockerComposeProjectPath>
+	  <DockerfileTag>snake-game/manager-api</DockerfileTag>
   </PropertyGroup>
 
 
   <ItemGroup>
     <Folder Include="Controllers\" />
+    <Folder Include="Services\" />
   </ItemGroup>
 
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.17.0" />
+    <PackageReference Include="Docker.DotNet" Version="3.125.12" />
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.17.2" />
   </ItemGroup>
 
+
   <ItemGroup>
-    <ProjectReference Include="..\..\Library\Library.Commons.Api\Library.Commons.Api.csproj" />
+    <ProjectReference Include="..\..\Library\Library.Commons.Game.Server\Library.Commons.Game.Server.csproj" />
   </ItemGroup>
 
 </Project>

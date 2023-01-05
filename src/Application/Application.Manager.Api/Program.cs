@@ -1,5 +1,7 @@
 
 using Application.Manager.Api.Entities.Configurations;
+using Application.Manager.Api.Services;
+using Docker.DotNet;
 using Library.Commons.Api.Contants;
 using Library.Commons.Api.Entities;
 using Library.Commons.Api.Extensions;
@@ -30,6 +32,9 @@ namespace Application.Manager.Api
             services.AddSwaggerDocumentation(appSettings.SwaggerConfiguration);
             services.AddDefaultRequestExceptionHandler();
             services.AddCorsPolicy(appSettings.CorsConfiguration);
+            services.AddScoped<ContainerService>();
+            services.AddScoped<IDockerClient>(serviceProvider =>
+                new DockerClientConfiguration(new Uri(appSettings.DockerDeamonConfiguration.EndPoint)).CreateClient());
             return services;
         }
         private static void Configure(IApplicationBuilder app, IHostEnvironment env, AppSettings appSettings, CorsPolicyName corsPolicyName)

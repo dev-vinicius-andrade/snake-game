@@ -2,12 +2,12 @@ version: '3.4'
 
 services:
   application.manager.api:
-    image: ${DOCKER_REGISTRY-}applicationmanagerapi
+    image: ${DOCKER_REGISTRY-}snake-game/manager-api
     build:
       context: .
       dockerfile: Application/Application.Manager.Api/Dockerfile
   application.game.server:
-    image: ${DOCKER_REGISTRY-}applicationgameserver
+    image: ${DOCKER_REGISTRY-}snake-game/server
     build:
       context: .
       dockerfile: Application/Application.Game.Server/Dockerfile

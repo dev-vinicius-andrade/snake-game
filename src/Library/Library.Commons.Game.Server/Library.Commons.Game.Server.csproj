@@ -6,6 +6,7 @@
     <Nullable>disable</Nullable>
   </PropertyGroup>
 	<ItemGroup>
-	  <ProjectReference Include="..\..\Application\Application.Manager.Api\Application.Manager.Api.csproj" />
+	  <ProjectReference Include="..\Library.Commons.Api\Library.Commons.Api.csproj" />
+	  <ProjectReference Include="..\Library.Commons.Game.Domain\Library.Commons.Game.Domain.csproj" />
 	</ItemGroup>
 </Project>
