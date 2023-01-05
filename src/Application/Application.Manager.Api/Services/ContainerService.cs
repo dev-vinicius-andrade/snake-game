@@ -18,20 +18,26 @@ public class ContainerService
         _appSettings = appSettings;
     }
 
-    public async Task<IEnumerable<GameServerInformation>> GetAvailableServers()
+    public async Task<IEnumerable<GameServerInformation>> GetAvailableServersAsync(CancellationToken cancellationToken=default)
     {
         var containers = await _dockerClient.Containers.ListContainersAsync(new ContainersListParameters
         {
             All = true
-        });
-       var availableGameServerContainers =  containers.Where(container => IsContainerRunning(container.State) && IsContainerGameServer(container.Image));
+        }, cancellationToken);
+        var availableGameServerContainers =  containers.Where(container => IsContainerRunning(container.State) && IsContainerGameServer(container.Image));
        return availableGameServerContainers.Select(containerServer=>
            new GameServerInformation(
                containerServer.Names.FirstOrDefault(),
-               new Uri($"http://{containerServer.NetworkSettings.Networks.FirstOrDefault().Value.IPAddress}:{containerServer.Ports.FirstOrDefault().PublicPort}"))
-               ).ToList();
+               GetContainerUri(containerServer)
+               )).ToList();
     }
-
+    private Uri GetContainerUri(ContainerListResponse container)
+    {
+        var port = container.Ports.FirstOrDefault(port=>port.PrivatePort == _appSettings.Value.GameServerConfiguration.InternalPort)?.PublicPort;
+        var domain = _appSettings.Value.GameServerConfiguration.Domain;
+        var scheme = _appSettings.Value.GameServerConfiguration.Scheme;
+        return new Uri($"{scheme}://{domain}:{port}");
+    }
     private bool IsContainerGameServer(string containerImage)
     {
         return containerImage.Contains(_appSettings.Value.GameServerConfiguration.Image, StringComparison.InvariantCultureIgnoreCase);

@@ -18,9 +18,9 @@ public class ServersController : Controller
 
     // GET
     [HttpGet]
-    public IActionResult Index()
+    public async Task<IActionResult> Get(CancellationToken cancellationToken=default)
     {
-        var a = _containersService.GetAvailableServers().Result;
+        var runningServers = await _containersService.GetRunningServersAsync(cancellationToken);
         return Ok();
     }
 }
