@@ -4,6 +4,7 @@ using Library.Commons.Api.Entities.Configurations;
 using Library.Commons.Api.Handlers;
 using Library.Commons.Api.Interfaces;
 using Library.Extensions.DependencyInjection.Extensions;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -45,12 +46,26 @@ public static class DependencyInjection
         where TIExceptionHandlerService : class, IRequestExceptionHandler
         where TExceptionHandlerService : class, TIExceptionHandlerService
     {
+        services.AddDefaultRequestMiddleware(serviceLifetime);
         services.Add<TIExceptionHandlerService, TExceptionHandlerService>(serviceLifetime);
     }
     public static void AddDefaultRequestExceptionHandler(this IServiceCollection services, ServiceLifetime serviceLifetime = ServiceLifetime.Scoped)
     {
-        
         services.Add<DefaultRequestMiddleware>(serviceLifetime);
         services.AddRequestExceptionHandler<IDefaultRequestExceptionHandler, DefaultRequestExceptionHandler>(serviceLifetime);
     }
+
+    public static IServiceCollection AddDefaultRequestMiddleware(this IServiceCollection services,
+        ServiceLifetime serviceLifetime = ServiceLifetime.Scoped)
+    {
+        if(services.HasDefaultRequestMiddleware()) return services;
+        services.Add<DefaultRequestMiddleware>(serviceLifetime);
+        return services;
+    }
+
+    public static bool HasDefaultRequestMiddleware(this IServiceCollection services)
+    {
+        return services.BuildServiceProvider().GetServices<DefaultRequestMiddleware>().Any();
+    }
+
 }

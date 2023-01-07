@@ -7,14 +7,14 @@ namespace Library.Extensions.DependencyInjection.Extensions;
 public static class ConfigurationBuilder
 {
 
-    public static AppConfigurationBasePath GetCurrentDirectoryBasePath<T>(this T builder, params string[] paths)
+    public static FolderPath GetCurrentDirectoryBasePath<T>(this T builder, params string[] paths)
         where T : IConfigurationBuilder
     {
         var pathsList = paths ?? new string[] {};
         var persistedPaths = pathsList.Prepend(Directory.GetCurrentDirectory());
         return Path.Combine(persistedPaths.ToArray());
     }
-    public static IConfigurationBuilder InitializeAppConfiguration<T>(this T builder, AppConfigurationBasePath basePath = null, IReadOnlyList<JsonConfigurationSource> jsonConfigurationSources = null)
+    public static IConfigurationBuilder InitializeAppConfiguration<T>(this T builder, FolderPath basePath = null, IReadOnlyList<JsonConfigurationSource> jsonConfigurationSources = null)
     where T:IConfigurationBuilder
 
     {

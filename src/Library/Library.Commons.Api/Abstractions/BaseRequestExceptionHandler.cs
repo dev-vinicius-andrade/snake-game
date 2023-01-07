@@ -50,7 +50,7 @@ public abstract class BaseRequestExceptionHandler : IRequestExceptionHandler
             ArgumentOutOfRangeException => HttpStatusCode.UnprocessableEntity,
             ModelStateException => HttpStatusCode.UnprocessableEntity,
             DuplicateNameException => HttpStatusCode.Conflict,
-            _ => GetStatusCodeFroNotHandledExceptionType(exception)
+            _ => GetStatusCodeFromNotHandledExceptionType(exception)
         };
     }
 
@@ -87,7 +87,7 @@ public abstract class BaseRequestExceptionHandler : IRequestExceptionHandler
         await context.Response.WriteAsync(Serialize(new ErrorsResponseModel(stateException, httpStatusCode){Errors = stateException.Errors}), cancellationToken);
     }
 
-    protected abstract HttpStatusCode GetStatusCodeFroNotHandledExceptionType(Exception exception);
+    protected abstract HttpStatusCode GetStatusCodeFromNotHandledExceptionType(Exception exception);
 
     protected virtual string Serialize<T>(T entity, JsonSerializerOptions options = null)
     {

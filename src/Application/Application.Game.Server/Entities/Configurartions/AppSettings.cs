@@ -12,5 +12,7 @@ public class AppSettings:BaseAppSettings
     public SwaggerConfiguration SwaggerConfiguration { get; set; }
     [JsonPropertyName("corsConfiguration")]
     public CorsConfiguration CorsConfiguration { get; set; }
+    [JsonPropertyName("serverConfiguration")]
+    public ServerConfiguration ServerConfiguration { get; set; }
 
 }

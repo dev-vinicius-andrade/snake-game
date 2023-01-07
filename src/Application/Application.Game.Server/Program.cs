@@ -1,9 +1,15 @@
 
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Application.Game.Server.Entities.Configurartions;
 using Application.Game.Server.Hubs;
+using Domain.Game.Entities;
 using Library.Commons.Api.Contants;
 using Library.Commons.Api.Entities;
 using Library.Commons.Api.Extensions;
+using Library.Commons.Api.Interfaces;
+using Library.Commons.Game.Domain.Interfaces.Entities;
 using Library.Commons.Game.Server.Constants;
 using Library.Commons.Game.Server.Extensions;
 using Library.Extensions.DependencyInjection.Extensions;
@@ -32,14 +38,32 @@ namespace Application.Game.Server
             services.AddEndpointsApiExplorer();
             services.AddSwaggerDocumentation(appSettings.SwaggerConfiguration);
             services.AddDefaultRequestExceptionHandler();
+            services.AddRequestExceptionHandler<IRequestExceptionHandler, Handlers.ExceptionHandler>();
             services.AddCorsPolicy(appSettings.CorsConfiguration);
+            services.AddRooms<Room>();
+            services.AddPlayers<Player>();
+            services.AddPlayerRooms<Room,Player>();
             services.AddHostedService<GameServerWorker>();
+            services.AddJsonSerializeOptions(() => new JsonSerializerOptions()
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true,
+                WriteIndented = true,
+                AllowTrailingCommas = true,
+                ReadCommentHandling = JsonCommentHandling.Skip,
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                
+            });
+            services.AddServices();
+            
             return services;
         }
         private static void Configure(IApplicationBuilder app, IHostEnvironment env, AppSettings appSettings, CorsPolicyName corsPolicyName)
         {
-            app.UseSwaggerDocumentation(appSettings.SwaggerConfiguration);
             app.ConfigureExceptionHandling(env);
+            app.UseSwaggerDocumentation(appSettings.SwaggerConfiguration);
+            
             app.UseCors(corsPolicyName);
             if (env.IsDevelopment())
                 app.UseSwaggerDocumentation(appSettings.SwaggerConfiguration);

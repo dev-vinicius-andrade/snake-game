@@ -18,7 +18,7 @@ public class ContainerService
         _appSettings = appSettings;
     }
 
-    public async Task<IEnumerable<GameServerInformation>> GetAvailableServersAsync(CancellationToken cancellationToken=default)
+    public async Task<IEnumerable<GameServerInformation>> GetRunningServersAsync(CancellationToken cancellationToken=default)
     {
         var containers = await _dockerClient.Containers.ListContainersAsync(new ContainersListParameters
         {

@@ -1,7 +1,11 @@
-﻿using System.Text.Encodings.Web;
+﻿using System.Reflection;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Library.Extensions.DependencyInjection.Abstractions;
+using Library.Extensions.DependencyInjection.Attributes;
+using Library.Extensions.DependencyInjection.Constants;
+using Library.Extensions.DependencyInjection.Entities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -70,6 +74,34 @@ public static class DependencyInjection
         default:
           throw new ArgumentOutOfRangeException(nameof (serviceLifetime), (object) serviceLifetime, null);
       }
+    }
+    public static IEnumerable<Type> GetAllAutoImportTypes(this IServiceCollection services, Assembly assembly=null)
+    {
+        var persistedAssembly  = assembly?? Assembly.GetEntryAssembly();
+        return persistedAssembly?.GetTypes().Where(t => t.GetCustomAttribute<AutoImportAttribute>() != null)?.ToList() ?? new List<Type>();
+    }
+    public static IServiceCollection AddServices(this IServiceCollection services, Assembly assembly = null)
+    {
+        var existingServicesTypes = services.GetAllAutoImportTypes(assembly);
+        foreach (var serviceType in existingServicesTypes)
+            AutoImportType(services, serviceType);
+        
+        return services;
+    }
+
+    private static void AutoImportType(this IServiceCollection services, Type serviceType)
+    {
+        var allInterfaces = serviceType.GetInterfaces();
+        var minimalInterfaces = (from iType in allInterfaces
+            where !allInterfaces.Any(t => t.GetInterfaces()
+                .Contains(iType))
+            select iType).ToList();
+        foreach (var interfaceType in minimalInterfaces)
+        {
+            var autoImportAttribute = serviceType.GetCustomAttribute<AutoImportAttribute>();
+            if (autoImportAttribute == null) continue;
+            services.Add(new ServiceDescriptor(interfaceType, serviceType, autoImportAttribute.ServiceLifetime));
+        }
     }
 
     public static void Add<TService, TImplementation>(

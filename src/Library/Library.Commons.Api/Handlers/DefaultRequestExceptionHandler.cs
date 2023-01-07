@@ -6,7 +6,7 @@ namespace Library.Commons.Api.Handlers;
 
 internal sealed class DefaultRequestExceptionHandler : BaseRequestExceptionHandler, IDefaultRequestExceptionHandler
 {
-    protected override HttpStatusCode GetStatusCodeFroNotHandledExceptionType(Exception exception)
+    protected override HttpStatusCode GetStatusCodeFromNotHandledExceptionType(Exception exception)
     {
         return HttpStatusCode.BadRequest;
     }

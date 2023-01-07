@@ -18,7 +18,7 @@ public static class ExceptionHandler
     public static bool HasRequestExceptionHandler(this IApplicationBuilder app)
     {
         using var scope = app.ApplicationServices.CreateScope();
-        var services = scope.ServiceProvider.GetServices<IDefaultRequestExceptionHandler>();
+        var services = scope.ServiceProvider.GetServices<IRequestExceptionHandler>();
         return services.Any();
     }
     public static void AddDefaultRequestMiddleware(this IApplicationBuilder app, IHostEnvironment env)

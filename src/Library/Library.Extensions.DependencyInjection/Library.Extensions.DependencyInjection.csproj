@@ -20,4 +20,8 @@
 	<ItemGroup>
 	  <ProjectReference Include="..\Library.Commons\Library.Commons.csproj" />
 	</ItemGroup>
+	<ItemGroup>
+	  <Folder Include="Constants\" />
+	  <Folder Include="Interfaces\" />
+	</ItemGroup>
 </Project>
