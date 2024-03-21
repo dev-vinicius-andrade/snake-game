@@ -1,0 +1,24 @@
+{
+  "profiles": {
+    "Docker Compose": {
+      "commandName": "DockerCompose",
+      "commandVersion": "1.0",
+      "composeProfile": {
+        "includes": [
+          "core"
+        ]
+      }
+    },
+    "Docker Compose(local-environment)": {
+      "commandName": "DockerCompose",
+      "commandVersion": "1.0",
+      "serviceActions": {
+        "application.game.server": "StartDebugging",
+        "application.manager.api": "StartDebugging",
+        "rabbitmq": "StartWithoutDebugging",
+        "redis": "StartWithoutDebugging",
+        "redis-commander": "StartWithoutDebugging"
+      }
+    }
+  }
+}

@@ -1,6 +1,4 @@
-﻿using Library.Extensions.DependencyInjection.Entities;
-
-namespace Library.Extensions.DependencyInjection.Constants;
+﻿namespace Library.Extensions.DependencyInjection.Constants;
 
 public class ServicesConstants
 {

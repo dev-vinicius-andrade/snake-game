@@ -2,12 +2,13 @@
 
 namespace Library.Commons.Game.Domain.Interfaces.Services;
 
-public interface IRoomsService<out TRoom> :IAvailableService
-where TRoom : class, IRoom
+public interface IRoomsService :IAvailableService
 {
-    TRoom CreateRoom();
-    TRoom GetRoom(Guid id);
-    IEnumerable<TRoom> GetRooms();
-    IEnumerable<TRoom> GetAvailableRooms();
-    TRoom DeleteRoom(Guid id);
+    IRoom CreateRoom();
+    IRoom? GetRoom(ITrackableId id);
+    IEnumerable<IRoom> GetRooms();
+    IEnumerable<IRoom> GetAvailableRooms();
+    IRoom DeleteRoom(ITrackableId id);
+    bool CanCreate();
+
 }

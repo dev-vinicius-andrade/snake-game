@@ -1,0 +1,11 @@
+<mat-slide-toggle
+  [checked]="checked"
+  (toggleChange)="toggleTheme()"
+  [color]="color"
+>
+  <div class="flex justify-center items-center w-full h-full">
+    <mat-icon>{{
+      themeService.isDarkMode() ? "nights_stay" : "wb_sunny"
+    }}</mat-icon>
+  </div>
+</mat-slide-toggle>

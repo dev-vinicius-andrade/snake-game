@@ -8,4 +8,7 @@ public record RoomsConfiguration
     public int MaxRooms { get; set; }
     [JsonPropertyName("maxPlayersPerRoom")]
     public int MaxPlayersPerRoom { get; set; }
+
+    [JsonPropertyName("maxFoods")]
+    public int MaxFoods { get; set; }
 }

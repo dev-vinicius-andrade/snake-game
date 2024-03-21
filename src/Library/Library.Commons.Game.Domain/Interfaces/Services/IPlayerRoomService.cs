@@ -2,14 +2,17 @@
 
 namespace Library.Commons.Game.Domain.Interfaces.Services;
 
-public interface IPlayerRoomService<in TRoom, in TPlayer>
-    where TRoom : class, IRoom
-    where TPlayer : class, IPlayer
+public interface IPlayerRoomService
+
 {
     
-    bool ConnectPlayer(TPlayer player, TRoom room);
-    bool DisconnectPlayer(TPlayer player, TRoom room);
-    long CountPlayers(TRoom room);
-    bool IsPlayerConnected(TPlayer player, TRoom room);
-    bool IsRoomFull(TRoom room);
+    bool ConnectPlayer(IPlayer player, IRoom? room);
+    bool DisconnectPlayer(IPlayer player, IRoom room);
+    long CountPlayers(IRoom room);
+    bool IsPlayerConnected(IPlayer player, IRoom room);
+    bool IsRoomFull(IRoom room);
+    IReadOnlyDictionary<Guid, IList<IPlayer>> GetRoomsPlayers();
+
+    ITrackableId? GetRoomTrackableId(IPlayer player);
+    void UpdatePlayer(IPlayer player, IRoom gameStateRoom);
 }

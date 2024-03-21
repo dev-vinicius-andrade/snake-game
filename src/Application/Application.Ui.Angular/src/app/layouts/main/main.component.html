@@ -1,0 +1,22 @@
+<div class="flex flex-col h-full">
+  <p-menubar [model]="items" styleClass="bg-app-background text-app-text">
+    <ng-template pTemplate="start">
+      <div class="ml-5 mr-2">
+        <img [src]="icon()" height="40" class="w-14 h-14" alt="logo" />
+      </div>
+    </ng-template>
+    <ng-template pTemplate="end">
+      <app-theme-toggle class="mr-5" />
+    </ng-template>
+  </p-menubar>
+  <div class="flex-grow">
+    <router-outlet />
+  </div>
+  <div class="w-full text-center mb-2">
+    Developed by
+    <a href="https://github.com/dev-vinicius-andrade" target="_blank"
+      >Vinicius Andrade
+      <i class="pi pi-github ml-2"></i>
+    </a>
+  </div>
+</div>

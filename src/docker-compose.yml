@@ -6,9 +6,49 @@ services:
     build:
       context: .
       dockerfile: Application/Application.Manager.Api/Dockerfile
+    profiles:
+        - all
+        - core
+    networks:
+      - snake-game
   application.game.server:
     image: ${DOCKER_REGISTRY-}snake-game/server
     build:
       context: .
       dockerfile: Application/Application.Game.Server/Dockerfile
+    profiles:
+        - all
+        - core
+    networks:
+      - snake-game
 
+  redis:
+    hostname: redis
+    image: redis
+    networks:
+      - snake-game
+    profiles:
+        - all
+  redis-commander:
+    hostname: redis-commander
+    image: rediscommander/redis-commander:latest
+    networks:
+      - snake-game
+    environment:
+    - REDIS_HOSTS=local:redis:6379
+    ports:
+    - "8081:8081"
+    profiles:
+        - all
+  rabbitmq:
+    image: rabbitmq:management
+    container_name: 'rabbitmq'
+    networks:
+      - snake-game
+    ports:
+        - 15672:15672
+    profiles:
+        - all
+networks:
+  snake-game:
+    driver: bridge

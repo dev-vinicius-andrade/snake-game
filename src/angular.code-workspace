@@ -1,0 +1,117 @@
+{
+  "folders": [
+    {
+      "path": "./Application/Application.Ui.Angular"
+    }
+  ],
+  "settings": {
+    "terminal.integrated.cwd": "${workspaceFolder}"
+  },
+
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "type": "msedge",
+        "request": "launch",
+        "name": "localhost (Edge)",
+        "url": "http://localhost:4200",
+        "webRoot": "${workspaceFolder}",
+        "sourceMaps": true,
+        "preLaunchTask": "npm:start",
+        "postDebugTask": "terminate:all:tasks"
+      },
+      {
+        "type": "chrome",
+        "request": "launch",
+        "name": "localhost (Chrome)",
+        "url": "http://localhost:4200",
+        "webRoot": "${workspaceFolder}",
+        "sourceMaps": true,
+        "preLaunchTask": "npm:start"
+      }
+    ]
+  },
+  "tasks": {
+    // For more information, visit: https://go.microsoft.com/fwlink/?LinkId=733558
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "type": "shell",
+        "label": "npm:install",
+        "command": "npm install",
+        "windows": {
+          "command": "cmd",
+          "args": [
+            "/C",
+            "if not exist ${workspaceFolder}/code/client/node_modules  npm install"
+          ]
+        },
+        "linux": {
+          "command": "if [ -d ${workspaceFolder}/code/client/node_modules ]; then npm install fi"
+        },
+        "osx": {
+          "command": "if [ -d ${workspaceFolder}/code/client/node_modules ]; then npm install fi"
+        }
+      },
+      {
+        "type": "shell",
+        "label": "npm:start",
+        "command": "npm run start",
+        "isBackground": true,
+        "problemMatcher": {
+          "owner": "typescript",
+          "pattern": "$tsc",
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": {
+              "regexp": "(.*?)"
+            },
+            "endsPattern": {
+              "regexp": "bundle generation complete"
+            }
+          }
+        },
+        "dependsOn": ["npm:install"]
+      },
+      {
+        "label": "terminate:all:tasks",
+        "command": "echo ${input:terminate}",
+        "type": "shell",
+        "problemMatcher": []
+      }
+      // {
+      //   "type": "npm",
+      //   "label": "npm:test",
+      //   "script": "test",
+      //   "isBackground": true,
+      //   "problemMatcher": {
+      //     "owner": "typescript",
+      //     "pattern": "$tsc",
+      //     "background": {
+      //       "activeOnStart": true,
+      //       "beginsPattern": {
+      //         "regexp": "(.*?)"
+      //       },
+      //       "endsPattern": {
+      //         "regexp": "bundle generation complete"
+      //       }
+      //     }
+      //   }
+      // }
+    ],
+    "inputs": [
+      {
+        "id": "terminate",
+        "type": "command",
+        "command": "workbench.action.tasks.terminate",
+        "args": "terminateAll"
+      }
+    ]
+  },
+
+  "extensions": {
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=827846
+    "recommendations": ["angular.ng-template"]
+  }
+}

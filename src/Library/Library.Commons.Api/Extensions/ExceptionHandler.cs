@@ -1,7 +1,6 @@
 ﻿using Library.Commons.Api.Handlers;
 using Library.Commons.Api.Interfaces;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 

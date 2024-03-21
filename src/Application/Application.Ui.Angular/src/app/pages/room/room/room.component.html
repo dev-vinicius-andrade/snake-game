@@ -1,0 +1,155 @@
+<div class="relative flex h-full justify-center">
+  @if (died){
+  <div class="flex flex-col justify-center items-center">
+    <div class="w-full text-center">
+      <span class="text-2xl">You died...</span>
+    </div>
+    <div class="w-full text-center">
+      <span class="text-2xl">
+        <span>Score: </span>
+        <span class="text-green-500">{{ currentScore ?? 0 }}</span>
+      </span>
+    </div>
+    <div class="w-full text-center mt-10">
+      <p-button
+        label="Leave room"
+        styleClass="p-3 rounded-md w-full"
+        [outlined]="true"
+        (onClick)="leaveRoom()"
+      ></p-button>
+    </div>
+  </div>
+
+  } @else if(connected) {
+  <div
+    class="absolute top-0 right-0 shadow-md rounded-lg max-h-1/4 max-w-1/6 opacity-50"
+  >
+    <span>Score</span>
+    @for (score of scores; track $index) {
+    <div class="flex flex-row text-xs justify-start align-start gap-2">
+      <span class="basis-1">{{ $index + 1 }}. </span>
+      <span class="basis text-wrap">{{ score.nickname }}</span>
+      <span class="basis">{{ score.currentScore }}</span>
+    </div>
+    }
+  </div>
+
+  <div class="mt-5 mb-5 shadow rounded-lg w-10/12">
+    <app-game-canvas class="grow w-full h-full relative">
+      <div class="top-0 mt-2 absolute w-full grow flex flex-row justify-end">
+        <div class="relative w-full flex">
+          <div class="justify-start grow ml-5">
+            @if(currentScore){
+            <span class="text-xs">Your score:{{ currentScore }}</span>
+            }
+          </div>
+          <p-overlayPanel #op>
+            <div class="grid">
+              <div class="grid-rows-1">
+                <span class="text-xs grid row-span-full"
+                  >Room Id: {{ roomId }}</span
+                >
+                @if(userConnectionId){
+                <span class="text-xs grid row-span-full"
+                  >ConnectionId Id: {{ userConnectionId }}
+                </span>
+                }
+                <span class="text-xs grid row-span-full"
+                  >Player Trackable Id: {{ roomId }}
+                </span>
+              </div>
+              <div
+                class="grid-rows-2 mt-5 grow justify-end align-end align-items-end mr-2"
+              >
+                <p-button
+                  label="Leave room"
+                  styleClass="p-3 rounded-md w-full"
+                  [outlined]="true"
+                  (onClick)="leaveRoom()"
+                ></p-button>
+              </div>
+            </div>
+          </p-overlayPanel>
+          <div class="justify-end">
+            <i
+              [class]="connectionIconCssClasses"
+              [pTooltip]="tooltipContent"
+              tooltipPosition="bottom"
+              tooltipStyleClass="mt-5"
+            ></i>
+            <ng-template #tooltipContent>
+              <span>{{ connectionLabel }}</span>
+            </ng-template>
+            <p-button
+              (click)="op.toggle($event)"
+              icon="pi pi-bars"
+              class="justify-end"
+            ></p-button>
+          </div>
+        </div>
+      </div>
+    </app-game-canvas>
+  </div>
+  } @else {
+  <div class="flex flex-col justify-center items-center">
+    <div class="w-full text-center">
+      <span class="text-2xl"
+        >Connecting
+
+        <i class="pi pi-circle-fill text-[5px] animate-bounce ml-1"></i>
+        <i class="pi pi-circle-fill text-[5px] animate-bounce ml-1"></i>
+        <i class="pi pi-circle-fill text-[5px] animate-bounce ml-1"></i>
+      </span>
+    </div>
+  </div>
+  }
+  <!-- <div>
+          <div>
+            <div class="w-2/4">
+              <span class="text-xs grid row-span-full"
+                >Room Id: {{ roomId }}</span
+              >
+              @if(userConnectionId){
+              <span class="text-xs grid row-span-full"
+                >ConnectionId Id: {{ userConnectionId }}
+              </span>
+              }
+              <span class="text-xs grid row-span-full"
+                >Player Trackable Id: {{ roomId }}
+              </span>
+            </div>
+            <div class="w-2/4 flex justify-end align-end align-items-end mr-2">
+              <p-button
+                label="Leave room"
+                styleClass="p-3 rounded-md  w-44"
+                [outlined]="true"
+                (onClick)="leaveRoom()"
+              ></p-button>
+            </div>
+          </div>
+        </div> -->
+
+  <!-- <div class="-bottom-[100px] absolute w-10/12">
+    <div class="flex w-full">
+      <div class="w-2/4">
+        <span class="text-xs grid row-span-full">Room Id: {{ roomId }}</span>
+        @if(userConnectionId){
+        <span class="text-xs grid row-span-full"
+          >ConnectionId Id: {{ userConnectionId }}
+        </span>
+        }
+        <span class="text-xs grid row-span-full"
+          >Player Trackable Id: {{ roomId }}
+        </span>
+      </div>
+      <div class="w-2/4 flex justify-end align-end align-items-end mr-2">
+        <p-button
+          label="Leave room"
+          styleClass="p-3 rounded-md  w-44"
+          [outlined]="true"
+          (onClick)="leaveRoom()"
+        ></p-button>
+      </div>
+    </div>
+  </div> -->
+</div>

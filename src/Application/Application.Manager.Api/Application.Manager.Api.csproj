@@ -1,8 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
-    <Nullable>disable</Nullable>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>0b0caf65-691d-4fbd-bf34-7e22e69591cc</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
@@ -13,18 +13,20 @@
 
 
   <ItemGroup>
-    <Folder Include="Controllers\" />
-    <Folder Include="Services\" />
+    <Folder Include="Authentication\" />
   </ItemGroup>
 
 
   <ItemGroup>
     <PackageReference Include="Docker.DotNet" Version="3.125.12" />
+    <PackageReference Include="MediatR" Version="12.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.3" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.17.2" />
   </ItemGroup>
 
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Library\Library.Commons.Eventbus.RabbitMq\Library.Commons.Eventbus.RabbitMq.csproj" />
     <ProjectReference Include="..\..\Library\Library.Commons.Game.Server\Library.Commons.Game.Server.csproj" />
   </ItemGroup>
 

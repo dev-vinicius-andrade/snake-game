@@ -14,5 +14,5 @@ public class SwaggerConfiguration
     public string Project { get; set; } = string.Empty;
 
     public List<string> Servers { get; set; } = new();
-    public OpenApiSecurityScheme AuthenticationConfiguration { get; set; }
+    public OpenApiSecurityScheme? AuthenticationConfiguration { get; set; }
 }

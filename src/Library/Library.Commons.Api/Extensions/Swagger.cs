@@ -8,11 +8,23 @@ namespace Library.Commons.Api.Extensions;
 
 public static class Swagger
 {
-    public static void AddSwaggerDocumentation(this IServiceCollection services, SwaggerConfiguration swaggerConfig)
+    public static void AddSwaggerDocumentation(this IServiceCollection services, SwaggerConfiguration swaggerConfig )
     {
+        services.Configure<SwaggerConfiguration>(options =>
+        {
+            options.Title = swaggerConfig.Title;
+            options.Name = swaggerConfig.Name;
+            options.Endpoint = swaggerConfig.Endpoint;
+            options.Version = swaggerConfig.Version;
+            options.Description = swaggerConfig.Description;
+            options.Project = swaggerConfig.Project;
+            options.Servers = swaggerConfig.Servers;
+            options.AuthenticationConfiguration = swaggerConfig.AuthenticationConfiguration;
+        });
         services.AddSwaggerGen(options =>
         {
             options.OperationFilter<SwaggerOptionalRouteParameterOperationFilter>();
+            options.OperationFilter<SwaggerAuthApiKeyOperationFilter>();
             options.SwaggerDoc(swaggerConfig.Version, new OpenApiInfo
             {
                 Title = swaggerConfig.Title,
@@ -30,11 +42,7 @@ public static class Swagger
                 options.IncludeXmlComments(file);
             }
 
-            if (swaggerConfig.AuthenticationConfiguration == null) return;
-
-            options.AddSecurityDefinition(swaggerConfig.AuthenticationConfiguration.Name,
-                swaggerConfig.AuthenticationConfiguration);
-            options.AddSecurityRequirement(new OpenApiSecurityRequirement { { swaggerConfig.AuthenticationConfiguration, new List<string>() } });
+          
         });
     }
     public static void UseSwaggerDocumentation(this IApplicationBuilder app, SwaggerConfiguration swaggerConfig)

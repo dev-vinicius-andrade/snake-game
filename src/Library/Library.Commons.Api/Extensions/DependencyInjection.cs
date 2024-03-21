@@ -4,7 +4,6 @@ using Library.Commons.Api.Entities.Configurations;
 using Library.Commons.Api.Handlers;
 using Library.Commons.Api.Interfaces;
 using Library.Extensions.DependencyInjection.Extensions;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 
