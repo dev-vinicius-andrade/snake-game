@@ -1,7 +1,6 @@
 export declare type AppSettings = {
   integrations: {
     api: IntegrationApiSettings;
-    hubs: {};
   };
 };
 export declare type IntegrationApiSettings = {

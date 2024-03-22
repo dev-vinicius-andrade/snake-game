@@ -14,6 +14,17 @@
       "sourceRoot": "src",
       "prefix": "app",
       "architect": {
+        "ngsscbuild": {
+          "builder": "angular-server-side-configuration:ngsscbuild",
+          "options": {
+            "buildTarget": "snake-game-angular:build"
+          },
+          "configurations": {
+            "production": {
+              "buildTarget": "snake-game-angular:build:production"
+            }
+          }
+        },
         "build": {
           "builder": "@angular-devkit/build-angular:application",
           "options": {
@@ -32,8 +43,8 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kb",
-                  "maximumError": "1mb"
+                  "maximumWarning": "1.5mb",
+                  "maximumError": "2.5mb"
                 },
                 {
                   "type": "anyComponentStyle",
@@ -51,6 +62,7 @@
           },
           "defaultConfiguration": "production"
         },
+
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {

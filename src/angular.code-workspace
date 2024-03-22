@@ -29,6 +29,16 @@
         "webRoot": "${workspaceFolder}",
         "sourceMaps": true,
         "preLaunchTask": "npm:start"
+      },
+      {
+        "type": "msedge",
+        "request": "launch",
+        "name": "(docker) - localhost (Edge)",
+        "url": "http://localhost:4200",
+        "webRoot": "${workspaceFolder}",
+        "sourceMaps": true,
+        "preLaunchTask": "docker:run",
+        "postDebugTask": "terminate:all:tasks"
       }
     ]
   },
@@ -79,26 +89,32 @@
         "command": "echo ${input:terminate}",
         "type": "shell",
         "problemMatcher": []
+      },
+      {
+        "type": "docker-build",
+        "label": "docker:build",
+        "dockerBuild": {
+          "context": "${workspaceFolder}",
+          "dockerfile": "${workspaceFolder}/Dockerfile",
+          "tag": "snake-game-angular"
+        }
+      },
+      {
+        "type": "docker-run",
+        "label": "docker:run",
+        "dockerRun": {
+          "name": "snake-game-angular",
+          "image": "snake-game-angular",
+          "ports": [
+            {
+              "hostPort": 4200,
+              "containerPort": 80
+            }
+          ],
+          "containerName": "snake-game-angular"
+        },
+        "dependsOn": ["docker:build"]
       }
-      // {
-      //   "type": "npm",
-      //   "label": "npm:test",
-      //   "script": "test",
-      //   "isBackground": true,
-      //   "problemMatcher": {
-      //     "owner": "typescript",
-      //     "pattern": "$tsc",
-      //     "background": {
-      //       "activeOnStart": true,
-      //       "beginsPattern": {
-      //         "regexp": "(.*?)"
-      //       },
-      //       "endsPattern": {
-      //         "regexp": "bundle generation complete"
-      //       }
-      //     }
-      //   }
-      // }
     ],
     "inputs": [
       {
