@@ -55,12 +55,17 @@ You can run the project using the following command:
 
 ### Running as Docker Container
 
-PS: The docker image must be built before running it.
 You can run the docker container using the following command:
 
 ```bash
-  docker run -d -p 4200:80 snake-game-angular
+  docker run -d -p 4200:80 -e INTEGRATIONS_API_MANAGER_BASEURL=<URL> snake-game-angular
 ```
+
+#### Running as Docker Container Requirements
+
+- You need to have the server running in order to play the game.
+- You need to replace the `<URL>` with the server URL.
+  - Example: `http://localhost:5000`
 
 ### Running as Docker Compose
 
