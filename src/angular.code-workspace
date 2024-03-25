@@ -2,6 +2,10 @@
   "folders": [
     {
       "path": "./Application/Application.Ui.Angular"
+    },
+    {
+      "path": "${workspaceFolder}/../../.github",
+      "name": ".github"
     }
   ],
   "settings": {

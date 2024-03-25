@@ -1,10 +1,13 @@
-name: Docker Build and Push
+name: Docker Build and Push Angular
 
 on:
   workflow_dispatch:
   push:
     tags:
       - 'v*'
+    paths: 
+      - 'src/Application/Application.Ui.Angular/**'
+      - '.github/workflows/docker-build-and-push-application-ui-angular.yml'
     paths-ignore:
       - 'docs/**'
       - 'README.md'
