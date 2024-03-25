@@ -17,7 +17,7 @@ on:
 jobs:
   build:
     env:
-      DOCKER_REPOSITORY_NAME: 'dev-vinicius-andrade/snake-game/angular'
+      DOCKER_REPOSITORY_NAME: 'dev-vinicius-andrade/snake-game-application-ui-angular'
       DOCKER_REGISTRY: ${{ secrets.CODESCOVERY_REGISTRY }}
       DOCKER_USERNAME: ${{ secrets.CODESCOVERY_REGISTRY_USERNAME }}
       DOCKER_PASSWORD: ${{ secrets.CODESCOVERY_REGISTRY_TOKEN }}
