@@ -53,6 +53,8 @@ jobs:
       with:
         platforms: linux/amd64,linux/arm64
         push: ${{ github.event_name != 'pull_request' }}
+        file: src/Application/Application.Ui.Angular/Dockerfile
+        context: src/Application/Application.Ui.Angular
         tags: |
           ${{ steps.meta.outputs.tags }}
          
