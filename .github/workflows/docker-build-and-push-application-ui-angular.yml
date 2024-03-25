@@ -1,4 +1,4 @@
-name: Docker Build and Push Angular
+name: Docker Build and Push Application.Ui.Angular
 
 on:
   workflow_dispatch:
@@ -8,20 +8,8 @@ on:
     paths: 
       - 'src/Application/Application.Ui.Angular/**'
       - '.github/workflows/docker-build-and-push-application-ui-angular.yml'
-    paths-ignore:
-      - 'docs/**'
-      - 'README.md'
-      - 'LICENSE'
-      - 'src/Application/Application.Game.Server'
-      - 'src/Application/Application.Manager.Api'
-      - 'src/Application/Application.Ui.Vue'
-      - 'src/Domain'
-      - 'src/Library'
-      - 'src/**/*.code-workspace'
-      - 'src/docker-compose.dcproj'
-      - 'src/docker-compose.yml'
-      - 'src/docker-compose.override.yml'
-      - 'src/launchSettings.json'
+      #IGNORED FILES
+      - '!src/Application/Application.Ui.Angular/**/*.md'
   pull_request:
     branches:
       - 'main'
