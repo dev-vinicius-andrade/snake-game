@@ -40,7 +40,16 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Domain.Game", "Domain\Domai
 EndProject
 Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "Application.Ui.Angular", "Application\Application.Ui.Angular\Application.Ui.Angular.esproj", "{EBCFDAC3-DA15-4AEE-9FBD-CF5D10417C45}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Library.Commons.Eventbus.RabbitMq", "Library\Library.Commons.Eventbus.RabbitMq\Library.Commons.Eventbus.RabbitMq.csproj", "{7381275B-6411-4F40-BCA2-F212281E69DD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Library.Commons.Eventbus.RabbitMq", "Library\Library.Commons.Eventbus.RabbitMq\Library.Commons.Eventbus.RabbitMq.csproj", "{7381275B-6411-4F40-BCA2-F212281E69DD}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{20E2E25E-32D1-4B4E-8DBA-8ED7F0B0D2C2}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{8A1A2C18-A1EF-4028-B977-345980E9CD44}"
+	ProjectSection(SolutionItems) = preProject
+		..\.github\workflows\docker-build-and-push-application-game-server.yml = ..\.github\workflows\docker-build-and-push-application-game-server.yml
+		..\.github\workflows\docker-build-and-push-application-manager-api.yml = ..\.github\workflows\docker-build-and-push-application-manager-api.yml
+		..\.github\workflows\docker-build-and-push-application-ui-angular.yml = ..\.github\workflows\docker-build-and-push-application-ui-angular.yml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -116,6 +125,8 @@ Global
 		{CBA90A3D-1469-446C-A470-451C1376E7D8} = {5265707D-60A5-40C1-B2C6-2D050C5B85A5}
 		{EBCFDAC3-DA15-4AEE-9FBD-CF5D10417C45} = {D9CE4E22-E669-4DC3-86EE-A3A8E4A3A0FE}
 		{7381275B-6411-4F40-BCA2-F212281E69DD} = {C0B41B9E-ACDF-4312-99EF-B0D02F3334C4}
+		{20E2E25E-32D1-4B4E-8DBA-8ED7F0B0D2C2} = {6C6FC589-D12F-4635-9878-9AD804AE961D}
+		{8A1A2C18-A1EF-4028-B977-345980E9CD44} = {20E2E25E-32D1-4B4E-8DBA-8ED7F0B0D2C2}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {C91FD109-B199-4EE6-A70C-60CBFB5656EA}
