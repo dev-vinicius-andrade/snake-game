@@ -1,11 +1,11 @@
-FROM node:18.17.1 as build
+FROM --platform=$BUILDPLATFORM node:18.17.1 as build
 WORKDIR /code
 COPY package.json package-lock.json ./
 RUN npm install
 COPY . .
 RUN npm run build-docker
 
-FROM nginx:alpine
+FROM --platform=$BUILDPLATFORM nginx:alpine
 EXPOSE 80
 # Install ngssc binary
 ADD https://github.com/kyubisation/angular-server-side-configuration/releases/download/v17.0.2/ngssc_64bit /usr/sbin/ngssc
