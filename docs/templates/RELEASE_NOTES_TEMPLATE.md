@@ -8,6 +8,3 @@ This release contains the following images:
 
 
 Checkout the Checkout the angular app [docs](https://github.com/dev-vinicius-andrade/snake-game/blob/main/README.md) to see more information about running the apps. 
-
-> dsadsaasd
-
