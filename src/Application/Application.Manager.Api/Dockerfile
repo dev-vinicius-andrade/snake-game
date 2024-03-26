@@ -1,11 +1,11 @@
 #See https://aka.ms/containerfastmode to understand how Visual Studio uses this Dockerfile to build your images for faster debugging.
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 EXPOSE 80
 EXPOSE 443
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 COPY ["Application/Application.Manager.Api/Application.Manager.Api.csproj", "Application/Application.Manager.Api/"]
 COPY ["Library/Library.Commons.Api/Library.Commons.Api.csproj", "Library/Library.Commons.Api/"]
@@ -17,10 +17,10 @@ COPY . .
 WORKDIR "/src/Application/Application.Manager.Api"
 RUN dotnet build "Application.Manager.Api.csproj" -c Release -o /app/build
 
-FROM build AS publish
+FROM --platform=$BUILDPLATFORM build AS publish
 RUN dotnet publish "Application.Manager.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-FROM base AS final
+FROM --platform=$BUILDPLATFORM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "Application.Manager.Api.dll"]
