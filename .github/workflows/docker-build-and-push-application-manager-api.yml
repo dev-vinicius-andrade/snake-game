@@ -14,7 +14,7 @@ on:
 jobs:
   build:
     env:
-      DOCKER_ROOT_CONTEXT: 'src/Application/Application.Manager.Api'
+      DOCKER_ROOT_CONTEXT: 'src'
       DOCKER_REPOSITORY_NAME: 'dev-vinicius-andrade/snake-game/application/manager/api'
       DOCKER_REGISTRY: ${{ secrets.CODESCOVERY_REGISTRY }}
       DOCKER_USERNAME: ${{ secrets.CODESCOVERY_REGISTRY_USERNAME }}
@@ -51,7 +51,7 @@ jobs:
       with:
         platforms: linux/amd64,linux/arm64
         push: ${{ github.event_name != 'pull_request' }}
-        file: ${{env.DOCKER_ROOT_CONTEXT}}/Dockerfile
+        file: ${{env.DOCKER_ROOT_CONTEXT}}/Application/Application.Manager.Api/Dockerfile
         context: ${{env.DOCKER_ROOT_CONTEXT}}
         tags: |
           ${{ steps.meta.outputs.tags }}

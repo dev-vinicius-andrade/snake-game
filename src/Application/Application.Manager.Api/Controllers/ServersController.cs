@@ -16,7 +16,6 @@ public class ServersController : Controller
         _containersService = containersService;
     }
 
-    // GET
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken cancellationToken=default)
     {

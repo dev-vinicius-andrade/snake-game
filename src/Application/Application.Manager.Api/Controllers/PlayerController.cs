@@ -17,7 +17,6 @@ public class PlayerController : Controller
         _hubContext = hubContext;
     }
 
-    // GET
     [HttpPost("{id}/joined")]
     [ApiKeyAuth]
     public async Task<IActionResult> Joined(string id,PlayerJoinedRequest request,CancellationToken cancellationToken=default)

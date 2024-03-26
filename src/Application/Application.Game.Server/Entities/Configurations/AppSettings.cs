@@ -8,8 +8,6 @@ namespace Application.Game.Server.Entities.Configurations;
 
 public class AppSettings:BaseAppSettings
 {
-    //[JsonPropertyName("gameServerConfiguration")]
-    //public GameServerConfiguration GameServerConfiguration { get; set; }
     [JsonPropertyName("swaggerConfiguration")]
     public SwaggerConfiguration SwaggerConfiguration { get; set; } = null!;
 

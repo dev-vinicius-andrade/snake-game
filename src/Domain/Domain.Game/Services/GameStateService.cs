@@ -259,20 +259,13 @@ public class GameStateService : IGameStateService
             newCurrentPosition.X += movementPerTickX * _snakeConfiguration.Value.HeadSize;
             newCurrentPosition.Y += movementPerTickY * _snakeConfiguration.Value.HeadSize;
 
-            // Wrapping logic for moving past the game area edges
-            //newCurrentPosition.X = _pointAxisServices.WrapPosition(newCurrentPosition.X, gameState.Room.Width, _snakeConfiguration.Value.HeadSize);
-            //newCurrentPosition.Y = _pointAxisServices.WrapPosition(newCurrentPosition.Y, gameState.Room.Height, _snakeConfiguration.Value.HeadSize);
 
             obstacle.CurrentPosition = newCurrentPosition;
             if (_obstacleService.IsOnEndPosition(obstacle))
-                toRemove.Add(id); // Add to the removal list instead of removing immediately
+                toRemove.Add(id); 
         }
 
-        // Remove obstacles that have reached their end position
-        foreach (var id in toRemove)
-        {
-            gameState.Obstacles.Remove(id);
-        }
+        foreach (var id in toRemove) gameState.Obstacles.Remove(id);
 
         return Task.CompletedTask;
 

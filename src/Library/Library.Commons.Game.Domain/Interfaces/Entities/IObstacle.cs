@@ -1,6 +1,4 @@
-﻿using System.Numerics;
-
-namespace Library.Commons.Game.Domain.Interfaces.Entities;
+﻿namespace Library.Commons.Game.Domain.Interfaces.Entities;
 
 public interface IObstacle: ITrackableId
 {

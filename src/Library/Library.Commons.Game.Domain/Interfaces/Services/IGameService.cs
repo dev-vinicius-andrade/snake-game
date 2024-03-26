@@ -2,5 +2,4 @@
 
 public interface IGameService:IAvailableService
 {
-    //IRoomsService RoomsService { get; }
 }

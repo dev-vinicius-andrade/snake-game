@@ -4,7 +4,6 @@ using Library.Commons.Game.Server.Entities.Hub.Requests;
 using Library.Commons.Game.Server.Interfaces;
 using Microsoft.AspNetCore.SignalR;
 using Library.Commons.Game.Domain.Interfaces.Entities;
-using System;
 
 namespace Application.Game.Server.Hubs
 {
