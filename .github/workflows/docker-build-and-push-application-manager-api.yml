@@ -1,4 +1,4 @@
-name: Docker Build and Push Application.Ui.Angular
+name: Docker Build and Push Application.Manager.Api
 
 on:
   workflow_dispatch:
