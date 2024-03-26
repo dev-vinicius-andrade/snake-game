@@ -7,8 +7,10 @@ services:
       context: .
       dockerfile: Application/Application.Manager.Api/Dockerfile
     profiles:
-        - all
-        - core
+        - server-core-plus-local-enviroment
+        - server-core
+        - server-core-plus-ui-angular
+        - server-core-plus-local-enviroment-plus-ui-angular
     networks:
       - snake-game
   application.game.server:
@@ -16,19 +18,38 @@ services:
     build:
       context: .
       dockerfile: Application/Application.Game.Server/Dockerfile
+    depends_on:
+        - application.manager.api
     profiles:
-        - all
-        - core
+        - server-core-plus-local-enviroment
+        - server-core
+        - server-core-plus-ui-angular
+        - server-core-plus-local-enviroment-plus-ui-angular
     networks:
       - snake-game
-
+  application.ui.angular:
+    image: ${DOCKER_REGISTRY-}snake-game/ui/angular
+    build:
+      context: Application/Application.Ui.Angular
+      dockerfile: Dockerfile
+    depends_on:
+      - application.manager.api
+      - application.game.server
+    profiles:
+        - ui-angular
+        - server-core-plus-ui-angular
+        - server-core-plus-local-enviroment-plus-ui-angular
+    networks:
+      - snake-game
   redis:
     hostname: redis
     image: redis
     networks:
       - snake-game
     profiles:
-        - all
+        - local-enviroment
+        - server-core-plus-local-enviroment
+        - server-core-plus-local-enviroment-plus-ui-angular
   redis-commander:
     hostname: redis-commander
     image: rediscommander/redis-commander:latest
@@ -39,7 +60,9 @@ services:
     ports:
     - "8081:8081"
     profiles:
-        - all
+        - local-enviroment
+        - server-core-plus-local-enviroment
+        - server-core-plus-local-enviroment-plus-ui-angular
   rabbitmq:
     image: rabbitmq:management
     container_name: 'rabbitmq'
@@ -48,7 +71,9 @@ services:
     ports:
         - 15672:15672
     profiles:
-        - all
+        - local-enviroment
+        - server-core-plus-local-enviroment
+        - server-core-plus-local-enviroment-plus-ui-angular
 networks:
   snake-game:
     driver: bridge

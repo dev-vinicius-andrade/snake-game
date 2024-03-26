@@ -8,7 +8,7 @@ export const environment: AppSettings = {
       manager: {
         baseUrl:
           NG_ENV['INTEGRATIONS_API_MANAGER_BASEURL'] ??
-          'https://localhost:60516',
+          'https://localhost:60511',
       },
     },
   },

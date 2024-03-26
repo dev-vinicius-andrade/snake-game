@@ -1,23 +1,47 @@
 {
   "profiles": {
-    "Docker Compose": {
+    "Docker Compose(server-core)": {
       "commandName": "DockerCompose",
       "commandVersion": "1.0",
+      "launchBrowser": true,
+      "launchUrl": "https://localhost:60511/swagger",
       "composeProfile": {
         "includes": [
-          "core"
+          "server-core"
         ]
       }
     },
-    "Docker Compose(local-environment)": {
+    "Docker Compose(server-core-plus-local-environment)": {
       "commandName": "DockerCompose",
       "commandVersion": "1.0",
-      "serviceActions": {
-        "application.game.server": "StartDebugging",
-        "application.manager.api": "StartDebugging",
-        "rabbitmq": "StartWithoutDebugging",
-        "redis": "StartWithoutDebugging",
-        "redis-commander": "StartWithoutDebugging"
+      "launchBrowser": true,
+      "launchUrl": "https://localhost:60511/swagger",
+      "composeProfile": {
+        "includes": [
+          "server-core-plus-local-enviroment"
+        ]
+      }
+    },
+    "Docker Compose(server-core-plus-local-environment-plus-ui-angular)": {
+      "commandName": "DockerCompose",
+      "commandVersion": "1.0",
+      "launchBrowser": true,
+      "launchUrl": "http://localhost:4200",
+      "composeProfile": {
+        "includes": [
+          "server-core-plus-local-enviroment-plus-ui-angular"
+        ]
+      }
+    },
+    "Docker Compose(server-core-plus-ui-angular)": {
+      "commandName": "DockerCompose",
+      "commandVersion": "1.0",
+      "launchBrowser": true,
+      "launchUrl": "http://localhost:4200",
+      "composeProfile": {
+        "includes": [
+          "server-core-plus-ui-angular"
+        ]
       }
     }
   }
