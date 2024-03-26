@@ -1,26 +1,26 @@
 # Snake Game
 Yet another snake game, but it's multiplayer!
 
-As my developing years go by, I noticed that I've never developed a portifolio project that could be shown to someone. 
+As my developing years go by, I noticed that I've never developed a portfolio project that could be shown to someone. 
 
 So I decided to create this project to show some of my skills and knowledge in software development.
 
 This project gathers some of the technologies that I've worked in the past, to create a simple multiplayer snake game.
 
 # Technologies
-- [.NET 8] (https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-8/overview)
-- [Angular 17] (https://angular.io/docs)
-- [RabbitMQ] (https://www.rabbitmq.com/docs)
-- [SignalR] (https://learn.microsoft.com/pt-br/aspnet/core/signalr/introduction?view=aspnetcore-8.0&WT.mc_id=dotnet-35129-website)
-- [Docker] (https://docs.docker.com/get-started/overview/)
-- [Docker Compose] (https://docs.docker.com/compose/)
+- [.NET 8](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-8/overview)
+- [Angular 17](https://angular.io/docs)
+- [RabbitMQ](https://www.rabbitmq.com/docs)
+- [SignalR](https://learn.microsoft.com/pt-br/aspnet/core/signalr/introduction?view=aspnetcore-8.0&WT.mc_id=dotnet-35129-website)
+- [Docker](https://docs.docker.com/get-started/overview/)
+- [Docker Compose](https://docs.docker.com/compose/)
 
 # Architecture
 The project is divided into 3 main parts:
 
 - [Ui](#ui)
-- [Manager Api] (#manager-api)
-- [Game Server] (#game-server)
+- [Manager Api](#manager-api)
+- [Game Server](#game-server)
 
 ![Architecture](docs\images\architecture.png)
 
@@ -64,7 +64,7 @@ Checkout the angular app [docs](https://github.com/dev-vinicius-andrade/snake-ga
 
 The game server is responsible to handle the game state. 
 
-As the main idea is to be able to bootstrap as many game servers you want, the game server connects to a [RabbitMq]([RabbitMQ Documentation | RabbitMQ](https://www.rabbitmq.com/docs)) [Queue](https://www.rabbitmq.com/docs/queues) *binded* to [player-join-request(exchange)](https://www.rabbitmq.com/docs/publishers), checks if there's an available room to the player connects, if not it requeue the message to other server try to handle it.
+As the main idea is to be able to bootstrap as many game servers you want, the game server connects to a [RabbitMq](https://www.rabbitmq.com/docs) [Queue](https://www.rabbitmq.com/docs/queues) *binded* to [player-join-request(exchange)](https://www.rabbitmq.com/docs/publishers), checks if there's an available room to the player connects, if not it requeue the message to other server try to handle it.
 
 If there is an available space in server it sends a request to the [Manager Api](#manager-api) which will notify the ui-client the server data to connect.
 
@@ -113,7 +113,7 @@ But the main ones are:
 }
 ```
 
-All the variables can be overwritten using the .net app settings environment variables [pattern]([Configuration in ASP.NET Core | Microsoft Learn](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/configuration/?view=aspnetcore-8.0))
+All the variables can be overwritten using the .net app settings environment variables [pattern](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/configuration/?view=aspnetcore-8.0)
 
 ### Game Server Notes
 
@@ -152,7 +152,7 @@ To run the game server with docker you can use the following command:
 
 It is responsible to be the middleware between the client and the [server](#game-server).
 
-When a server successfully notified the manager that the player can connect to it, it sends a notification through [SignalR]([Visão geral do ASP.NET Core SignalR | Microsoft Learn](https://learn.microsoft.com/pt-br/aspnet/core/signalr/introduction?view=aspnetcore-8.0&WT.mc_id=dotnet-35129-website)) with the **game-server data** which will be used by the player to connect.
+When a server successfully notified the manager that the player can connect to it, it sends a notification through [SignalR](https://learn.microsoft.com/pt-br/aspnet/core/signalr/introduction?view=aspnetcore-8.0&WT.mc_id=dotnet-35129-website) with the **game-server data** which will be used by the player to connect.
 
 ## Manager Api Configurations
 

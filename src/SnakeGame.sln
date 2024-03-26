@@ -60,6 +60,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "images", "images", "{A9AA6E
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Application.Service.Orchestrator", "Application\Application.Service.Orchestrator\Application.Service.Orchestrator.csproj", "{80AADC42-6E43-4F67-BD87-D82DAB784804}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "templates", "templates", "{113A929F-6ACE-4771-B665-C3E756B27AE2}"
+	ProjectSection(SolutionItems) = preProject
+		..\docs\templates\RELEASE_NOTES_TEMPLATE.md = ..\docs\templates\RELEASE_NOTES_TEMPLATE.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -143,6 +148,7 @@ Global
 		{775144DB-8B33-4399-B7D1-AC921034E0E6} = {6C6FC589-D12F-4635-9878-9AD804AE961D}
 		{A9AA6EC9-0B74-4594-9CBF-D77DE21DC096} = {775144DB-8B33-4399-B7D1-AC921034E0E6}
 		{80AADC42-6E43-4F67-BD87-D82DAB784804} = {D9CE4E22-E669-4DC3-86EE-A3A8E4A3A0FE}
+		{113A929F-6ACE-4771-B665-C3E756B27AE2} = {775144DB-8B33-4399-B7D1-AC921034E0E6}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {C91FD109-B199-4EE6-A70C-60CBFB5656EA}
