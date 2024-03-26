@@ -1,6 +1,9 @@
 # Snake Game
 Yet another snake game, but it's multiplayer!
-As my developing years go by, I noticed that I've never developed a portifolio project that I could show to someone, so I decided to create this project to show some of my skills and knowledge in software development.
+
+As my developing years go by, I noticed that I've never developed a portifolio project that could be shown to someone. 
+
+So I decided to create this project to show some of my skills and knowledge in software development.
 
 This project gathers some of the technologies that I've worked in the past, to create a simple multiplayer snake game.
 
