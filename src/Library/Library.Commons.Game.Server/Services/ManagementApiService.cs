@@ -70,8 +70,8 @@ internal class ManagementApiService: IManagementApiService
 
         var path = _configuration[$"{ServerConfiguration.SectionName}:Path"];
         if (!string.IsNullOrWhiteSpace(path))
-            path= HubEndpoints.Game;
-        path = path!.StartsWith("/") ? $"{path}{HubEndpoints.Game}" : $"/{path}{HubEndpoints.Game}";
+            path = path!.StartsWith("/") ? path : $"/{path}";
+        path =  $"{path}{HubEndpoints.Game}";
         
         
 
