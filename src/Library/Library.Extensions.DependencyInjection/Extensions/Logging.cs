@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog;
 
@@ -12,5 +13,11 @@ public static class Logging
         loggerBuilder.ClearProviders();
         hostBuilder.UseSerilog((hostBuilderContext, loggerConfiguration) => loggerConfiguration.ReadFrom.Configuration(hostBuilderContext.Configuration));
         return loggerBuilder;
+    }
+
+    public static void  ConfigureLogger(this ILoggingBuilder loggerBuilder,IConfiguration configuration)
+    {
+        loggerBuilder.ClearProviders();
+        loggerBuilder.Services.AddSerilog(c=> c.ReadFrom.Configuration(configuration));
     }
 }

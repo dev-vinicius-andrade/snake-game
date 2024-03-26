@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using Domain.Game.Entities;
+using Library.Commons.Game.Domain.Constants;
 using Library.Commons.Game.Domain.Entities.Configurations;
 using Library.Commons.Game.Domain.Exceptions;
 using Library.Commons.Game.Domain.Interfaces.Entities;
@@ -35,8 +36,8 @@ public class RoomsService : IRoomsService
             roomId = Guid.NewGuid();
         var room = new Room(roomId)
         {
-            Width = 1920,
-            Height = 1080
+            Width = _serverConfiguration.Value.RoomsConfiguration?.Width??RoomDefaultValues.Width,
+            Height = _serverConfiguration.Value.RoomsConfiguration?.Height ?? RoomDefaultValues.Height,
         };
 
         var added = _rooms.TryAdd(roomId, room);

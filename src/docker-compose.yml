@@ -1,5 +1,5 @@
-version: '3.4'
-
+version: '3.9'
+name: snake-game
 services:
   application.manager.api:
     image: ${DOCKER_REGISTRY-}snake-game/manager-api
@@ -33,8 +33,10 @@ services:
       context: Application/Application.Ui.Angular
       dockerfile: Dockerfile
     depends_on:
-      - application.manager.api
-      - application.game.server
+      application.manager.api:
+        condition: service_started
+      application.game.server:
+        condition: service_started
     profiles:
         - ui-angular
         - server-core-plus-ui-angular

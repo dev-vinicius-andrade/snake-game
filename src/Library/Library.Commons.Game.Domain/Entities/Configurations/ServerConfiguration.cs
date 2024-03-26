@@ -11,4 +11,5 @@ public class ServerConfiguration
 
     [JsonPropertyName("tickRateTimeSpan")]
     public TimeSpanConfiguration? TickRateTimeSpan { get; set; }
+
 }

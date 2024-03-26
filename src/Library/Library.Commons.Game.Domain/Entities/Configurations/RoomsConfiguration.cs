@@ -11,4 +11,9 @@ public record RoomsConfiguration
 
     [JsonPropertyName("maxFoods")]
     public int MaxFoods { get; set; }
+
+    [JsonPropertyName("width")]
+    public int? Width { get; set; }
+    [JsonPropertyName("height")]
+    public int? Height { get; set; }
 }

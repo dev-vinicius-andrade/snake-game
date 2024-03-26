@@ -1,7 +1,6 @@
 
 using Application.Manager.Api.Entities.Configurations;
 using Application.Manager.Api.Hubs;
-using Application.Manager.Api.Services;
 using Docker.DotNet;
 using Library.Commons.Api.Contants;
 using Library.Commons.Api.Entities;
@@ -48,9 +47,8 @@ namespace Application.Manager.Api
             services.AddDefaultRequestExceptionHandler();
             services.AddCorsPolicy(appSettings.CorsConfiguration);
             services.AddApiKeyAuth(configuration);
-            services.AddScoped<ContainerService>();
-            services.AddScoped<IDockerClient>(serviceProvider =>
-                new DockerClientConfiguration(new Uri(appSettings.DockerDeamonConfiguration.EndPoint)).CreateClient());
+            
+
             services.AddJsonSerializeOptions(() => new JsonSerializerOptions()
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Application.Manager.Api.Entities.Configurations;
+namespace Application.Service.Orchestrator.Entities.Configurations;
 
 public class DockerDeamonConfiguration
 {

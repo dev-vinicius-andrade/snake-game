@@ -68,7 +68,14 @@ internal class ManagementApiService: IManagementApiService
         if(scheme.Equals("https", StringComparison.InvariantCultureIgnoreCase) && port!.Equals("443"))
             domain = domain.Replace(":443", string.Empty);
 
-        rootUri = $"{scheme}://{domain}{HubEndpoints.Game}";
+        var path = _configuration[$"{ServerConfiguration.SectionName}:Path"];
+        if (!string.IsNullOrWhiteSpace(path))
+            path= HubEndpoints.Game;
+        path = path!.StartsWith("/") ? $"{path}{HubEndpoints.Game}" : $"/{path}{HubEndpoints.Game}";
+        
+        
+
+        rootUri = $"{scheme}://{domain}{path}";
         return true;
     }
 }

@@ -1,5 +1,4 @@
-version: '3.4'
-
+version: '3.9'
 services:
   application.manager.api:
     environment:
@@ -22,5 +21,7 @@ services:
       - ${APPDATA}/Microsoft/UserSecrets:/root/.microsoft/usersecrets:ro
       - ${APPDATA}/ASP.NET/Https:/root/.aspnet/https:ro
   application.ui.angular:
+    ports:
+      - "4200:80"
     environment:
         - INTEGRATIONS_API_MANAGER_BASEURL=https://localhost:60511
