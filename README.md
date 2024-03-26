@@ -22,7 +22,7 @@ The project is divided into 3 main parts:
 - [Manager Api](#manager-api)
 - [Game Server](#game-server)
 
-![Architecture](docs\images\architecture.png)
+![Architecture](docs/images/architecture.png)
 
 
 # Demo
