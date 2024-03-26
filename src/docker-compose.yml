@@ -6,6 +6,9 @@ services:
     build:
       context: .
       dockerfile: Application/Application.Manager.Api/Dockerfile
+    depends_on:
+        rabbitmq:
+            condition: service_healthy
     profiles:
         - server-core-plus-local-enviroment
         - server-core

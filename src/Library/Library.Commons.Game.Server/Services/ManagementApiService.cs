@@ -59,7 +59,7 @@ internal class ManagementApiService: IManagementApiService
         var scheme = _configuration[$"{ServerConfiguration.SectionName}:Scheme"];
         if (string.IsNullOrWhiteSpace(scheme))
             return false;
-        var port= scheme.Equals("https", StringComparison.InvariantCultureIgnoreCase) ? _configuration["ASPNETCORE_HTTPS_PORT"] : _configuration["ASPNETCORE_HTTP_PORTS"];
+        var port= BuildPort(scheme);
         
         if (!string.IsNullOrWhiteSpace(port))
             domain = $"{domain}:{port}";
@@ -77,5 +77,15 @@ internal class ManagementApiService: IManagementApiService
 
         rootUri = $"{scheme}://{domain}{path}";
         return true;
+    }
+
+    private string? BuildPort(string scheme)
+    {
+        var configurationPort= _configuration.GetSection($"{ServerConfiguration.SectionName}:Port");
+        if (string.IsNullOrWhiteSpace(configurationPort.Value))
+            configurationPort = scheme.Equals("https", StringComparison.InvariantCultureIgnoreCase)
+                ? _configuration.GetSection("ASPNETCORE_HTTPS_PORT")
+                : _configuration.GetSection("ASPNETCORE_HTTP_PORTS");
+        return configurationPort.Value is "80" or "443" ? string.Empty : configurationPort.Value;
     }
 }

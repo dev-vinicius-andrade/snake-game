@@ -159,6 +159,7 @@ To run the game server with docker you can use the following command:
 	-e AppSettings__ManagementApiConfiguration_BaseUrl="{MANAGEMENT_API_BASE_URL}" \
     -e ServerConfiguration__Domain=localhost \
     -e ServerConfiguration__Scheme=http \
+    -e ServerConfiguration__Port=80 \
 	game-server
 ```
 
@@ -255,9 +256,9 @@ services:
         - ASPNETCORE_URLS=http://+:80
     depends_on:
         redis:
-          condition: service_started
+          condition: service_healthy
         rabbitmq:
-          condition: service_started
+          condition: service_healthy
     # profiles:
         # - server-core-plus-local-enviroment
         # - server-core
@@ -267,7 +268,8 @@ services:
     image: registry.codescovery.com/dev-vinicius-andrade/snake-game/application/game/server
     container_name: 'application.game.server'
     depends_on:
-        - application.manager.api
+      application.manager.api:
+        condition: service_started
     networks:
       - snake-game-net
       # - local ## Checkout the docs to see more about what is the local network and why use it
@@ -279,6 +281,7 @@ services:
         - AppSettings__ManagementApiConfiguration_BaseUrl=http://localhost:60510
         - ServerConfiguration__Domain=localhost
         - ServerConfiguration__Scheme=http
+        - ServerConfiguration__Port=80
     # profiles:
         # - server-core-plus-local-enviroment
         # - server-core
@@ -315,12 +318,19 @@ services:
         # - local-enviroment
         # - server-core-plus-local-enviroment
         # - server-core-plus-local-enviroment-plus-ui-angular
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
     networks:
       - snake-game-net
       # - local ## Checkout the docs to see more about what is the local network and why use it
   rabbitmq:
     image: rabbitmq:management
     container_name: 'rabbitmq'
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 30s
+      retries: 3
     # profiles:
         # - local-enviroment
         # - server-core-plus-local-enviroment
