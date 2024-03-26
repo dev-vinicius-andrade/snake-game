@@ -7,13 +7,24 @@ So I decided to create this project to show some of my skills and knowledge in s
 
 This project gathers some of the technologies that I've worked in the past, to create a simple multiplayer snake game.
 
+
+
+# Controls 
+
+- **Arrow Keys** - Move the snake
+- **Space** - Shoot a bullet (if you have bullets, which can be aquired eating foods)
+- **A,W,S,D** - Move the snake
+
 # Technologies
+
 - [.NET 8](https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-8/overview)
 - [Angular 17](https://angular.io/docs)
 - [RabbitMQ](https://www.rabbitmq.com/docs)
 - [SignalR](https://learn.microsoft.com/pt-br/aspnet/core/signalr/introduction?view=aspnetcore-8.0&WT.mc_id=dotnet-35129-website)
 - [Docker](https://docs.docker.com/get-started/overview/)
 - [Docker Compose](https://docs.docker.com/compose/)
+
+
 
 # Architecture
 The project is divided into 3 main parts:
@@ -67,6 +78,12 @@ The game server is responsible to handle the game state.
 As the main idea is to be able to bootstrap as many game servers you want, the game server connects to a [RabbitMq](https://www.rabbitmq.com/docs) [Queue](https://www.rabbitmq.com/docs/queues) *binded* to [player-join-request(exchange)](https://www.rabbitmq.com/docs/publishers), checks if there's an available room to the player connects, if not it requeue the message to other server try to handle it.
 
 If there is an available space in server it sends a request to the [Manager Api](#manager-api) which will notify the ui-client the server data to connect.
+
+Game server is also responsible to management the game state of each room, like the snake position, food position, and the game logic.
+
+From time to time the game server generates a new food in the game room if the food count is less than the maximum food count.
+
+Also, the game server is responsible to handle the collisions between the snakes and the foods, or obstacles.
 
 ## Game Server Configurations
 All the configurations available are on [appSettings.json](https://github.com/dev-vinicius-andrade/snake-game/blob/main/src/Application/Application.Game.Server/Configurations/appsettings.json)
