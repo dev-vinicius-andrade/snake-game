@@ -71,6 +71,8 @@ It provides a way to connect to a running server using SignalR and REST Apis.
 
 Checkout the angular app [docs](https://github.com/dev-vinicius-andrade/snake-game/blob/main/src/Application/Application.Ui.Angular/README.md)
 
+You can check more about the angular app configuration [here](
+
 # Game Server
 
 The game server is responsible to handle the game state. 

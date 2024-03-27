@@ -9,6 +9,7 @@
     <DockerfileContext>..\..</DockerfileContext>
     <DockerComposeProjectPath>..\..\docker-compose.dcproj</DockerComposeProjectPath>
 	  <DockerfileTag>snake-game/manager-api</DockerfileTag>
+	  <GenerateDocumentationFile>False</GenerateDocumentationFile>
   </PropertyGroup>
 
 

@@ -75,11 +75,6 @@ namespace Application.Game.Server
                 })
                 .AddJsonProtocol(c => c.PayloadSerializerOptions = jsonSerializerOptions ?? BuilderJsonSerializerOptions());
             services.AddHealthChecks();
-            services.AddControllers();
-            services.AddEndpointsApiExplorer();
-            services.AddHttpContextAccessor();
-            services.AddSwaggerDocumentation(appSettings.SwaggerConfiguration);
-            services.AddDefaultRequestExceptionHandler();
             services.AddRequestExceptionHandler<IRequestExceptionHandler, Handlers.ExceptionHandler>();
             services.AddCorsPolicy(appSettings.CorsConfiguration);
             services.AddSingleton<GameHub>();
@@ -95,7 +90,6 @@ namespace Application.Game.Server
             services.AddServerConfiguration(configuration);
             services.AddFoodConfiguration(configuration);
             services.AddSnakeConfiguration(configuration,$"{ServerConfiguration.SectionName}:{SnakeConfiguration.SectionName}");
-
             services.AddHostedService<FoodGeneratorWorkerService>();
             services.AddHostedService<EventbusWorkerService>();
             services.AddHostedService<GameWorkerService>();
@@ -109,9 +103,6 @@ namespace Application.Game.Server
 
         private static void Configure(IApplicationBuilder app, IHostEnvironment env, AppSettings appSettings, CorsPolicyName corsPolicyName)
         {
-            app.ConfigureExceptionHandling(env);
-            app.UseSwaggerDocumentation(appSettings.SwaggerConfiguration);
-
             app.UseCors(corsPolicyName);
             if (env.IsDevelopment())
                 app.UseSwaggerDocumentation(appSettings.SwaggerConfiguration);
@@ -128,8 +119,6 @@ namespace Application.Game.Server
 
                 });
 
-
-                endpoints.MapControllers();
             });
         }
     }

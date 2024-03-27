@@ -59,7 +59,7 @@ export class HomeComponent {
         connectionId,
         this.nickname?.trim()
       );
-      this.managerHubService.on('onJoin', (data: any) => {
+      this.managerHubService.on('onJoinedRoom', (data: any) => {
         this.loading = false;
         this.joinRoomLabel = this.getJoinRoomLabel();
         const token = btoa(JSON.stringify(data));
