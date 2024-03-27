@@ -104,9 +104,6 @@ namespace Application.Game.Server
         private static void Configure(IApplicationBuilder app, IHostEnvironment env, AppSettings appSettings, CorsPolicyName corsPolicyName)
         {
             app.UseCors(corsPolicyName);
-            if (env.IsDevelopment())
-                app.UseSwaggerDocumentation(appSettings.SwaggerConfiguration);
-
             app.UseHttpsRedirection();
 
             app.UseAuthorization();

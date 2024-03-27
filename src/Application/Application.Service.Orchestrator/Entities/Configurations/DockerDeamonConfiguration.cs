@@ -6,4 +6,6 @@ public class DockerDeamonConfiguration
 {
     [JsonPropertyName("endpoint")]
     public string EndPoint { get; set; }
+
+    public int InternalPort { get; set; }
 }

@@ -7,5 +7,7 @@ public class AppSettings : BaseAppSettings
 {
     [JsonPropertyName("dockerDeamonConfiguration")]
     public DockerDeamonConfiguration DockerDeamonConfiguration { get; set; } = null!;
+    [JsonPropertyName("gameServerConfiguration")]
+    public GameServerConfiguration GameServerConfiguration { get; set; } = null!;
 
 }

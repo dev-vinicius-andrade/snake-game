@@ -1,16 +1,17 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Application.Manager.Api.Entities.Configurations;
+namespace Application.Service.Orchestrator.Entities.Configurations;
 
 public class GameServerConfiguration
 {
     [JsonPropertyName("image")]
-    public string Image { get; set; }
+    public string Image { get; set; } = null!;
+
     [JsonPropertyName("internalPort")]
     public int InternalPort { get; set; }
     [JsonPropertyName("scheme")]
-    public string Scheme { get; set; }
+    public string Scheme { get; set; } = null!;
+
     [JsonPropertyName("domain")]
-    public string Domain { get; set; }
-    
+    public string Domain { get; set; } = null!;
 }

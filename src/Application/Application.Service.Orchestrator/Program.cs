@@ -1,4 +1,3 @@
-using Application.Manager.Api.Services;
 using Application.Service.Orchestrator.Entities.Configurations;
 using Application.Service.Orchestrator.Services;
 using Docker.DotNet;

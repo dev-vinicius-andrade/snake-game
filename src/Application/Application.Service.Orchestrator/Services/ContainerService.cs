@@ -1,15 +1,15 @@
-﻿using Application.Manager.Api.Entities.Configurations;
+﻿using Application.Service.Orchestrator.Entities.Configurations;
 using Docker.DotNet;
 using Docker.DotNet.Models;
 using Library.Commons.Game.Server.Entities;
 using Library.Commons.Game.Server.Enums;
 using Microsoft.Extensions.Options;
 
-namespace Application.Manager.Api.Services;
+namespace Application.Service.Orchestrator.Services;
 
 public class ContainerService
 {
-    public readonly IDockerClient _dockerClient;
+    private readonly IDockerClient _dockerClient;
     private readonly IOptions<AppSettings> _appSettings;
 
     public ContainerService(IDockerClient dockerClient, IOptions<AppSettings> appSettings)
@@ -27,13 +27,13 @@ public class ContainerService
         var availableGameServerContainers =  containers.Where(container => IsContainerRunning(container.State) && IsContainerGameServer(container.Image));
        return availableGameServerContainers.Select(containerServer=>
            new GameServerInformation(
-               containerServer.Names.FirstOrDefault(),
+               containerServer.Names.First(),
                GetContainerUri(containerServer)
                )).ToList();
     }
     private Uri GetContainerUri(ContainerListResponse container)
     {
-        var port = container.Ports.FirstOrDefault(port=>port.PrivatePort == _appSettings.Value.GameServerConfiguration.InternalPort)?.PublicPort;
+        var port = container.Ports.FirstOrDefault(port=>port.PrivatePort == _appSettings.Value.DockerDeamonConfiguration.InternalPort)?.PublicPort;
         var domain = _appSettings.Value.GameServerConfiguration.Domain;
         var scheme = _appSettings.Value.GameServerConfiguration.Scheme;
         return new Uri($"{scheme}://{domain}:{port}");

@@ -23,6 +23,7 @@ This project gathers some of the technologies that I've worked in the past, to c
 - [SignalR](https://learn.microsoft.com/pt-br/aspnet/core/signalr/introduction?view=aspnetcore-8.0&WT.mc_id=dotnet-35129-website)
 - [Docker](https://docs.docker.com/get-started/overview/)
 - [Docker Compose](https://docs.docker.com/compose/)
+- [Redis](https://redis.io/documentation)
 
 
 
@@ -42,7 +43,7 @@ I don't know how long the demo will be available, but worth the try:
 
 - [Angular Ui](https://angular.snake.game.codescovery.com/)
 
-
+![Architecture](docs/images/angular-preview.gif)
 
 
 # Docker Images
@@ -63,6 +64,8 @@ The project has 3 main docker images:
 Currently the game has the following UIs:
 
 - [Angular](#ui-angular)
+
+
 
 
 ## UI Angular

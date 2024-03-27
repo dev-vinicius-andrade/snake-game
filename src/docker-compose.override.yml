@@ -14,6 +14,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=https://+:443;http://+:80
+      - AppSettings__ManagementApiConfiguration_BaseUrl=http://application.manager.api
     ports:
       - "60520:80"
       - "60521:443"

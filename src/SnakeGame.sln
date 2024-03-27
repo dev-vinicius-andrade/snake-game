@@ -55,6 +55,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{775144DB-8
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "images", "images", "{A9AA6EC9-0B74-4594-9CBF-D77DE21DC096}"
 	ProjectSection(SolutionItems) = preProject
+		..\docs\images\angular-preview.gif = ..\docs\images\angular-preview.gif
 		..\docs\images\architecture.png = ..\docs\images\architecture.png
 	EndProjectSection
 EndProject

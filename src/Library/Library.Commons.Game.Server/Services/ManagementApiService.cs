@@ -40,7 +40,7 @@ internal class ManagementApiService: IManagementApiService
                 RoomId = room.Guid
             };
             var jsonContent = JsonContent.Create(request);
-            var response = await _httpClient.PostAsync($"/join/{playerConnectionId}", jsonContent);
+            var response = await _httpClient.PostAsync($"player/{playerConnectionId}/joined", jsonContent);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
