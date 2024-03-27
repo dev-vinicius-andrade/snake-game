@@ -71,7 +71,7 @@ It provides a way to connect to a running server using SignalR and REST Apis.
 
 Checkout the angular app [docs](https://github.com/dev-vinicius-andrade/snake-game/blob/main/src/Application/Application.Ui.Angular/README.md)
 
-You can check more about the angular app configuration [here](
+You can check more about the angular app configuration [here](https://github.com/dev-vinicius-andrade/snake-game/blob/main/docs/configurations/ANGULAR_UI_CONFIGURATIONS.md)
 
 # Game Server
 
@@ -88,7 +88,10 @@ From time to time the game server generates a new food in the game room if the f
 Also, the game server is responsible to handle the collisions between the snakes and the foods, or obstacles.
 
 ## Game Server Configurations
+
 All the configurations available are on [appSettings.json](https://github.com/dev-vinicius-andrade/snake-game/blob/main/src/Application/Application.Game.Server/Configurations/appsettings.json)
+
+You can check more about the game server configuration [here](https://github.com/dev-vinicius-andrade/snake-game/blob/main/docs/configurations/GAME_SERVER_CONFIGURATIONS.md)
 
 But the main ones are:
 
@@ -177,6 +180,8 @@ When a server successfully notified the manager that the player can connect to i
 ## Manager Api Configurations
 
 All the configurations available are on [appSettings.json](https://github.com/dev-vinicius-andrade/snake-game/blob/main/src/Application/Application.Manager.Api/Configurations/appsettings.json)
+
+You can check more about the manager api configuration [here](https://github.com/dev-vinicius-andrade/snake-game/blob/main/docs/configurations/MANAGER_API_CONFIGURATIONS.md)
 
 But the main ones are:
 
