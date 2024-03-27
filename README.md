@@ -38,7 +38,9 @@ The project is divided into 3 main parts:
 
 # Demo
 
-I don't know how long the demo will be available, but you can check it out [here](https://angular.snake.game.codescovery.com/)
+I don't know how long the demo will be available, but worth the try:
+
+- [Angular Ui](https://angular.snake.game.codescovery.com/)
 
 
 
