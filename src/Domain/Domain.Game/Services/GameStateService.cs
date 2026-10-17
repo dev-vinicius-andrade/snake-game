@@ -229,10 +229,7 @@ public class GameStateService : IGameStateService
 
 
         player.IsAlive = false;
-        
         UpdatePlayer(player);
-        await DisconnectPlayer(gameState.Room, player);
-
 
     }
 

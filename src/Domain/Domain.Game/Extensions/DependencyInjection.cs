@@ -1,5 +1,6 @@
 ﻿using Domain.Game.Constants;
 using Domain.Game.Services;
+using Domain.Game.Simulation;
 using Library.Commons.Game.Domain.Enums;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 using Library.Commons.Game.Domain.Interfaces.Services;
@@ -29,6 +30,7 @@ public static class DependencyInjection
         services.AddSingleton<IPointAxisServices, PointAxisServices>();
         services.AddSingleton<ITickRateService, TickRateService>();
         services.AddSingleton<IObstacleService, ObstacleService>();
+        services.AddSingleton<RoomSimulation>();
         return services;
     }
     public static IServiceCollection AddKnowDirections(this IServiceCollection services)
