@@ -39,6 +39,46 @@ describe("EyeActions tracking", () => {
   });
 });
 
+describe("EyeActions when not acting", () => {
+  const far = (t: number) => sample(t, { x: 1, y: 0.5 });
+
+  it("still follows whether the face is tracked", () => {
+    const actions = create();
+
+    expect(actions.process(sample(0), room, { act: false }).tracking).toBe("tracking");
+    expect(actions.process(sample(100, { present: false }), room, { act: false }).tracking).toBeNull();
+    expect(actions.process(sample(700, { present: false }), room, { act: false }).tracking).toBe("lost");
+  });
+
+  it("gives no intents, even for a long blink or a far gaze", () => {
+    const actions = create();
+    actions.process(sample(0), room, { act: false });
+    const blinkIntents = [sample(100, { blink: 0.9 }), sample(800, { blink: 0.1 })].flatMap(
+      (frame) => actions.process(frame, room, { act: false }).intents
+    );
+    const boostIntents = [far(1000), far(1500), far(2000)].flatMap((frame) => actions.process(frame, room, { act: false }).intents);
+
+    expect([...blinkIntents, ...boostIntents]).toEqual([]);
+  });
+
+  it("does not count the time it was not acting toward a boost", () => {
+    const actions = create();
+    actions.process(far(0), room, { act: false });
+    actions.process(far(1000), room, { act: false });
+
+    expect(actions.process(far(1100), room).intents).toEqual([]);
+    expect(actions.process(far(1500), room).intents).toEqual([{ type: "boost", active: true }]);
+  });
+
+  it("does not let a blink that began while not acting count", () => {
+    const actions = create();
+    actions.process(sample(0), room, { act: false });
+    actions.process(sample(100, { blink: 0.9 }), room, { act: false });
+
+    expect(actions.process(sample(800, { blink: 0.1 }), room).intents).toEqual([]);
+  });
+});
+
 describe("EyeActions blink to shoot", () => {
   it("shoots when a deliberate blink ends", () => {
     const actions = create();

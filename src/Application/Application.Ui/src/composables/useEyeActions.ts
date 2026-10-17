@@ -10,7 +10,7 @@ export interface UseEyeActionsOptions extends EyeActionsOptions {
   source: GazeSource;
   getRoom: () => RoomDimensions | null;
   onIntent: (intent: ControlIntent) => void;
-  /** Samples are ignored while this returns false. */
+  /** While this returns false nothing is shot or boosted, but the face is still followed. */
   enabled?: () => boolean;
 }
 
@@ -20,10 +20,10 @@ export function useEyeActions(options: UseEyeActionsOptions) {
   const tracking = shallowRef<TrackingState>("lost");
 
   function onSample(sample: GazeSample) {
-    if (!(options.enabled?.() ?? true)) return;
     const room = options.getRoom();
     if (!room) return;
-    const result = actions.process(sample, room);
+    // Tracking is followed even while disabled: calibrating needs to know whether the face is found.
+    const result = actions.process(sample, room, { act: options.enabled?.() ?? true });
     if (result.tracking) tracking.value = result.tracking;
     result.intents.forEach(options.onIntent);
   }

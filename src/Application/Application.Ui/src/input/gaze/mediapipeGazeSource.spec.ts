@@ -6,6 +6,7 @@ import {
   createMediaPipeGazeSource,
   type CameraStreamLike,
   type LandmarkerLike,
+  type MediaPipeGazeSourceOptions,
   type VideoLike,
 } from "./mediapipeGazeSource";
 
@@ -97,7 +98,7 @@ beforeEach(() => {
   samples = [];
 });
 
-async function started(overrides: Partial<ReturnType<Fixture["options"]>> = {}) {
+async function started(overrides: Partial<MediaPipeGazeSourceOptions> = {}) {
   const source = createMediaPipeGazeSource({ ...fx.options(), ...overrides });
   source.subscribe((sample) => samples.push(sample));
   await source.start();
@@ -278,6 +279,27 @@ describe("createMediaPipeGazeSource frames", () => {
     fx.frame();
 
     expect(samples.map((sample) => sample.present)).toEqual([false, true]);
+  });
+
+  it("tells who is listening about a detection error, once per failure", async () => {
+    const errors: unknown[] = [];
+    await started({ onDetectError: (error: unknown) => errors.push(error) });
+    fx.detectError = new Error("gpu lost");
+
+    fx.frame();
+    fx.frame();
+
+    expect(errors).toHaveLength(2);
+    expect((errors[0] as Error).message).toBe("gpu lost");
+  });
+
+  it("does not report anything when detection works", async () => {
+    const errors: unknown[] = [];
+    await started({ onDetectError: (error: unknown) => errors.push(error) });
+
+    fx.frame();
+
+    expect(errors).toEqual([]);
   });
 
   it("applies a new calibration to the next samples", async () => {

@@ -52,10 +52,15 @@ export class EyeActions {
   }
 
   // Parameters are not called `room`: the auto-import plugin would mistake it for the default export of types/room.
-  process(sample: GazeSample, roomSize: RoomDimensions): EyeActionsResult {
+  /**
+   * `act: false` only follows whether the face is tracked, for example while calibrating: nothing fires and
+   * the blink and far gaze detectors start over, so time spent not acting never counts toward a later action.
+   */
+  process(sample: GazeSample, roomSize: RoomDimensions, { act = true }: { act?: boolean } = {}): EyeActionsResult {
     const present = sample.present ?? true;
     const tracking = this.monitor.update(present, sample.t);
     const intents: ControlIntent[] = tracking === "lost" ? this.endActions() : [];
+    if (!act) return { intents: [...intents, ...this.endActions()], tracking };
     if (this.monitor.state !== "tracking" || !present) return { intents, tracking };
 
     if (sample.blink !== undefined && this.blink.update(sample.blink, sample.t)) intents.push({ type: "shoot" });

@@ -78,6 +78,16 @@ describe("useEyeActions", () => {
     expect(intents).toEqual([]);
   });
 
+  it("keeps following the face while disabled, because calibration needs to know", async () => {
+    overrides.enabled = () => false;
+    const actions = await started();
+
+    source.emit(camera(0));
+
+    expect(actions.tracking.value).toBe("tracking");
+    expect(intents).toEqual([]);
+  });
+
   it("does nothing while disabled", async () => {
     overrides.enabled = () => false;
     await started();

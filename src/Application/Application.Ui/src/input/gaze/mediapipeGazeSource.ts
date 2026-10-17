@@ -43,6 +43,8 @@ export interface MediaPipeGazeSourceOptions {
   requestFrame?: (callback: () => void) => number;
   cancelFrame?: (handle: number) => void;
   now?: () => number;
+  /** Called when the model throws on a frame. The frame then counts as one without a face. Logs once per message by default. */
+  onDetectError?: (error: unknown) => void;
 }
 
 /** Both a video frame has to be decoded (HAVE_CURRENT_DATA) before the model can look at it. */
@@ -53,6 +55,16 @@ const defaultGetStream = () =>
     video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
     audio: false,
   });
+
+function createWarnOnce() {
+  const warned = new Set<string>();
+  return (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    if (warned.has(message)) return;
+    warned.add(message);
+    console.warn("[eye] face detection failed:", error);
+  };
+}
 
 function defaultCreateVideo(): VideoLike {
   return document.createElement("video");
@@ -72,6 +84,7 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
   const requestFrame = options.requestFrame ?? ((callback: () => void) => requestAnimationFrame(callback));
   const cancelFrame = options.cancelFrame ?? ((handle: number) => cancelAnimationFrame(handle));
   const now = options.now ?? (() => performance.now());
+  const onDetectError = options.onDetectError ?? createWarnOnce();
 
   const listeners = new Set<(sample: GazeSample) => void>();
   let running = false;
@@ -100,8 +113,9 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
   function detect(currentVideo: VideoLike, currentLandmarker: LandmarkerLike, t: number): BlendshapeScore[] | null {
     try {
       return currentLandmarker.detectForVideo(currentVideo, t).faceBlendshapes?.[0]?.categories ?? null;
-    } catch {
+    } catch (failure) {
       // A failed detection is one frame without a face. The next frame may work again.
+      onDetectError(failure);
       return null;
     }
   }

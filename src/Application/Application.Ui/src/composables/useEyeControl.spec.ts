@@ -175,6 +175,28 @@ describe("useEyeControl calibration", () => {
     expect(storage.value).toBeNull();
   });
 
+  it("knows the face is tracked while calibrating, so the overlay does not ask for the camera", async () => {
+    const control = create();
+    await control.enable();
+    expect(control.tracking.value).toBe("lost");
+
+    source.emit(frame());
+
+    expect(control.phase.value).toBe("calibrating");
+    expect(control.tracking.value).toBe("tracking");
+  });
+
+  it("knows when the face is lost while calibrating", async () => {
+    const control = create();
+    await control.enable();
+    source.emit(frame());
+
+    source.emit(frame({ present: false, raw: undefined }));
+    source.emit({ t: 5000, x: 0.5, y: 0.5, present: false });
+
+    expect(control.tracking.value).toBe("lost");
+  });
+
   it("waits while there is no face", async () => {
     const control = create();
     await control.enable();
