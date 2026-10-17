@@ -1,5 +1,6 @@
 import type { Calibration } from "@/input/gaze/calibration";
 import type { GazeSample, GazeSource } from "@/input/gaze/gazeSource";
+import type { CameraDevice } from "@/input/gaze/cameraDevices";
 import type { CameraGazeSource, GazeDiagnostics } from "@/input/gaze/mediapipeGazeSource";
 
 /** In-memory GazeSource for specs. Tests push samples with `emit`. */
@@ -40,6 +41,29 @@ export class FakeGazeSource implements GazeSource {
 /** FakeGazeSource that also records the calibrations it was given, like the camera source. */
 export class FakeCameraSource extends FakeGazeSource implements CameraGazeSource {
   readonly calibrations: Calibration[] = [];
+  cameras: CameraDevice[] = [];
+  active: CameraDevice | null = null;
+  preferred: Array<string | null> = [];
+  selected: string[] = [];
+  selectError?: Error;
+
+  setPreferredCamera(id: string | null) {
+    this.preferred.push(id);
+  }
+
+  async listCameras() {
+    return this.cameras;
+  }
+
+  getActiveCamera() {
+    return this.active;
+  }
+
+  async selectCamera(id: string) {
+    this.selected.push(id);
+    if (this.selectError) throw this.selectError;
+    this.active = this.cameras.find((camera) => camera.id === id) ?? this.active;
+  }
 
   setCalibration(calibration: Calibration) {
     this.calibrations.push(calibration);

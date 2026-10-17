@@ -30,6 +30,14 @@ class Fixture {
   };
   rafRequests = 0;
   videoFrameCancels: number[] = [];
+  requestedCameras: Array<string | null> = [];
+  cameraLabel = "Fake Cam";
+  failFor: (cameraId: string | null) => Error | null = () => null;
+  devices: Array<{ kind: string; deviceId: string; label: string }> = [
+    { kind: "videoinput", deviceId: "obs", label: "OBS Virtual Camera" },
+    { kind: "videoinput", deviceId: "cam-2", label: "Real Webcam" },
+    { kind: "audioinput", deviceId: "mic", label: "Mic" },
+  ];
   detectError: Error | null = null;
   streamError: Error | null = null;
   loadError: Error | null = null;
@@ -44,11 +52,16 @@ class Fixture {
   options() {
     return {
       navigatorLike: { mediaDevices: { getUserMedia: () => undefined } },
-      getStream: async (): Promise<CameraStreamLike> => {
+      getStream: async (cameraId: string | null = null): Promise<CameraStreamLike> => {
         this.streamRequests++;
+        this.requestedCameras.push(cameraId);
+        const failure = this.failFor(cameraId);
+        if (failure) throw failure;
         if (this.streamError) throw this.streamError;
-        return { getTracks: () => [{ stop: () => this.trackStops++ }] };
+        const track = { label: this.cameraLabel, getSettings: () => ({ deviceId: cameraId ?? "cam-default" }), stop: () => this.trackStops++ };
+        return { getTracks: () => [track], getVideoTracks: () => [track] };
       },
+      enumerateDevices: async () => this.devices,
       loadLandmarker: async (): Promise<LandmarkerLike> => {
         this.landmarkerLoads++;
         if (this.loadError) throw this.loadError;
@@ -503,6 +516,131 @@ describe("createMediaPipeGazeSource video frame callbacks", () => {
     await started();
 
     expect(fx.rafRequests).toBeGreaterThan(0);
+  });
+});
+
+describe("createMediaPipeGazeSource camera choice", () => {
+  it("asks for the default camera when none was chosen", async () => {
+    await started();
+
+    expect(fx.requestedCameras).toEqual([null]);
+  });
+
+  it("asks for the preferred camera by id", async () => {
+    const source = createMediaPipeGazeSource(fx.options());
+    source.setPreferredCamera("cam-2");
+
+    await source.start();
+
+    expect(fx.requestedCameras).toEqual(["cam-2"]);
+  });
+
+  it("takes the preferred camera from the options too", async () => {
+    await started({ cameraId: "cam-2" });
+
+    expect(fx.requestedCameras).toEqual(["cam-2"]);
+  });
+
+  it("falls back to the default camera when the preferred one is gone", async () => {
+    fx.failFor = (id) => (id === "gone" ? named("NotFoundError") : null);
+    const source = await started({ cameraId: "gone" });
+
+    expect(fx.requestedCameras).toEqual(["gone", null]);
+    expect(source.getActiveCamera()?.id).toBe("cam-default");
+  });
+
+  it("does not retry for other failures, such as a refused permission", async () => {
+    fx.failFor = () => named("NotAllowedError");
+
+    await expect(started({ cameraId: "cam-2" })).rejects.toMatchObject({ kind: "denied" });
+    expect(fx.requestedCameras).toEqual(["cam-2"]);
+  });
+
+  it("reports the camera that is in use, with its name", async () => {
+    fx.cameraLabel = "Real Webcam";
+    const source = await started({ cameraId: "cam-2" });
+
+    expect(source.getActiveCamera()).toEqual({ id: "cam-2", label: "Real Webcam", virtual: false });
+  });
+
+  it("flags the active camera when it is virtual", async () => {
+    fx.cameraLabel = "OBS Virtual Camera";
+    const source = await started();
+
+    expect(source.getActiveCamera()?.virtual).toBe(true);
+  });
+
+  it("has no active camera before it started and after it stopped", async () => {
+    const source = createMediaPipeGazeSource(fx.options());
+    expect(source.getActiveCamera()).toBeNull();
+
+    await source.start();
+    source.stop();
+
+    expect(source.getActiveCamera()).toBeNull();
+  });
+
+  it("lists the video cameras, real ones first", async () => {
+    const source = createMediaPipeGazeSource(fx.options());
+
+    const cameras = await source.listCameras();
+
+    expect(cameras.map((camera) => camera.id)).toEqual(["cam-2", "obs"]);
+  });
+
+  it("lists nothing when the browser refuses to enumerate", async () => {
+    const source = createMediaPipeGazeSource({
+      ...fx.options(),
+      enumerateDevices: async () => {
+        throw new Error("blocked");
+      },
+    });
+
+    expect(await source.listCameras()).toEqual([]);
+  });
+
+  it("switches camera while running and keeps delivering to the same listeners", async () => {
+    const source = await started();
+    fx.frame();
+
+    await source.selectCamera("cam-2");
+    fx.frame();
+
+    expect(fx.requestedCameras).toEqual([null, "cam-2"]);
+    expect(fx.trackStops).toBe(1);
+    expect(samples).toHaveLength(2);
+    expect(source.getActiveCamera()?.id).toBe("cam-2");
+  });
+
+  it("keeps the calibration across a camera switch", async () => {
+    fx.result = { faceBlendshapes: [{ categories: shapes({ eyeLookOutRight: 1, eyeLookInLeft: 1 }) }], faceLandmarks: [[{ x: 0, y: 0, z: 0 }]] };
+    const source = await started();
+    source.setCalibration({ x: { offset: 0.5, gain: 0.1 }, y: { offset: 0.5, gain: 0.1 } });
+
+    await source.selectCamera("cam-2");
+    fx.frame();
+
+    expect(samples[0].x).toBeCloseTo(0.6, 9);
+  });
+
+  it("only remembers the choice when it is not running yet", async () => {
+    const source = createMediaPipeGazeSource(fx.options());
+
+    await source.selectCamera("cam-2");
+    expect(fx.streamRequests).toBe(0);
+
+    await source.start();
+    expect(fx.requestedCameras).toEqual(["cam-2"]);
+  });
+
+  it("reports a camera that cannot be opened when switching, and stays stopped", async () => {
+    const source = await started();
+    fx.failFor = (id) => (id === "cam-2" ? named("NotReadableError") : null);
+
+    await expect(source.selectCamera("cam-2")).rejects.toMatchObject({ kind: "busy" });
+    fx.frame();
+
+    expect(samples).toHaveLength(0);
   });
 });
 

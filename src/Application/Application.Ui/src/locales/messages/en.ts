@@ -54,6 +54,8 @@ export const messages = {
       calibrationFailed: "That did not work. Keep your head still and look at each dot.",
       faceLost: "Face not found. Look at the camera.",
       privacy: "Camera images stay in your browser.",
+      camera: "Camera",
+      virtualCamera: "This looks like a virtual camera (OBS or similar). Pick your webcam in the list.",
       errors: {
         denied: "Camera access was refused. Allow it in the browser and try again.",
         noCamera: "No camera was found.",

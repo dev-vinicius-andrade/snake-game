@@ -1,4 +1,4 @@
-import { getCurrentScope, onScopeDispose, shallowRef } from "vue";
+import { computed, getCurrentScope, onScopeDispose, shallowRef } from "vue";
 import {
   CALIBRATION_TARGETS,
   CalibrationRecorder,
@@ -7,7 +7,9 @@ import {
   type CalibrationTarget,
 } from "@/input/gaze/calibration";
 import type { CalibrationStorage } from "@/input/gaze/calibrationStorage";
+import type { CameraDevice } from "@/input/gaze/cameraDevices";
 import { classifyCameraError, type CameraErrorKind } from "@/input/gaze/cameraErrors";
+import type { CameraPreferenceStorage } from "@/input/gaze/cameraPreference";
 import type { EyeActionsOptions } from "@/input/gaze/eyeActions";
 import type { GazeSample, GazeSource } from "@/input/gaze/gazeSource";
 import type { CameraGazeSource } from "@/input/gaze/mediapipeGazeSource";
@@ -21,6 +23,8 @@ export type EyeControlPhase = "off" | "starting" | "calibrating" | "active" | "e
 export interface UseEyeControlOptions extends EyeActionsOptions {
   source: CameraGazeSource;
   storage: CalibrationStorage;
+  /** Remembers which camera the player picked. Without it the browser default is used every time. */
+  cameraStorage?: CameraPreferenceStorage;
   getRoom: () => RoomDimensions | null;
   onIntent: (intent: ControlIntent) => void;
   /** Return false to hold steering back, for example while the keyboard is steering. */
@@ -42,6 +46,7 @@ function sharedSource(source: GazeSource): GazeSource {
  */
 export function useEyeControl(options: UseEyeControlOptions) {
   const { source, storage } = options;
+  const cameraStorage: CameraPreferenceStorage = options.cameraStorage ?? { load: () => null, save: () => undefined };
   const recorder = new CalibrationRecorder(options.calibration ?? DEFAULT_CALIBRATION);
 
   const phase = shallowRef<EyeControlPhase>("off");
@@ -50,6 +55,10 @@ export function useEyeControl(options: UseEyeControlOptions) {
   const calibrationTarget = shallowRef<CalibrationTarget | null>(null);
   const calibrationProgress = shallowRef(0);
   const calibrationFailed = shallowRef(false);
+  const cameras = shallowRef<CameraDevice[]>([]);
+  const activeCamera = shallowRef<CameraDevice | null>(null);
+  /** The camera in use looks like software (OBS and the like) while a real camera is available. */
+  const virtualCameraWarning = computed(() => activeCamera.value?.virtual === true && cameras.value.some((camera) => !camera.virtual));
 
   let attempt = 0;
   let stopCalibrationListener: (() => void) | null = null;
@@ -65,6 +74,11 @@ export function useEyeControl(options: UseEyeControlOptions) {
     enabled: active,
   });
   const actions = useEyeActions({ ...options, source: shared, enabled: active });
+
+  async function refreshCameras() {
+    cameras.value = await source.listCameras();
+    activeCamera.value = source.getActiveCamera();
+  }
 
   function showCalibrationProgress() {
     const id = recorder.target;
@@ -107,14 +121,13 @@ export function useEyeControl(options: UseEyeControlOptions) {
     errorMessage.value = null;
     calibrationFailed.value = false;
 
+    source.setPreferredCamera(cameraStorage.load());
     try {
       await source.start();
     } catch (failure) {
       if (myAttempt !== attempt) return;
       source.stop();
-      phase.value = "error";
-      errorKind.value = classifyCameraError(failure);
-      errorMessage.value = failure instanceof Error ? failure.message : String(failure);
+      fail(failure);
       return;
     }
     if (myAttempt !== attempt) {
@@ -124,22 +137,53 @@ export function useEyeControl(options: UseEyeControlOptions) {
 
     await Promise.all([steering.start(), actions.start()]);
     stopCalibrationListener = source.subscribe(onCalibrationSample);
+    await refreshCameras();
     const saved = storage.load();
     if (!saved) return beginCalibration();
     source.setCalibration(saved);
     phase.value = "active";
   }
 
-  function disable() {
+  function fail(failure: unknown) {
+    phase.value = "error";
+    errorKind.value = classifyCameraError(failure);
+    errorMessage.value = failure instanceof Error ? failure.message : String(failure);
+  }
+
+  /** Stops listening and shuts the camera. The phase is the caller's to set. */
+  function teardown() {
     attempt++;
     stopCalibrationListener?.();
     stopCalibrationListener = null;
     steering.stop();
     actions.stop();
     source.stop();
-    phase.value = "off";
     calibrationTarget.value = null;
     calibrationProgress.value = 0;
+  }
+
+  function disable() {
+    teardown();
+    phase.value = "off";
+    activeCamera.value = null;
+  }
+
+  /**
+   * Uses another camera and remembers the choice. While the camera is on it is reopened and listeners and calibration stay;
+   * if the new camera cannot be opened everything stops with an error, and enabling again retries.
+   */
+  async function selectCamera(cameraId: string) {
+    cameraStorage.save(cameraId);
+    source.setPreferredCamera(cameraId);
+    if (phase.value !== "active" && phase.value !== "calibrating") return;
+    try {
+      await source.selectCamera(cameraId);
+    } catch (failure) {
+      teardown();
+      fail(failure);
+      return;
+    }
+    await refreshCameras();
   }
 
   /** Forgets the saved calibration and measures again. Only while the camera runs. */
@@ -161,8 +205,12 @@ export function useEyeControl(options: UseEyeControlOptions) {
     calibrationTarget,
     calibrationProgress,
     calibrationFailed,
+    cameras,
+    activeCamera,
+    virtualCameraWarning,
     enable,
     disable,
     recalibrate,
+    selectCamera,
   };
 }

@@ -66,3 +66,17 @@ Turn it on with the "Eye control" button (bottom right of the game view). Mouse 
 - Model and wasm come from Google storage and jsDelivr by default. Set `VITE_FACE_LANDMARKER_MODEL_URL` and `VITE_MEDIAPIPE_WASM_URL`
   (see `.env.example`) to serve them yourself. Camera images are never sent anywhere either way.
 - Camera access needs `https` or `localhost`.
+
+## Choosing the camera, and when no face is found
+
+- With **Eye control** on, the panel lists the cameras (real ones first). Pick one and it is reopened at once, the choice is remembered
+  in `localStorage`, and calibration is kept. If a saved camera is gone, the browser default is used. Names only appear after the camera
+  permission was given, because browsers hide them before that.
+- A small mirrored **preview** shows what the camera sees (bottom left). Only the preview is mirrored; the model reads the raw frame.
+- A camera that looks virtual (OBS, Snap Camera, NDI, XSplit, ManyCam, Streamlabs, anything with "virtual" in the name) triggers a warning
+  when a real camera exists. The default camera of a browser is often a virtual one on machines that stream or record.
+- The console prints a line every two seconds while the camera runs:
+  `[eye] frames=330 landmarks=0 withFace=0 incomplete=0 skipped=0 missing=- video=640x480 ready=4 brightness=0.02 hint=no face found: ...`
+  - `landmarks` is how many frames the model found a face in. `withFace` is how many of those also gave blendshapes. `incomplete` and `missing` name eye blendshapes that were absent.
+  - `brightness` near 0 means black frames (wrong or covered camera). `skipped` counts loop runs without a new video frame.
+  - `landmarks=0` with a lit, real picture in the preview: improve the light, face the lens, and move closer.

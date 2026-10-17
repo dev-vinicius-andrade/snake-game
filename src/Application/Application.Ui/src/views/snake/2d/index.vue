@@ -9,6 +9,7 @@ import { useGazeControls } from "@/composables/useGazeControls";
 import { useManagerJoin } from "@/composables/useManagerJoin";
 import { useSnakeSession } from "@/composables/useSnakeSession";
 import { createCalibrationStorage } from "@/input/gaze/calibrationStorage";
+import { createCameraPreferenceStorage } from "@/input/gaze/cameraPreference";
 import { createMediaPipeGazeSource } from "@/input/gaze/mediapipeGazeSource";
 import { createPointerSource } from "@/input/gaze/pointerSource";
 import { usePlayerStore } from "@/store/usePlayerStore";
@@ -32,6 +33,7 @@ const aim = useGazeControls({
 const eye = useEyeControl({
   source: createMediaPipeGazeSource(),
   storage: createCalibrationStorage(),
+  cameraStorage: createCameraPreferenceStorage(),
   getRoom: () => game.room.value,
   onIntent: session.handleIntent,
   canSteer: session.allowsGazeSteer,
@@ -81,9 +83,13 @@ onBeforeUnmount(() => void session.stop());
       :phase="eye.phase.value"
       :tracking="eye.tracking.value"
       :error-kind="eye.errorKind.value"
+      :cameras="eye.cameras.value"
+      :active-camera-id="eye.activeCamera.value?.id ?? null"
+      :virtual-camera-warning="eye.virtualCameraWarning.value"
       @enable="enableEyeControl"
       @disable="eye.disable"
       @recalibrate="eye.recalibrate"
+      @select-camera="eye.selectCamera"
     />
     <CalibrationOverlay
       v-if="eye.phase.value === 'calibrating'"

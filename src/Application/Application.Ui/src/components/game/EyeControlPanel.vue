@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import type { EyeControlPhase } from "@/composables/useEyeControl";
 import { getText } from "@/helpers";
+import type { CameraDevice } from "@/input/gaze/cameraDevices";
 import type { CameraErrorKind } from "@/input/gaze/cameraErrors";
 import type { TrackingState } from "@/input/gaze/trackingMonitor";
 
@@ -9,12 +10,16 @@ const props = defineProps<{
   phase: EyeControlPhase;
   tracking: TrackingState;
   errorKind: CameraErrorKind | null;
+  cameras: CameraDevice[];
+  activeCameraId: string | null;
+  virtualCameraWarning: boolean;
 }>();
 
 const emit = defineEmits<{
   (event: "enable"): void;
   (event: "disable"): void;
   (event: "recalibrate"): void;
+  (event: "select-camera", cameraId: string): void;
 }>();
 
 const isOn = computed(() => props.phase === "starting" || props.phase === "calibrating" || props.phase === "active");
@@ -35,6 +40,10 @@ const status = computed(() => {
   return "";
 });
 
+function onCameraChange(event: Event) {
+  emit("select-camera", (event.target as HTMLSelectElement).value);
+}
+
 function toggle() {
   if (isOn.value) emit("disable");
   else emit("enable");
@@ -49,6 +58,13 @@ function toggle() {
     <button v-if="phase === 'active'" type="button" class="eye-button" @click="emit('recalibrate')">
       {{ getText({ key: "game.eye.recalibrate" }) }}
     </button>
+    <label v-if="cameras.length > 0" class="eye-camera">
+      <span>{{ getText({ key: "game.eye.camera" }) }}</span>
+      <select class="eye-select" :value="activeCameraId ?? ''" @change="onCameraChange">
+        <option v-for="camera in cameras" :key="camera.id" :value="camera.id">{{ camera.label }}</option>
+      </select>
+    </label>
+    <div v-if="virtualCameraWarning" class="eye-status eye-status-error">{{ getText({ key: "game.eye.virtualCamera" }) }}</div>
     <div v-if="status" class="eye-status" :class="{ 'eye-status-error': phase === 'error' || tracking === 'lost' }" role="status">
       {{ status }}
     </div>
@@ -78,6 +94,21 @@ function toggle() {
   border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 2px;
   cursor: pointer;
+}
+.eye-camera {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+}
+.eye-select {
+  max-width: 100%;
+  padding: 2px 4px;
+  color: #ffffff;
+  font: inherit;
+  background: #2b2b36;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 2px;
 }
 .eye-status {
   margin-top: 6px;

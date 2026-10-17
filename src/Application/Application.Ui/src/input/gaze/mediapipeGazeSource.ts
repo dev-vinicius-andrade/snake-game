@@ -1,5 +1,6 @@
 import { missingEyeBlendshapes, type BlendshapeScore } from "./blendshapes";
 import type { Calibration } from "./calibration";
+import { isLikelyVirtualCamera, toCameraDevices, type CameraDevice, type MediaDeviceInfoLike } from "./cameraDevices";
 import { CameraError, classifyCameraError, isCameraSupported, type NavigatorLike } from "./cameraErrors";
 import { EyeFrameProcessor } from "./eyeFrameProcessor";
 import { loadFaceLandmarker } from "./faceLandmarker";
@@ -35,6 +36,7 @@ export interface VideoLike {
 
 export interface CameraStreamLike {
   getTracks(): Array<{ stop(): void }>;
+  getVideoTracks?(): Array<{ label: string; getSettings?(): { deviceId?: string } }>;
 }
 
 /** What the camera pipeline has done so far, to see where it stops when no face is found. */
@@ -61,12 +63,24 @@ export interface GazeDiagnostics {
 export interface CameraGazeSource extends GazeSource {
   setCalibration(calibration: Calibration): void;
   getDiagnostics(): GazeDiagnostics;
+  /** Which camera to open on the next start. Null is the browser default. */
+  setPreferredCamera(cameraId: string | null): void;
+  /** The video cameras, real ones first. Names appear once the camera permission was given. */
+  listCameras(): Promise<CameraDevice[]>;
+  /** The camera in use, or null while stopped. */
+  getActiveCamera(): CameraDevice | null;
+  /** Switches to that camera. While running the stream is reopened, listeners and calibration stay. */
+  selectCamera(cameraId: string): Promise<void>;
 }
 
 export interface MediaPipeGazeSourceOptions {
   processor?: EyeFrameProcessor;
   navigatorLike?: NavigatorLike | null;
-  getStream?: () => Promise<CameraStreamLike>;
+  /** Opens a camera by device id, or the browser default for null. */
+  getStream?: (cameraId: string | null) => Promise<CameraStreamLike>;
+  enumerateDevices?: () => Promise<MediaDeviceInfoLike[]>;
+  /** Camera to open first. */
+  cameraId?: string | null;
   loadLandmarker?: () => Promise<LandmarkerLike>;
   createVideo?: () => VideoLike;
   requestFrame?: (callback: () => void) => number;
@@ -86,11 +100,15 @@ const LOG_EVERY_MS = 2000;
 /** After this many frames without a face the summary says so. */
 const NO_FACE_HINT_FRAMES = 150;
 
-const defaultGetStream = () =>
+const defaultGetStream = (cameraId: string | null) =>
   navigator.mediaDevices.getUserMedia({
-    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+    video: cameraId
+      ? { deviceId: { exact: cameraId }, width: { ideal: 640 }, height: { ideal: 480 } }
+      : { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
     audio: false,
   });
+
+const defaultEnumerateDevices = () => navigator.mediaDevices.enumerateDevices();
 
 const emptyCounters = () => ({ frames: 0, withLandmarks: 0, withFace: 0, incomplete: 0, skipped: 0, missing: [] as string[] });
 
@@ -114,8 +132,8 @@ function defaultCreateVideo(): VideoLike {
   element.setAttribute("aria-label", "Camera preview");
   Object.assign(element.style, {
     position: "fixed",
-    right: "8px",
-    bottom: "130px",
+    left: "8px",
+    bottom: "140px",
     width: "160px",
     height: "120px",
     objectFit: "cover",
@@ -155,6 +173,7 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
   const processor = options.processor ?? new EyeFrameProcessor();
   const navigatorLike = options.navigatorLike === undefined ? (typeof navigator === "undefined" ? null : navigator) : options.navigatorLike;
   const getStream = options.getStream ?? defaultGetStream;
+  const enumerateDevices = options.enumerateDevices ?? defaultEnumerateDevices;
   const loadLandmarker = options.loadLandmarker ?? (() => loadFaceLandmarker());
   const createVideo = options.createVideo ?? defaultCreateVideo;
   const requestFrame = options.requestFrame ?? ((callback: () => void) => requestAnimationFrame(callback));
@@ -169,6 +188,8 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
   let starting: Promise<void> | null = null;
   let generation = 0;
   let stream: CameraStreamLike | null = null;
+  let preferredCameraId: string | null = options.cameraId ?? null;
+  let activeCamera: CameraDevice | null = null;
   let landmarker: LandmarkerLike | null = null;
   let video: VideoLike | null = null;
   let frameHandle: number | null = null;
@@ -205,8 +226,31 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
     if (video) video.srcObject = null;
     video?.remove?.();
     stream = null;
+    activeCamera = null;
     landmarker = null;
     video = null;
+  }
+
+  function describeCamera(openedStream: CameraStreamLike): CameraDevice | null {
+    const track = openedStream.getVideoTracks?.()[0];
+    if (!track) return null;
+    return { id: track.getSettings?.().deviceId ?? preferredCameraId ?? "", label: track.label, virtual: isLikelyVirtualCamera(track.label) };
+  }
+
+  /** The preferred camera, or the default when that one is gone. Other failures are the player's to fix. */
+  async function acquireStream(): Promise<CameraStreamLike> {
+    try {
+      return await getStream(preferredCameraId);
+    } catch (failure) {
+      const kind = classifyCameraError(failure);
+      if (preferredCameraId === null || kind !== "no-camera") throw new CameraError(kind, "The camera could not be opened.", failure);
+      preferredCameraId = null;
+      try {
+        return await getStream(null);
+      } catch (second) {
+        throw new CameraError(classifyCameraError(second), "The camera could not be opened.", second);
+      }
+    }
   }
 
   function detect(currentVideo: VideoLike, currentLandmarker: LandmarkerLike, t: number): LandmarkerResultLike | null {
@@ -280,13 +324,9 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
     }
     const cancelled = () => myGeneration !== generation;
 
-    let openedStream: CameraStreamLike;
-    try {
-      openedStream = await getStream();
-    } catch (failure) {
-      throw new CameraError(classifyCameraError(failure), "The camera could not be opened.", failure);
-    }
+    const openedStream = await acquireStream();
     stream = openedStream;
+    activeCamera = describeCamera(openedStream);
     if (cancelled()) return releaseResources();
 
     try {
@@ -318,20 +358,23 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
     scheduleFrame();
   }
 
-  return {
-    async start() {
-      if (running) return;
-      starting ??= open(generation).finally(() => {
-        starting = null;
-      });
-      await starting;
-    },
+  async function startSource() {
+    if (running) return;
+    starting ??= open(generation).finally(() => {
+      starting = null;
+    });
+    await starting;
+  }
 
-    stop() {
-      generation++;
-      running = false;
-      releaseResources();
-    },
+  function stopSource() {
+    generation++;
+    running = false;
+    releaseResources();
+  }
+
+  return {
+    start: startSource,
+    stop: stopSource,
 
     subscribe(listener) {
       listeners.add(listener);
@@ -345,5 +388,26 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
     },
 
     getDiagnostics: diagnostics,
+
+    setPreferredCamera(cameraId) {
+      preferredCameraId = cameraId;
+    },
+
+    async listCameras() {
+      try {
+        return toCameraDevices(await enumerateDevices());
+      } catch {
+        return [];
+      }
+    },
+
+    getActiveCamera: () => (activeCamera ? { ...activeCamera } : null),
+
+    async selectCamera(cameraId) {
+      preferredCameraId = cameraId;
+      if (!running && !starting) return;
+      stopSource();
+      await startSource();
+    },
   };
 }

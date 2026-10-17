@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { CALIBRATION_TARGETS, type Calibration } from "@/input/gaze/calibration";
 import type { CalibrationStorage } from "@/input/gaze/calibrationStorage";
+import type { CameraDevice } from "@/input/gaze/cameraDevices";
 import { CameraError } from "@/input/gaze/cameraErrors";
+import type { CameraPreferenceStorage } from "@/input/gaze/cameraPreference";
 import type { ControlIntent } from "@/input/intents";
 import { FakeCameraSource } from "@/test/fakeGaze";
 import { useEyeControl, type UseEyeControlOptions } from "./useEyeControl";
@@ -27,7 +29,18 @@ class MemoryStorage implements CalibrationStorage {
   }
 }
 
+class MemoryCameraPreference implements CameraPreferenceStorage {
+  value: string | null = null;
+  load() {
+    return this.value;
+  }
+  save(cameraId: string | null) {
+    this.value = cameraId;
+  }
+}
+
 let source: FakeCameraSource;
+let cameraPreference: MemoryCameraPreference;
 let storage: MemoryStorage;
 let intents: ControlIntent[];
 let overrides: Partial<UseEyeControlOptions>;
@@ -37,6 +50,7 @@ function create() {
   return useEyeControl({
     source,
     storage,
+    cameraStorage: cameraPreference,
     getRoom: () => room,
     onIntent: (intent) => intents.push(intent),
     calibration: { framesPerTarget: 3, settleFrames: 0 },
@@ -61,6 +75,7 @@ const goodEye: eyeModel = (stage) => ({ x: (stage.x - 0.5) / 0.8, y: (stage.y - 
 beforeEach(() => {
   source = new FakeCameraSource();
   storage = new MemoryStorage();
+  cameraPreference = new MemoryCameraPreference();
   intents = [];
   overrides = {};
   clock = 0;
@@ -325,5 +340,128 @@ describe("useEyeControl disable", () => {
 
     expect(control.phase.value).toBe("off");
     expect(source.listenerCount).toBe(0);
+  });
+});
+
+describe("useEyeControl camera choice", () => {
+  const webcam: CameraDevice = { id: "cam-2", label: "Real Webcam", virtual: false };
+  const obs: CameraDevice = { id: "obs", label: "OBS Virtual Camera", virtual: true };
+
+  beforeEach(() => {
+    source.cameras = [webcam, obs];
+    source.active = obs;
+    storage.value = saved;
+  });
+
+  it("hands the saved camera choice to the source before it starts", async () => {
+    cameraPreference.value = "cam-2";
+    const control = create();
+
+    await control.enable();
+
+    expect(source.preferred).toEqual(["cam-2"]);
+  });
+
+  it("starts with the browser default when nothing was chosen", async () => {
+    const control = create();
+
+    await control.enable();
+
+    expect(source.preferred).toEqual([null]);
+  });
+
+  it("lists the cameras and the one in use once the camera is on", async () => {
+    const control = create();
+    expect(control.cameras.value).toEqual([]);
+
+    await control.enable();
+
+    expect(control.cameras.value).toEqual([webcam, obs]);
+    expect(control.activeCamera.value).toEqual(obs);
+  });
+
+  it("warns when the camera in use looks virtual and a real one exists", async () => {
+    const control = create();
+
+    await control.enable();
+
+    expect(control.virtualCameraWarning.value).toBe(true);
+  });
+
+  it("does not warn when a real camera is in use", async () => {
+    source.active = webcam;
+    const control = create();
+
+    await control.enable();
+
+    expect(control.virtualCameraWarning.value).toBe(false);
+  });
+
+  it("does not warn when the virtual camera is the only one", async () => {
+    source.cameras = [obs];
+    const control = create();
+
+    await control.enable();
+
+    expect(control.virtualCameraWarning.value).toBe(false);
+  });
+
+  it("switching saves the choice and moves the running camera over", async () => {
+    const control = create();
+    await control.enable();
+
+    await control.selectCamera("cam-2");
+
+    expect(cameraPreference.value).toBe("cam-2");
+    expect(source.selected).toEqual(["cam-2"]);
+    expect(control.activeCamera.value).toEqual(webcam);
+    expect(control.virtualCameraWarning.value).toBe(false);
+    expect(control.phase.value).toBe("active");
+  });
+
+  it("keeps calibrating through a switch", async () => {
+    storage.value = null;
+    const control = create();
+    await control.enable();
+
+    await control.selectCamera("cam-2");
+
+    expect(control.phase.value).toBe("calibrating");
+  });
+
+  it("before the camera is on, switching only remembers the choice", async () => {
+    const control = create();
+
+    await control.selectCamera("cam-2");
+
+    expect(cameraPreference.value).toBe("cam-2");
+    expect(source.selected).toEqual([]);
+    expect(source.preferred).toEqual(["cam-2"]);
+  });
+
+  it("ends in an error when the chosen camera cannot be opened, and keeps the choice", async () => {
+    const control = create();
+    await control.enable();
+    source.selectError = new CameraError("busy", "in use");
+
+    await control.selectCamera("cam-2");
+
+    expect(control.phase.value).toBe("error");
+    expect(control.errorKind.value).toBe("busy");
+    expect(cameraPreference.value).toBe("cam-2");
+  });
+
+  it("can be turned on again after a failed switch without listening twice", async () => {
+    const control = create();
+    await control.enable();
+    source.selectError = new CameraError("busy", "in use");
+    await control.selectCamera("cam-2");
+    source.selectError = undefined;
+
+    await control.enable();
+    source.emit(frame({ x: 0.9, y: 0.5 }));
+
+    expect(control.phase.value).toBe("active");
+    expect(intents.filter((intent) => intent.type === "steer")).toHaveLength(1);
   });
 });
