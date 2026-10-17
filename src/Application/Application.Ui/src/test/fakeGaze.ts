@@ -1,4 +1,6 @@
+import type { Calibration } from "@/input/gaze/calibration";
 import type { GazeSample, GazeSource } from "@/input/gaze/gazeSource";
+import type { CameraGazeSource } from "@/input/gaze/mediapipeGazeSource";
 
 /** In-memory GazeSource for specs. Tests push samples with `emit`. */
 export class FakeGazeSource implements GazeSource {
@@ -32,5 +34,14 @@ export class FakeGazeSource implements GazeSource {
 
   emit(sample: GazeSample) {
     this.listeners.forEach((listener) => listener(sample));
+  }
+}
+
+/** FakeGazeSource that also records the calibrations it was given, like the camera source. */
+export class FakeCameraSource extends FakeGazeSource implements CameraGazeSource {
+  readonly calibrations: Calibration[] = [];
+
+  setCalibration(calibration: Calibration) {
+    this.calibrations.push(calibration);
   }
 }

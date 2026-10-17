@@ -3,10 +3,13 @@ import { useStorage } from "@vueuse/core";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import GameStage from "@/components/game/GameStage.vue";
+import { useEyeControl } from "@/composables/useEyeControl";
 import { useGameConnection } from "@/composables/useGameConnection";
 import { useGazeControls } from "@/composables/useGazeControls";
 import { useManagerJoin } from "@/composables/useManagerJoin";
 import { useSnakeSession } from "@/composables/useSnakeSession";
+import { createCalibrationStorage } from "@/input/gaze/calibrationStorage";
+import { createMediaPipeGazeSource } from "@/input/gaze/mediapipeGazeSource";
 import { createPointerSource } from "@/input/gaze/pointerSource";
 import { usePlayerStore } from "@/store/usePlayerStore";
 
@@ -25,6 +28,25 @@ const aim = useGazeControls({
   canSteer: session.allowsGazeSteer,
   enabled: () => mouseAim.value && session.phase.value === "playing",
 });
+
+const eye = useEyeControl({
+  source: createMediaPipeGazeSource(),
+  storage: createCalibrationStorage(),
+  getRoom: () => game.room.value,
+  onIntent: session.handleIntent,
+  canSteer: session.allowsGazeSteer,
+});
+
+/** Mouse aim and eye control both steer, so only one of them can be on. */
+function toggleMouseAim() {
+  mouseAim.value = !mouseAim.value;
+  if (mouseAim.value) eye.disable();
+}
+
+function enableEyeControl() {
+  mouseAim.value = false;
+  return eye.enable();
+}
 
 const nickname = computed(() => playerStore.data?.nickname?.trim() ?? "");
 
@@ -53,7 +75,23 @@ onBeforeUnmount(() => void session.stop());
       :leaderboard="game.leaderboard.value"
       :status="game.status.value"
       :mouse-aim="mouseAim"
-      @toggle-mouse-aim="mouseAim = !mouseAim"
+      @toggle-mouse-aim="toggleMouseAim"
+    />
+    <EyeControlPanel
+      :phase="eye.phase.value"
+      :tracking="eye.tracking.value"
+      :error-kind="eye.errorKind.value"
+      @enable="enableEyeControl"
+      @disable="eye.disable"
+      @recalibrate="eye.recalibrate"
+    />
+    <CalibrationOverlay
+      v-if="eye.phase.value === 'calibrating'"
+      :target="eye.calibrationTarget.value"
+      :progress="eye.calibrationProgress.value"
+      :failed="eye.calibrationFailed.value"
+      :tracking="eye.tracking.value"
+      @cancel="eye.disable"
     />
     <SessionOverlay
       :phase="session.phase.value"

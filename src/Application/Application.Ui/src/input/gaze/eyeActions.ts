@@ -51,14 +51,15 @@ export class EyeActions {
     return this.monitor.state;
   }
 
-  process(sample: GazeSample, room: RoomDimensions): EyeActionsResult {
+  // Parameters are not called `room`: the auto-import plugin would mistake it for the default export of types/room.
+  process(sample: GazeSample, roomSize: RoomDimensions): EyeActionsResult {
     const present = sample.present ?? true;
     const tracking = this.monitor.update(present, sample.t);
     const intents: ControlIntent[] = tracking === "lost" ? this.endActions() : [];
     if (this.monitor.state !== "tracking" || !present) return { intents, tracking };
 
     if (sample.blink !== undefined && this.blink.update(sample.blink, sample.t)) intents.push({ type: "shoot" });
-    const boost = this.boostFor(room).update(this.distanceFromMiddle(sample, room), sample.t);
+    const boost = this.boostFor(roomSize).update(this.distanceFromMiddle(sample, roomSize), sample.t);
     if (boost !== null) intents.push({ type: "boost", active: boost });
     return { intents, tracking };
   }
@@ -75,12 +76,12 @@ export class EyeActions {
     return this.boost?.reset() === false ? [{ type: "boost", active: false }] : [];
   }
 
-  private distanceFromMiddle(sample: GazeSample, room: RoomDimensions): number {
-    return Math.hypot((sample.x - 0.5) * room.width, (sample.y - 0.5) * room.height);
+  private distanceFromMiddle(sample: GazeSample, roomSize: RoomDimensions): number {
+    return Math.hypot((sample.x - 0.5) * roomSize.width, (sample.y - 0.5) * roomSize.height);
   }
 
-  private boostFor(room: RoomDimensions): FarGazeBoost {
-    const farRadius = this.radiusFraction * Math.min(room.width, room.height);
+  private boostFor(roomSize: RoomDimensions): FarGazeBoost {
+    const farRadius = this.radiusFraction * Math.min(roomSize.width, roomSize.height);
     if (!this.boost || this.boostRadius !== farRadius) {
       this.boost = new FarGazeBoost({ farRadius, holdMs: this.holdMs, releaseRatio: this.releaseRatio });
       this.boostRadius = farRadius;

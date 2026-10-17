@@ -1,0 +1,92 @@
+<script setup lang="ts">
+import { computed } from "vue";
+import type { EyeControlPhase } from "@/composables/useEyeControl";
+import { getText } from "@/helpers";
+import type { CameraErrorKind } from "@/input/gaze/cameraErrors";
+import type { TrackingState } from "@/input/gaze/trackingMonitor";
+
+const props = defineProps<{
+  phase: EyeControlPhase;
+  tracking: TrackingState;
+  errorKind: CameraErrorKind | null;
+}>();
+
+const emit = defineEmits<{
+  (event: "enable"): void;
+  (event: "disable"): void;
+  (event: "recalibrate"): void;
+}>();
+
+const isOn = computed(() => props.phase === "starting" || props.phase === "calibrating" || props.phase === "active");
+
+const ERROR_KEYS: Record<CameraErrorKind, string> = {
+  denied: "game.eye.errors.denied",
+  "no-camera": "game.eye.errors.noCamera",
+  busy: "game.eye.errors.busy",
+  unsupported: "game.eye.errors.unsupported",
+  model: "game.eye.errors.model",
+  unknown: "game.eye.errors.unknown",
+};
+
+const status = computed(() => {
+  if (props.phase === "starting") return getText({ key: "game.eye.starting" });
+  if (props.phase === "error") return getText({ key: ERROR_KEYS[props.errorKind ?? "unknown"] });
+  if (props.phase === "active" && props.tracking === "lost") return getText({ key: "game.eye.faceLost" });
+  return "";
+});
+
+function toggle() {
+  if (isOn.value) emit("disable");
+  else emit("enable");
+}
+</script>
+
+<template>
+  <section class="eye-panel">
+    <button type="button" class="eye-button" :aria-pressed="isOn" @click="toggle">
+      {{ getText({ key: isOn ? "game.eye.on" : "game.eye.off" }) }}
+    </button>
+    <button v-if="phase === 'active'" type="button" class="eye-button" @click="emit('recalibrate')">
+      {{ getText({ key: "game.eye.recalibrate" }) }}
+    </button>
+    <div v-if="status" class="eye-status" :class="{ 'eye-status-error': phase === 'error' || tracking === 'lost' }" role="status">
+      {{ status }}
+    </div>
+    <div v-if="!isOn" class="eye-privacy">{{ getText({ key: "game.eye.privacy" }) }}</div>
+  </section>
+</template>
+
+<style scoped>
+.eye-panel {
+  position: fixed;
+  right: 8px;
+  bottom: 8px;
+  z-index: 10;
+  max-width: 260px;
+  padding: 8px 12px;
+  color: #ffffff;
+  font-family: monospace;
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.45);
+}
+.eye-button {
+  margin-right: 6px;
+  padding: 2px 8px;
+  color: inherit;
+  font: inherit;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.eye-status {
+  margin-top: 6px;
+}
+.eye-status-error {
+  color: #ffcc00;
+}
+.eye-privacy {
+  margin-top: 6px;
+  opacity: 0.7;
+}
+</style>

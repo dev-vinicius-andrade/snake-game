@@ -44,6 +44,25 @@ export const messages = {
     },
     mouseAimOn: "Mouse aim: on",
     mouseAimOff: "Mouse aim: off",
+    eye: {
+      on: "Eye control: on",
+      off: "Eye control: off",
+      starting: "Starting the camera...",
+      recalibrate: "Recalibrate",
+      cancel: "Cancel",
+      lookAtDot: "Look at the dot and keep your head still",
+      calibrationFailed: "That did not work. Keep your head still and look at each dot.",
+      faceLost: "Face not found. Look at the camera.",
+      privacy: "Camera images stay in your browser.",
+      errors: {
+        denied: "Camera access was refused. Allow it in the browser and try again.",
+        noCamera: "No camera was found.",
+        busy: "Another app is using the camera.",
+        unsupported: "This page cannot use the camera (it needs https or localhost).",
+        model: "Face tracking could not be loaded. Check your connection.",
+        unknown: "The camera could not be started.",
+      },
+    },
   },
 };
 export default messages;

@@ -4,6 +4,7 @@ declare global {
   const DEFAULT_DEAD_RADIUS: typeof import('./src/composables/useGazeControls')['DEFAULT_DEAD_RADIUS']
   const EffectScope: typeof import('vue')['EffectScope']
   const Events: typeof import('./src/enums/index')['Events']
+  const JOYSTICK_DEAD_FRACTION: typeof import('./src/composables/useGazeControls')['JOYSTICK_DEAD_FRACTION']
   const StringCase: typeof import('./src/enums/index')['StringCase']
   const acceptHMRUpdate: typeof import('pinia')['acceptHMRUpdate']
   const asyncComputed: typeof import('@vueuse/core')['asyncComputed']
@@ -178,6 +179,8 @@ declare global {
   const useEventBus: typeof import('@vueuse/core')['useEventBus']
   const useEventListener: typeof import('@vueuse/core')['useEventListener']
   const useEventSource: typeof import('@vueuse/core')['useEventSource']
+  const useEyeActions: typeof import('./src/composables/useEyeActions')['useEyeActions']
+  const useEyeControl: typeof import('./src/composables/useEyeControl')['useEyeControl']
   const useEyeDropper: typeof import('@vueuse/core')['useEyeDropper']
   const useFavicon: typeof import('@vueuse/core')['useFavicon']
   const useFetch: typeof import('@vueuse/core')['useFetch']
@@ -190,6 +193,7 @@ declare global {
   const useGameConnection: typeof import('./src/composables/useGameConnection')['useGameConnection']
   const useGamepad: typeof import('@vueuse/core')['useGamepad']
   const useGazeControls: typeof import('./src/composables/useGazeControls')['useGazeControls']
+  const useGazeSubscription: typeof import('./src/composables/useGazeSubscription')['useGazeSubscription']
   const useGeolocation: typeof import('@vueuse/core')['useGeolocation']
   const useI18n: typeof import('vue-i18n')['useI18n']
   const useIdle: typeof import('@vueuse/core')['useIdle']
@@ -315,6 +319,7 @@ declare module 'vue' {
     readonly DEFAULT_DEAD_RADIUS: UnwrapRef<typeof import('./src/composables/useGazeControls')['DEFAULT_DEAD_RADIUS']>
     readonly EffectScope: UnwrapRef<typeof import('vue')['EffectScope']>
     readonly Events: UnwrapRef<typeof import('./src/enums/index')['Events']>
+    readonly JOYSTICK_DEAD_FRACTION: UnwrapRef<typeof import('./src/composables/useGazeControls')['JOYSTICK_DEAD_FRACTION']>
     readonly StringCase: UnwrapRef<typeof import('./src/enums/index')['StringCase']>
     readonly acceptHMRUpdate: UnwrapRef<typeof import('pinia')['acceptHMRUpdate']>
     readonly asyncComputed: UnwrapRef<typeof import('@vueuse/core')['asyncComputed']>
@@ -489,6 +494,8 @@ declare module 'vue' {
     readonly useEventBus: UnwrapRef<typeof import('@vueuse/core')['useEventBus']>
     readonly useEventListener: UnwrapRef<typeof import('@vueuse/core')['useEventListener']>
     readonly useEventSource: UnwrapRef<typeof import('@vueuse/core')['useEventSource']>
+    readonly useEyeActions: UnwrapRef<typeof import('./src/composables/useEyeActions')['useEyeActions']>
+    readonly useEyeControl: UnwrapRef<typeof import('./src/composables/useEyeControl')['useEyeControl']>
     readonly useEyeDropper: UnwrapRef<typeof import('@vueuse/core')['useEyeDropper']>
     readonly useFavicon: UnwrapRef<typeof import('@vueuse/core')['useFavicon']>
     readonly useFetch: UnwrapRef<typeof import('@vueuse/core')['useFetch']>
@@ -501,6 +508,7 @@ declare module 'vue' {
     readonly useGameConnection: UnwrapRef<typeof import('./src/composables/useGameConnection')['useGameConnection']>
     readonly useGamepad: UnwrapRef<typeof import('@vueuse/core')['useGamepad']>
     readonly useGazeControls: UnwrapRef<typeof import('./src/composables/useGazeControls')['useGazeControls']>
+    readonly useGazeSubscription: UnwrapRef<typeof import('./src/composables/useGazeSubscription')['useGazeSubscription']>
     readonly useGeolocation: UnwrapRef<typeof import('@vueuse/core')['useGeolocation']>
     readonly useI18n: UnwrapRef<typeof import('vue-i18n')['useI18n']>
     readonly useIdle: UnwrapRef<typeof import('@vueuse/core')['useIdle']>
