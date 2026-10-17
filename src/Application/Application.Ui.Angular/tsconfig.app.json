@@ -4,9 +4,8 @@
   "compilerOptions": {
     "baseUrl": "./",
     "outDir": "./out-tsc/app",
-    "types": [
-      "@angular/localize"
-    ],
+    "types": ["@angular/localize"],
+    "typeRoots": ["./node_modules/@types", "./src/app/types/webgazer"],
     "paths": {
       "@app/*": ["src/app/*"],
       "@components/*": ["src/app/components/*"],
@@ -20,5 +19,5 @@
     }
   },
   "files": ["src/main.ts"],
-  "include": ["src/**/*.d.ts"]
+  "include": ["src/**/*.d.ts", "src/app/app/types/**/*.d.ts"]
 }

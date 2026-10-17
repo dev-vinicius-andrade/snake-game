@@ -13,6 +13,7 @@
 @import 'primeng/resources/primeng.min.css';
 @import 'primeng/resources/themes/md-light-indigo/theme.css';
 @import 'primeng/resources/themes/md-dark-indigo/theme.css';
+
 @layer base {
   :root,
   :root .p-component,
@@ -31,18 +32,18 @@
       .p-button:disabled.p-button-outlined>.p-button-label{
         color: rgb(var(--color-app-text) / var(--tw-text-opacity))!important;
       }
+
   }
 }
 
 @layer tailwind-base {
   @import "tailwindcss/base";
 }
-
-
 @layer tailwind-utilities {
   @import "tailwindcss/components";
   @import "tailwindcss/utilities";
 }
+
 
 html, body { height: 100%; }
 body { margin: 0;  }

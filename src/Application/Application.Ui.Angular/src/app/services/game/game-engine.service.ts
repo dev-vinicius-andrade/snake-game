@@ -13,6 +13,8 @@ import { Router } from '@angular/router';
 import { EventGameScoreUpdated } from '@app/types/events/game/score/updated';
 import { Score } from '@app/types/score';
 import { EventGamePlayerDied } from '@app/types/events/game/player/died';
+import { useScreenLookDirection, useWebgazer } from '@app/composables/webgazer';
+import { WebGazer } from 'webgazer';
 
 @Injectable({
   providedIn: 'root',
@@ -26,7 +28,8 @@ export class GameEngineService {
   public currentPlayerScoreChanged = new EventEmitter<Nullable<number>>();
   public currentPlayerDied = new EventEmitter<boolean>();
   public isConnectedStatusChanged = new EventEmitter<boolean>();
-
+  private eyeTrackerEnabled = true;
+  private webgazer?: WebGazer;
   public get isConnected(): boolean {
     if (!this.gameService) return false;
     return this.gameService.isConnected();
@@ -58,6 +61,37 @@ export class GameEngineService {
   get connectionId(): Nullable<string> {
     return this.gameService.connectionId();
   }
+  private async startWebGazer() {
+    if (!this.eyeTrackerEnabled) return;
+    this.webgazer = await useWebgazer({
+      showVideoPreview: false,
+      showFaceOverlay: false,
+      showGazeDot: true,
+      showFaceFeedbackBox: false,
+      storingPoints: 1000,
+      saveDataAcrossSessions: true,
+      trackEye: 'both',
+      showVideo: true,
+    });
+    const { calculateEyePosition } = useScreenLookDirection(0, 0, 50);
+    console.log(this.webgazer);
+
+    await this.webgazer
+      .setGazeListener((data, elapsedTime) => {
+        if (!this.webgazer) return;
+        if (!data) return;
+        const { x, y } = data;
+        const direction = calculateEyePosition({ x, y });
+        if (!direction) return;
+        if (direction === Direction.None) return;
+        if (this.currentDirection === direction) return;
+        this.currentDirection = direction;
+        this.gameService.send('ChangeDirection', { direction });
+        //this.eyePosition = calculateEyePosition({ x, y });
+      })
+      .saveDataAcrossSessions(true)
+      .begin();
+  }
   async joinRoom(nickname: any, roomId: Nullable<string>) {
     const playerTrackableId = this.localStorageService.get(
       LocalStorageKey.playerTrackableId
@@ -72,6 +106,7 @@ export class GameEngineService {
     const playerTrackableId = this.localStorageService.get(
       LocalStorageKey.playerTrackableId
     );
+    this.webgazer?.end();
     await this.gameService.send('LeaveRoom', {
       roomId,
       playerTrackableId,
@@ -80,7 +115,7 @@ export class GameEngineService {
   clearUserInfo() {
     this.localStorageService.remove(LocalStorageKey.playerTrackableId);
   }
-  setupEvents(canvas: GameCanvasComponent) {
+  async setupEvents(canvas: GameCanvasComponent): Promise<void> {
     this.setupRoomDetailsUpdatedEvent(canvas);
     this.setupPlayerJoinedEvent(canvas);
     this.setupFoodGeneratedEvent(canvas);
@@ -101,6 +136,7 @@ export class GameEngineService {
       this.currentDirection = direction;
       this.gameService.send('ChangeDirection', { direction });
     });
+    await this.startWebGazer();
   }
   setupPlayerDiedEvent() {
     this.gameService.on('PlayerDied', async (data: EventGamePlayerDied) => {

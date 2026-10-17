@@ -87,6 +87,13 @@ You can run the docker-compose using the following command:
 - [PrimeIcons^6.0.1](https://www.primefaces.org/primeicons/)
 - [angular-server-side-configuration^17.0.2](https://www.npmjs.com/package/angular-server-side-configuration)
 - [TailwindCSS^3.4.1](https://tailwindcss.com/)
+- [@jspsych/extension-webgazer^1.0.3](https://www.npmjs.com/package/@jspsych/extension-webgazer)
+- [@jspsych/plugin-html-button-response^1.1.3](https://www.npmjs.com/package/@jspsych/plugin-html-button-response)
+- [@jspsych/plugin-html-keyboard-response^1.1.3](https://www.npmjs.com/package/@jspsych/plugin-html-keyboard-response)
+- [@jspsych/plugin-preload^1.1.3](https://www.npmjs.com/package/@jspsych/plugin-preload)
+- [@jspsych/plugin-webgazer-calibrate^1.0.3](https://www.npmjs.com/package/@jspsych/plugin-webgazer-calibrate)
+- [@jspsych/plugin-webgazer-init-camera^1.0.3](https://www.npmjs.com/package/@jspsych/plugin-webgazer-init-camera)
+- [@jspsych/plugin-webgazer-validate^1.0.3](https://www.npmjs.com/package/@jspsych/plugin-webgazer-validate)
 
 ## File Structure
 

@@ -89,7 +89,6 @@
             "inlineStyleLanguage": "scss",
             "assets": ["src/favicon.ico", "src/assets"],
             "styles": [
-              "src/tailwind.css",
               "src/styles.scss",
               "src/themes/light.scss",
               "src/themes/dark.scss"

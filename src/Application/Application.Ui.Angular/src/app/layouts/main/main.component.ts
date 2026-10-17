@@ -4,12 +4,18 @@ import { RouterOutlet } from '@angular/router';
 import { ThemeToggleComponent } from '@app/components/theme-toggle/theme-toggle.component';
 import { MenuItem } from 'primeng/api';
 import { MenubarModule } from 'primeng/menubar';
+import { ConfigurationButtonComponent } from '@app/components/configuration/configuration-button/configuration-button.component';
 // import darkIcon from '@assets/icons/dark/dark.svg';
 // import light from '@assets/icons/light/light.svg';
 @Component({
   selector: 'app-main',
   standalone: true,
-  imports: [RouterOutlet, MenubarModule, ThemeToggleComponent],
+  imports: [
+    RouterOutlet,
+    MenubarModule,
+    ThemeToggleComponent,
+    ConfigurationButtonComponent,
+  ],
   templateUrl: './main.component.html',
   styleUrl: './main.component.scss',
 })
@@ -40,6 +46,7 @@ export class MainComponent implements OnInit {
         }`,
         url: '',
         replaceUrl: true,
+        target: '_self',
       },
       {
         icon: 'pi pi-code',

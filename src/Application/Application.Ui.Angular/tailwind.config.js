@@ -9,6 +9,11 @@ module.exports = {
         app:{
           background:"rgb(var(--color-app-background) / <alpha-value>)",
           text:'rgb(var(--color-app-text) / <alpha-value>)',
+          loading:{
+            icon:{
+              background:'rgb(var(--color-app-loading-icon-background) / <alpha-value>)',
+            }
+          }
         },
       },
        boxShadow: {

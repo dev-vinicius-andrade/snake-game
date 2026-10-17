@@ -37,6 +37,7 @@ export class GameCanvasComponent implements OnInit, AfterViewInit {
   }
   @HostListener('window:keydown', ['$event'])
   handleKeyboardEvent(event: KeyboardEvent): void {
+    event.preventDefault();
     this.keyboardEvent.emit(event);
   }
   ngOnInit(): void {

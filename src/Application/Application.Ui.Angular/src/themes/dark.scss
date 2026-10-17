@@ -2,6 +2,7 @@
 .dark {
   --color-app-background: 31 31 31;
   --color-app-text: 241 237 237;
+  --color-app-loading-icon-background: 180 186 100;
   --boxshadow-app-color: 241 237 237;
   $dark-primary: mat.define-palette(mat.$indigo-palette);
   $dark-accent: mat.define-palette(mat.$pink-palette, A200, A100, A400);

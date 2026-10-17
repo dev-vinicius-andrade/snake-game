@@ -101,7 +101,7 @@ export interface MediaPipeGazeSourceOptions {
   now?: () => number;
   /** Called when the model throws on a frame. The frame then counts as one without a face. Logs once per message by default. */
   onDetectError?: (error: unknown) => void;
-  /** Receives a one line summary of the diagnostics every two seconds while running. Defaults to `console.info`. */
+  /** Receives a one line summary of the diagnostics every two seconds while running. Silent by default; pass `console.info` to debug the camera. */
   log?: (summary: string) => void;
   /** Average brightness of the video, 0 to 1, or null. Called once per summary. Defaults to a 16 by 12 canvas sample. */
   measureBrightness?: (video: VideoLike) => number | null;
@@ -195,7 +195,7 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
   const cancelFrame = options.cancelFrame ?? ((handle: number) => cancelAnimationFrame(handle));
   const now = options.now ?? (() => performance.now());
   const onDetectError = options.onDetectError ?? createWarnOnce();
-  const log = options.log ?? ((summary: string) => console.info(summary));
+  const log = options.log ?? (() => undefined);
   const measureBrightness = options.measureBrightness ?? measureVideoBrightness;
 
   const listeners = new Set<(sample: GazeSample) => void>();

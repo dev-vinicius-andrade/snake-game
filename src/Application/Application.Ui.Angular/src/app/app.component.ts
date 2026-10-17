@@ -3,6 +3,7 @@ import { CommonModule, DOCUMENT } from '@angular/common';
 import { Component, Inject, OnInit, Renderer2 } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { Theme } from '@app/types/enums';
+
 @Component({
   selector: 'app-root',
   standalone: true,

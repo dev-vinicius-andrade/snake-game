@@ -79,7 +79,7 @@ export class RoomComponent implements AfterViewInit {
       await this.gameEngine.startHub(hubUrl);
       if (!this.gameCanvasComponent) return;
       this.userConnectionId = this.gameEngine.connectionId;
-      this.gameEngine.setupEvents(this.gameCanvasComponent);
+      await this.gameEngine.setupEvents(this.gameCanvasComponent);
 
       await this.sendJoinRoomRequest(tokenData);
       this.cdr.detectChanges();

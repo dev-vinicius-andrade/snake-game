@@ -1,4 +1,4 @@
-import { Component, Signal, computed } from '@angular/core';
+import { Component, OnInit, Signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { JoinApiService } from '@app/services/api/join/join-api.service';
 
@@ -8,7 +8,9 @@ import { InputTextModule } from 'primeng/inputtext';
 import { Router } from '@angular/router';
 import { ManagerHubService } from '@app/services/hub/manager/manager-hub.service';
 import { LocalStorageService } from '@app/services/localStorage/local-storage.service';
-import { LocalStorageKey } from '@app/types/enums';
+import { Direction, LocalStorageKey } from '@app/types/enums';
+import { useScreenLookDirection, useWebgazer } from '@app/composables/webgazer';
+
 @Component({
   selector: 'app-home',
   standalone: true,
@@ -16,7 +18,7 @@ import { LocalStorageKey } from '@app/types/enums';
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
 })
-export class HomeComponent {
+export class HomeComponent implements OnInit {
   protected loading: boolean = false;
   protected joingPrivateRoom: boolean = false;
   protected privateRoomId?: string;
@@ -26,17 +28,36 @@ export class HomeComponent {
   protected nickname?: Nullable<string>;
   protected roomId?: Nullable<string>;
   private localStorageService: LocalStorageService;
+  private router: Router;
+  protected direction: Direction = Direction.None;
   constructor(
     managerService: ManagerHubService,
     joinApi: JoinApiService,
-    private router: Router,
+    router: Router,
     localStorageService: LocalStorageService
   ) {
     this.localStorageService = localStorageService;
     this.joinRoomLabel = this.getJoinRoomLabel();
     this.managerHubService = managerService;
     this.joinApi = joinApi;
+    this.router = router;
   }
+  async ngOnInit(): Promise<void> {
+    const { calculateEyePosition } = useScreenLookDirection(0, 0);
+    // jsPsych.extensions.webgazer.onGazeUpdate((data: GazeData) => {
+    //   const direction = calculateEyePosition({
+    //     x: data.x,
+    //     y: data.y,
+    //   });
+    //   this.direction = direction;
+    // });
+    //await jsPsych.extensions.webgazer.start();
+
+    // await this.jsPsych.run([]);
+    //this.zone.runOutsideAngular(async () => {
+    //});
+  }
+
   clearUserInfo() {
     this.localStorageService.remove(LocalStorageKey.playerTrackableId);
   }
