@@ -42,6 +42,8 @@ public class PlayerRoomService: IPlayerRoomService
 
     }
 
+    public void RemoveRoom(Guid roomId) => _roomsPlayers.TryRemove(roomId, out _);
+
     public long CountPlayers(IRoom room)
     {
         return _roomsPlayers.TryGetValue(room.Guid, out var player) ? player.Count : 0;

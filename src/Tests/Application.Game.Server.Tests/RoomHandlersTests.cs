@@ -172,6 +172,7 @@ public sealed class RoomCloserTests
         Received.InOrder(() =>
         {
             _notifier.NotifyClosedAsync(_roomId, Arg.Any<CancellationToken>());
+            _playerRooms.RemoveRoom(_roomId);
             _gameStates.RemoveGameState(Arg.Is<ITrackableId>(id => id.Guid == _roomId));
             _rooms.DeleteRoom(Arg.Is<ITrackableId>(id => id.Guid == _roomId));
         });

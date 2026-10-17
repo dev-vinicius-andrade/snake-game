@@ -1,5 +1,6 @@
-﻿using Application.Game.Server.Entities.Configurations;
+using Application.Game.Server.Entities.Configurations;
 using Application.Game.Server.Hubs;
+using Library.Commons.Game.Domain.Exceptions;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 using Library.Commons.Game.Domain.Interfaces.Services;
 using Library.Commons.Game.Server.Interfaces;
@@ -38,6 +39,22 @@ public class FoodGeneratorWorkerService : BackgroundService
     }
 
     private async ValueTask ProcessRooms(KeyValuePair<Guid, IList<IPlayer>> room, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await FeedRoom(room);
+        }
+        catch (RoomNotFoundException)
+        {
+            // The room was closed while this pass ran. One room going away must never stop the server.
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.Error(exception, "Could not generate food for room {RoomId}", room.Key);
+        }
+    }
+
+    private async Task FeedRoom(KeyValuePair<Guid, IList<IPlayer>> room)
     {
         var gameState = _gameStateService.GetGameState(_trackableIdGeneratorService.Generate(room.Key));
         if (gameState is null) return;

@@ -89,6 +89,7 @@ public sealed class RoomCloser(
         await notifier.NotifyClosedAsync(roomId, cancellationToken);
         await RemovePlayersAsync(roomId, leaveTimeout ?? DefaultLeaveTimeout);
         var id = ids.Generate(roomId);
+        playerRooms.RemoveRoom(roomId);
         gameStates.RemoveGameState(id);
         rooms.DeleteRoom(id);
         return true;

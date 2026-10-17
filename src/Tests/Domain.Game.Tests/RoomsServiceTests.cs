@@ -132,6 +132,27 @@ public sealed class RoomsServiceTests
 
 public sealed class PlayerRoomCapacityTests
 {
+    [Fact]
+    public void RemoveRoom_ForgetsItsPlayers()
+    {
+        var (players, rooms) = Create();
+        var room = rooms.CreateRoom();
+        players.ConnectPlayer(Substitute.For<IPlayer>(), room);
+
+        players.RemoveRoom(room.Guid);
+
+        Assert.DoesNotContain(room.Guid, players.GetRoomsPlayers().Keys);
+        Assert.Equal(0, players.CountPlayers(room));
+    }
+
+    [Fact]
+    public void RemoveRoom_UnknownRoom_DoesNothing()
+    {
+        var (players, _) = Create();
+
+        players.RemoveRoom(Guid.NewGuid());
+    }
+
     private static (PlayerRoomService players, RoomsService rooms) Create(int maxPlayersPerRoom = 4)
     {
         var configuration = Options.Create(new ServerConfiguration
