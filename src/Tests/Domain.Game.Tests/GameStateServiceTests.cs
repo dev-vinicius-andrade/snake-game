@@ -21,6 +21,9 @@ public sealed class GameStateServiceTests
     private readonly PointAxisServices _axes = new();
     private readonly IPlayerService _playerService = Substitute.For<IPlayerService>();
     private readonly IObstacleService _obstacleService = Substitute.For<IObstacleService>();
+    private readonly IKnowDirectionsService _knownDirections = Substitute.For<IKnowDirectionsService>();
+    private readonly IPlayerRoomService _playerRooms = Substitute.For<IPlayerRoomService>();
+    private readonly IRoomsService _roomsService = Substitute.For<IRoomsService>();
     private readonly DamageCalculator _damage = new(new DamageModelOptions());
     private readonly GameStateService _service;
     private readonly IGameState _state;
@@ -36,6 +39,8 @@ public sealed class GameStateServiceTests
         var tickRate = Substitute.For<ITickRateService>();
         tickRate.TickRate.Returns(TimeSpan.FromMilliseconds(1000 / 60.0));
         var rules = new SnakeRulesOptions();
+        _playerService.CreateDirection(default, default!).ReturnsForAnyArgs(call =>
+            new MovementDirection(call.ArgAt<Direction>(0), call.ArgAt<IPointAxis>(1)));
         _obstacleService.Create(default!, default!, default!, default!, default, default!).ReturnsForAnyArgs(call =>
             new Obstacle(Guid.NewGuid(), HeadSize, _room, call.ArgAt<ITrackableId>(5))
             {
@@ -48,11 +53,11 @@ public sealed class GameStateServiceTests
             Options.Create(new ServerConfiguration()),
             Options.Create(new SnakeConfiguration { Speed = 15, HeadSize = HeadSize, InitialSnakeSize = InitialLength - 1 }),
             _playerService,
-            Substitute.For<IPlayerRoomService>(),
-            Substitute.For<IRoomsService>(),
+            _playerRooms,
+            _roomsService,
             states,
             new TrackableIdGeneratorService(),
-            Substitute.For<IKnowDirectionsService>(),
+            _knownDirections,
             _axes,
             tickRate,
             _obstacleService,
@@ -65,7 +70,8 @@ public sealed class GameStateServiceTests
             new BoostRules(rules),
             _damage,
             rules,
-            new ShotCooldownRules(rules));
+            new ShotCooldownRules(rules),
+            new HeadingRules(rules));
     }
 
     private IPointAxis At(double x, double y)
@@ -401,6 +407,194 @@ public sealed class GameStateServiceTests
         await _service.MovePlayer(_state, player);
 
         Assert.Equal(0, player.ShotCooldownTicks);
+    }
+
+    private void KnowDirection(Direction direction, double x, double y)
+        => _knownDirections.Get(direction).Returns((KeyValuePair<Direction, IPointAxis>?)new KeyValuePair<Direction, IPointAxis>(direction, At(x, y)));
+
+    [Fact]
+    public void ChangeDirection_Up_SnapsHeadingAndTargetToTheAxisAngle()
+    {
+        var player = AddPlayer("a", 500, 500);
+        _playerService.Get("a").Returns(player);
+        KnowDirection(Direction.Up, 0, -1);
+
+        var changed = _service.ChangeDirectionByPlayerId("a", Direction.Up);
+
+        Assert.True(changed);
+        Assert.Equal(-Math.PI / 2, player.Heading, 9);
+        Assert.Equal(-Math.PI / 2, player.TargetHeading, 9);
+    }
+
+    [Fact]
+    public async Task ChangeDirection_ThenMove_GoesFullSpeedAtOnce()
+    {
+        var player = AddPlayer("a", 500, 500);
+        _playerService.Get("a").Returns(player);
+        KnowDirection(Direction.Up, 0, -1);
+        _service.ChangeDirectionByPlayerId("a", Direction.Up);
+
+        await _service.MovePlayer(_state, player);
+
+        Assert.Equal(500, player.CurrentPosition.X, 6);
+        Assert.Equal(500 - 3.75, player.CurrentPosition.Y, 3);
+    }
+
+    [Fact]
+    public void ChangeDirection_Angular_IsRejectedWithoutSideEffects()
+    {
+        var player = AddPlayer("a", 500, 500);
+        player.CurrentDirection = Direction.Right;
+        _playerService.Get("a").Returns(player);
+
+        var changed = _service.ChangeDirectionByPlayerId("a", Direction.Angular);
+
+        Assert.False(changed);
+        Assert.Equal(Direction.Right, player.CurrentDirection);
+    }
+
+    [Fact]
+    public void SteerByPlayerId_SetsTheTargetAndMarksTheDirectionAngular()
+    {
+        var player = AddPlayer("a", 500, 500);
+        _playerService.Get("a").Returns(player);
+
+        var steered = _service.SteerByPlayerId("a", 1.0);
+
+        Assert.True(steered);
+        Assert.Equal(1.0, player.TargetHeading, 9);
+        Assert.Equal(0, player.Heading);
+        Assert.Equal(Direction.Angular, player.CurrentDirection);
+    }
+
+    [Fact]
+    public void SteerByPlayerId_NormalizesTheAngle()
+    {
+        var player = AddPlayer("a", 500, 500);
+        _playerService.Get("a").Returns(player);
+
+        _service.SteerByPlayerId("a", 3 * Math.PI);
+
+        Assert.Equal(Math.PI, player.TargetHeading, 9);
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void SteerByPlayerId_NonFiniteAngle_IsRejected(double angle)
+    {
+        var player = AddPlayer("a", 500, 500);
+        player.TargetHeading = 0.5;
+        _playerService.Get("a").Returns(player);
+
+        Assert.False(_service.SteerByPlayerId("a", angle));
+        Assert.Equal(0.5, player.TargetHeading);
+    }
+
+    [Fact]
+    public void SteerByPlayerId_UnknownPlayer_ReturnsFalse()
+    {
+        _playerService.Get("nobody").Returns((IPlayer?)null);
+
+        Assert.False(_service.SteerByPlayerId("nobody", 1.0));
+    }
+
+    [Fact]
+    public async Task MovePlayer_Steering_TurnsAtMostTheTurnRatePerTick()
+    {
+        var player = AddPlayer("a", 500, 500);
+        player.TargetHeading = Math.PI / 2;
+        player.CurrentDirection = Direction.Angular;
+
+        await _service.MovePlayer(_state, player);
+
+        var sixDegrees = 6 * Math.PI / 180;
+        Assert.Equal(sixDegrees, player.Heading, 3);
+        Assert.Equal(Direction.Angular, player.Direction.Direction);
+        Assert.Equal(500 + 3.75 * Math.Cos(sixDegrees), player.CurrentPosition.X, 2);
+        Assert.Equal(500 + 3.75 * Math.Sin(sixDegrees), player.CurrentPosition.Y, 2);
+    }
+
+    [Fact]
+    public async Task MovePlayer_Steering_ArrivesOnTheTargetThenKeepsGoingStraight()
+    {
+        var player = AddPlayer("a", 500, 500);
+        player.TargetHeading = Math.PI / 2;
+        player.CurrentDirection = Direction.Angular;
+
+        foreach (var _ in Enumerable.Range(0, 20))
+            await _service.MovePlayer(_state, player);
+
+        Assert.Equal(Math.PI / 2, player.Heading);
+        Assert.Equal(0, player.Direction.Axis.X, 9);
+        Assert.Equal(1, player.Direction.Axis.Y, 9);
+        var before = player.CurrentPosition.Y;
+        await _service.MovePlayer(_state, player);
+        Assert.Equal(before + 3.75, player.CurrentPosition.Y, 3);
+    }
+
+    [Fact]
+    public async Task MovePlayer_Steering_TakesTheShortWayRound()
+    {
+        var player = AddPlayer("a", 500, 500);
+        player.Heading = 170 * Math.PI / 180;
+        player.TargetHeading = -170 * Math.PI / 180;
+        player.CurrentDirection = Direction.Angular;
+
+        await _service.MovePlayer(_state, player);
+
+        Assert.True(player.Heading > 170 * Math.PI / 180);
+    }
+
+    [Fact]
+    public async Task MovePlayer_NotSteering_LeavesTheDirectionObjectAlone()
+    {
+        var player = AddPlayer("a", 500, 500);
+        var direction = player.Direction;
+
+        await _service.MovePlayer(_state, player);
+
+        Assert.Same(direction, player.Direction);
+    }
+
+    [Fact]
+    public async Task Shoot_AfterSteering_TheShotUsesTheCurrentHeadingAxis()
+    {
+        var player = AddPlayer("a", 500, 500, score: 2);
+        player.TargetHeading = 0.5;
+        player.CurrentDirection = Direction.Angular;
+        await _service.MovePlayer(_state, player);
+
+        await _service.Shoot(_state, _room, player);
+
+        var shot = Assert.Single(_state.Obstacles.Values);
+        Assert.Same(player.Direction, shot.Direction);
+    }
+
+    [Fact]
+    public async Task CreatePlayerInRoom_SpawnHeadingMatchesTheSpawnDirection()
+    {
+        _knownDirections.Count.Returns(1);
+        _knownDirections.Knows(Arg.Any<int>()).Returns(true);
+        _knownDirections.Get(Arg.Any<int>()).Returns((KeyValuePair<Direction, IPointAxis>?)new KeyValuePair<Direction, IPointAxis>(Direction.Up, At(0, -1)));
+        _roomsService.GetRoom(Arg.Any<ITrackableId>()).Returns(_room);
+        _playerRooms.ConnectPlayer(Arg.Any<IPlayer>(), Arg.Any<IRoom?>()).Returns(true);
+        _playerService.Create(default!, default!, default!, default!, default!, default).ReturnsForAnyArgs(call =>
+            new Player(Guid.NewGuid(), call.ArgAt<string>(1))
+            {
+                Id = call.ArgAt<string>(0),
+                BackgroundColor = call.ArgAt<IColor>(2),
+                Direction = call.ArgAt<IMovementDirection>(3),
+                CurrentPosition = call.ArgAt<IPointAxis>(4),
+                Path = call.ArgAt<IList<IPointAxis>>(5)
+            });
+
+        var player = await _service.CreatePlayerInRoom("conn", "ana", _room.Guid);
+
+        Assert.NotNull(player);
+        Assert.Equal(-Math.PI / 2, player!.Heading, 9);
+        Assert.Equal(-Math.PI / 2, player.TargetHeading, 9);
+        Assert.Equal(Direction.Up, player.CurrentDirection);
     }
 
     [Fact]

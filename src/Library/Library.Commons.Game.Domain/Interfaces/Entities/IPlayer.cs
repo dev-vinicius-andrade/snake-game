@@ -21,5 +21,9 @@ public interface IPlayer : IId, ITrackableId
     int BoostTicks { get; set; }
     /// <summary>Simulation ticks left before the next shot is allowed.</summary>
     int ShotCooldownTicks { get; set; }
+    /// <summary>Direction of travel in radians: 0 is right, positive turns clockwise on screen (up is -PI/2).</summary>
+    double Heading { get; set; }
+    /// <summary>Heading the snake is turning toward. Equal to <see cref="Heading"/> when not steering.</summary>
+    double TargetHeading { get; set; }
     //DateTime LastDirectionChange { get; set; }
 }

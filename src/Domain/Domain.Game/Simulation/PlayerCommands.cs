@@ -11,6 +11,14 @@ public sealed class ChangeDirectionCommand(string connectionId, Direction? direc
         => Task.FromResult(context.GameStateService.ChangeDirectionByPlayerId(connectionId, direction));
 }
 
+public sealed class SteerCommand(string connectionId, double angle) : PlayerCommand<bool>, ICoalescableCommand
+{
+    public string CoalesceKey => $"steer:{connectionId}";
+
+    protected override Task<bool> RunAsync(CommandContext context, CancellationToken cancellationToken)
+        => Task.FromResult(context.GameStateService.SteerByPlayerId(connectionId, angle));
+}
+
 public sealed class SetBoostCommand(string connectionId, bool active) : PlayerCommand<bool>, ICoalescableCommand
 {
     public string CoalesceKey => $"boost:{connectionId}";

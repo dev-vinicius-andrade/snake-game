@@ -178,6 +178,16 @@ public sealed class GameHubTests
     }
 
     [Fact]
+    public async Task Steer_PlayerInRoom_QueuesTheCommand()
+    {
+        PlayerIsInRoom();
+
+        await _hub.Steer(new SteerRequest(1.5));
+
+        Assert.IsType<SteerCommand>(Assert.Single(_enqueued).Command);
+    }
+
+    [Fact]
     public async Task Boost_PlayerInRoom_QueuesTheCommand()
     {
         PlayerIsInRoom();
@@ -193,6 +203,7 @@ public sealed class GameHubTests
         await _hub.ChangeDirection(new ChangeDirectionRequest());
         await _hub.Shoot(new ShootRequest());
         await _hub.Boost(new BoostRequest(true));
+        await _hub.Steer(new SteerRequest(1.5));
 
         Assert.Empty(_enqueued);
     }

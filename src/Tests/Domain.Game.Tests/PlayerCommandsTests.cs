@@ -165,6 +165,21 @@ public sealed class PlayerCommandsTests
     }
 
     [Fact]
+    public async Task Steer_Executed_ForwardsTheAngleAndReportsTheResult()
+    {
+        _service.SteerByPlayerId(ConnectionId, 1.25).Returns(true);
+        var command = new SteerCommand(ConnectionId, 1.25);
+
+        await command.ExecuteAsync(_context, CancellationToken.None);
+
+        Assert.True(await command.Completion);
+    }
+
+    [Fact]
+    public void Steer_CoalescesPerConnection()
+        => Assert.Equal("steer:conn-1", new SteerCommand(ConnectionId, 0).CoalesceKey);
+
+    [Fact]
     public void SetBoost_CoalescesPerConnection()
         => Assert.Equal("boost:conn-1", new SetBoostCommand(ConnectionId, true).CoalesceKey);
 

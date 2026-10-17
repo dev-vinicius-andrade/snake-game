@@ -20,6 +20,9 @@ public sealed record SnakeRulesOptions
     /// <summary>Minimum time between two shots of the same snake.</summary>
     public int ShotCooldownMilliseconds { get; init; } = 250;
 
+    /// <summary>How fast a steering snake can change its heading. Keyboard turns are instant and ignore this.</summary>
+    public double TurnRateDegreesPerSecond { get; init; } = 360;
+
     public void EnsureValid()
     {
         if (MassPerSegment <= 0)
@@ -28,6 +31,8 @@ public sealed record SnakeRulesOptions
             throw new ArgumentOutOfRangeException(nameof(MaxDeathPellets), MaxDeathPellets, "Must be at least 1.");
         if (BoostSpeedMultiplier <= 1)
             throw new ArgumentOutOfRangeException(nameof(BoostSpeedMultiplier), BoostSpeedMultiplier, "Must be greater than 1.");
+        if (TurnRateDegreesPerSecond is <= 0 or > 3600)
+            throw new ArgumentOutOfRangeException(nameof(TurnRateDegreesPerSecond), TurnRateDegreesPerSecond, "Must be in (0, 3600].");
         if (ShotCooldownMilliseconds < 1)
             throw new ArgumentOutOfRangeException(nameof(ShotCooldownMilliseconds), ShotCooldownMilliseconds, "Must be at least 1.");
         if (BoostTicksPerMass < 1)

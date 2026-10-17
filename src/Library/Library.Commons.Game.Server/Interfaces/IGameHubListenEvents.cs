@@ -10,4 +10,5 @@ public interface IGameHubListenEvents
     Task LeaveRoom(LeaveRoomRequest request);
     Task Shoot(ShootRequest request);
     Task Boost(BoostRequest request);
+    Task Steer(SteerRequest request);
 }

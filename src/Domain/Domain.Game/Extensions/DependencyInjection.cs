@@ -40,6 +40,8 @@ public static class DependencyInjection
         services.AddSingleton<BodyShotRules>();
         services.AddSingleton<BoostRules>();
         services.AddSingleton<ShotCooldownRules>();
+        services.AddSingleton<HeadingRules>();
+        services.AddSingleton<ShotRangeRules>();
         services.AddSingleton<SnakeSizeRules>();
         services.AddSingleton<SnakeCollisionRules>();
         services.AddSingleton<DeathDropRules>();

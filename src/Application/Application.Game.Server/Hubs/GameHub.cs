@@ -114,6 +114,14 @@ namespace Application.Game.Server.Hubs
             });
         }
 
+        public Task Steer(SteerRequest request)
+        {
+            var (_, _, room) = GetConnectionData();
+            if (room is not null)
+                _roomInputQueue.Enqueue(room.Guid, new SteerCommand(Context.ConnectionId, request.Angle));
+            return Task.CompletedTask;
+        }
+
         public Task Boost(BoostRequest request)
         {
             var (_, _, room) = GetConnectionData();

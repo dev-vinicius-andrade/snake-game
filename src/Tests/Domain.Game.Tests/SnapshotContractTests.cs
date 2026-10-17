@@ -48,7 +48,9 @@ public sealed class SnapshotContractTests(ITestOutputHelper output)
             Path = path,
             SegmentHealth = new List<double> { 0.5, 1.0 },
             Score = 7,
-            IsBoosting = true
+            IsBoosting = true,
+            Heading = 0.5,
+            TargetHeading = 1.0
         };
         state.Players.Add(player.Guid, player);
         var food = new Food(Guid.Parse("33333333-3333-3333-3333-333333333333"))
@@ -100,6 +102,8 @@ public sealed class SnapshotContractTests(ITestOutputHelper output)
         Assert.Equal(0.5, player.GetProperty("segmentHealth")[0].GetDouble());
         Assert.Equal("#ff0000", player.GetProperty("backgroundColor").GetProperty("fillColor").GetString());
         Assert.Equal("right", player.GetProperty("currentDirection").GetString());
+        Assert.Equal(0.5, player.GetProperty("heading").GetDouble());
+        Assert.Equal(1.0, player.GetProperty("targetHeading").GetDouble());
     }
 
     [Fact]

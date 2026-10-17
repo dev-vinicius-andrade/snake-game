@@ -36,6 +36,7 @@ public class GameStateService : IGameStateService
     private readonly DamageCalculator _damageCalculator;
     private readonly SnakeRulesOptions _rulesOptions;
     private readonly ShotCooldownRules _shotCooldownRules;
+    private readonly HeadingRules _headingRules;
 
     public GameStateService(
         IOptions<ServerConfiguration> serverConfiguration,
@@ -51,9 +52,10 @@ public class GameStateService : IGameStateService
         SnakeSizeRules snakeSizeRules, SnakeCollisionRules snakeCollisionRules, DeathDropRules deathDropRules,
         SnakeBodyRules snakeBodyRules, BodyShotRules bodyShotRules, BodyHealthRules bodyHealthRules,
         BoostRules boostRules, DamageCalculator damageCalculator, SnakeRulesOptions rulesOptions,
-        ShotCooldownRules shotCooldownRules)
+        ShotCooldownRules shotCooldownRules, HeadingRules headingRules)
     {
         _shotCooldownRules = shotCooldownRules;
+        _headingRules = headingRules;
         _snakeBodyRules = snakeBodyRules;
         _bodyShotRules = bodyShotRules;
         _bodyHealthRules = bodyHealthRules;
@@ -92,6 +94,8 @@ public class GameStateService : IGameStateService
         var initialPosition = GenerateInitialPosition(2, room.Width, room.Height);
         var initialPaths = GenerateInitialPath(initialPosition, initialDirection.Axis);
         var player = _playerService.Create(playerId, nickname, playerColor, initialDirection, initialPosition, initialPaths);
+        player.CurrentDirection = randomDirection.Value.Key;
+        player.Heading = player.TargetHeading = _headingRules.AngleOf(initialDirection.Axis.X, initialDirection.Axis.Y);
         _playerService.Save(player);
         if (!gameState.Players.ContainsKey(player.Guid))
             gameState.Players.Add(player.Guid, player);
@@ -110,18 +114,29 @@ public class GameStateService : IGameStateService
 
     public bool ChangeDirectionByPlayerId(string playerConnectionId, Direction? direction = null)
     {
-        if (direction is null) return false;
+        if (direction is null or Direction.Angular) return false;
         var player = _playerService.Get(playerConnectionId);
         if (player is null)
             return false;
         if (player.CurrentDirection == direction) return true;
-        player.CurrentDirection = direction.Value;
-        var newDirection = _knowDirectionsService.Get(player.CurrentDirection);
+        var newDirection = _knowDirectionsService.Get(direction.Value);
         if (newDirection is null) return false;
+        player.CurrentDirection = direction.Value;
         player.Direction = _playerService.CreateDirection(newDirection.Value.Key, newDirection.Value.Value);
+        player.Heading = player.TargetHeading = _headingRules.AngleOf(newDirection.Value.Value.X, newDirection.Value.Value.Y);
 
         return UpdatePlayer(player);
 
+    }
+
+    public bool SteerByPlayerId(string playerConnectionId, double angle)
+    {
+        if (!double.IsFinite(angle)) return false;
+        var player = _playerService.Get(playerConnectionId);
+        if (player is null) return false;
+        player.TargetHeading = _headingRules.Normalize(angle);
+        player.CurrentDirection = Direction.Angular;
+        return UpdatePlayer(player);
     }
 
     public bool SetBoostByPlayerId(string playerConnectionId, bool active)
@@ -134,6 +149,7 @@ public class GameStateService : IGameStateService
 
     public async Task MovePlayer(IGameState gameState, IPlayer player)
     {
+        TurnTowardsTarget(player);
         var boost = _boostRules.Step(player.IsBoosting, player.BoostTicks, player.Score);
         player.BoostTicks = boost.BoostTicks;
         player.Score -= boost.MassSpent;
@@ -159,6 +175,17 @@ public class GameStateService : IGameStateService
 
         _playerService.Save(player);
     }
+    private void TurnTowardsTarget(IPlayer player)
+    {
+        var turned = _headingRules.Turn(player.Heading, player.TargetHeading, _headingRules.MaxTurn(_tickRateService.TickRate));
+        if (turned == player.Heading) return;
+        player.Heading = turned;
+        var axis = ToAxis(player.CurrentPosition, _headingRules.AxisOf(turned));
+        axis.Z = 0;
+        axis.Angle = turned;
+        player.Direction = _playerService.CreateDirection(Direction.Angular, axis);
+    }
+
     public bool CanGenerateFood(IGameState gameState)
     {
         return gameState.Foods.Count < _serverConfiguration.Value.RoomsConfiguration.MaxFoods;
