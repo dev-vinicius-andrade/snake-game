@@ -52,8 +52,8 @@ function close() {
       <VBtn :disabled="disabled" @click="dialog = true">{{ getText({ key: "rooms.create" }) }}</VBtn>
     </VCol>
   </VRow>
-  <VRow no-gutters justify="center" align="center" class="mt-4">
-    <VCol cols="3">
+  <VRow no-gutters justify="center" align="start" class="mt-4">
+    <VCol cols="auto" class="code-field">
       <VTextField
         v-model="codeInput"
         :label="getText({ key: 'rooms.haveCode' })"
@@ -62,11 +62,10 @@ function close() {
         density="compact"
         clearable
         @keyup.enter="canJoinWithCode && joinWithCode()"
-      >
-        <template #append>
-          <VBtn :disabled="!canJoinWithCode" @click="joinWithCode">{{ getText({ key: "rooms.joinWithCode" }) }}</VBtn>
-        </template>
-      </VTextField>
+      />
+    </VCol>
+    <VCol cols="auto" class="ml-2">
+      <VBtn :disabled="!canJoinWithCode" @click="joinWithCode">{{ getText({ key: "rooms.joinWithCode" }) }}</VBtn>
     </VCol>
   </VRow>
 
@@ -86,3 +85,9 @@ function close() {
     </VCard>
   </VDialog>
 </template>
+
+<style scoped>
+.code-field {
+  width: 260px;
+}
+</style>

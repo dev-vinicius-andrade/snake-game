@@ -67,3 +67,5 @@ npm run serve        # http://localhost:5143
 - Two clients in one room, death (`PlayerDied`, overlay, pellets dropped, "Play again" rejoins).
 
 Not checked live: HP gradient on a damaged body, boost, camera gaze (milestone 3).
+
+Rooms, invites and the admin page: see `docs/ROOMS.md`.

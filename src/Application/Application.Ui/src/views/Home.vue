@@ -39,6 +39,8 @@
   <EyeSetup />
 </template>
 <script setup lang="ts">
+import RoomActions from "@/components/rooms/RoomActions.vue";
+
 export interface IHomeComponentData {
   nickname?: string;
 }
