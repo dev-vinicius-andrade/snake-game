@@ -36,5 +36,6 @@ public interface IGameStateService
     Task Shoot(IGameState gameState, IRoom room, IPlayer player);
     Task CheckObstacleCollision(IGameState gameState, IPlayer player);
     Task MoveObstacles(IGameState gameState);
+    Task ResolveSnakeCollisions(IGameState gameState);
     IPlayer? GetPlayer(IGameState gameState, ITrackableId trackableId);
 }

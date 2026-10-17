@@ -94,6 +94,50 @@ public sealed class RoomSimulationTests
     }
 
     [Fact]
+    public async Task StepAsync_TwoPlayers_AllMoveBeforeAnyPickupOrHit()
+    {
+        var calls = new List<string>();
+        var first = Player();
+        var second = Player();
+        var state = StateWith(first, second);
+        _gameStateService.When(service => service.MovePlayer(state, first)).Do(_ => calls.Add("move first"));
+        _gameStateService.When(service => service.MovePlayer(state, second)).Do(_ => calls.Add("move second"));
+        _gameStateService.When(service => service.CheckFoodCollision(state, Arg.Any<IPlayer>())).Do(_ => calls.Add("food"));
+        _gameStateService.When(service => service.CheckObstacleCollision(state, Arg.Any<IPlayer>())).Do(_ => calls.Add("hit"));
+
+        await _simulation.StepAsync(state);
+
+        Assert.Equal(new[] { "move first", "move second" }, calls.Take(2));
+        Assert.DoesNotContain("move first", calls.Skip(2));
+        Assert.DoesNotContain("move second", calls.Skip(2));
+    }
+
+    [Fact]
+    public async Task StepAsync_Always_ResolvesSnakeCollisionsOnceAfterEverythingElse()
+    {
+        var calls = new List<string>();
+        var state = StateWith(Player(), Player());
+        _gameStateService.When(service => service.CheckObstacleCollision(state, Arg.Any<IPlayer>())).Do(_ => calls.Add("hit"));
+        _gameStateService.When(service => service.ResolveSnakeCollisions(state)).Do(_ => calls.Add("snakes"));
+
+        await _simulation.StepAsync(state);
+
+        Assert.Equal(new[] { "hit", "hit", "snakes" }, calls);
+    }
+
+    [Fact]
+    public async Task StepAsync_PlayerKilledBySnakeCollision_ReportedAsDied()
+    {
+        var victim = Player();
+        var state = StateWith(victim, Player());
+        _gameStateService.When(service => service.ResolveSnakeCollisions(state)).Do(_ => victim.IsAlive = false);
+
+        var result = await _simulation.StepAsync(state);
+
+        Assert.Equal(new[] { victim }, result.DiedPlayers);
+    }
+
+    [Fact]
     public async Task StepAsync_DeadPlayer_IsSkipped()
     {
         var dead = Player(isAlive: false);

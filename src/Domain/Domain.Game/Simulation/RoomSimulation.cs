@@ -30,7 +30,9 @@ public sealed class RoomSimulation
         await _inputQueue.DrainAsync(gameState, cancellationToken);
         await _gameStateService.MoveObstacles(gameState);
         var livingPlayers = SnapshotLivingPlayers(gameState);
-        await AdvancePlayersAsync(gameState, livingPlayers, cancellationToken);
+        await MovePlayersAsync(gameState, livingPlayers, cancellationToken);
+        await ResolvePickupsAndShotsAsync(gameState, livingPlayers, cancellationToken);
+        await _gameStateService.ResolveSnakeCollisions(gameState);
         return new SimulationStepResult(SelectDied(livingPlayers));
     }
 
@@ -40,17 +42,22 @@ public sealed class RoomSimulation
     private static IReadOnlyList<IPlayer> SelectDied(IEnumerable<IPlayer> players)
         => players.Where(player => !player.IsAlive).ToArray();
 
-    private async Task AdvancePlayersAsync(IGameState gameState, IEnumerable<IPlayer> players, CancellationToken cancellationToken)
+    private async Task MovePlayersAsync(IGameState gameState, IEnumerable<IPlayer> players, CancellationToken cancellationToken)
     {
         foreach (var player in players)
-            await AdvancePlayerAsync(gameState, player, cancellationToken);
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await _gameStateService.MovePlayer(gameState, player);
+        }
     }
 
-    private async Task AdvancePlayerAsync(IGameState gameState, IPlayer player, CancellationToken cancellationToken)
+    private async Task ResolvePickupsAndShotsAsync(IGameState gameState, IEnumerable<IPlayer> players, CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        await _gameStateService.MovePlayer(gameState, player);
-        await _gameStateService.CheckFoodCollision(gameState, player);
-        await _gameStateService.CheckObstacleCollision(gameState, player);
+        foreach (var player in players)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await _gameStateService.CheckFoodCollision(gameState, player);
+            await _gameStateService.CheckObstacleCollision(gameState, player);
+        }
     }
 }
