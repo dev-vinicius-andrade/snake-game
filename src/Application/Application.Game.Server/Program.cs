@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Application.Game.Server.Entities.Configurations;
 using Application.Game.Server.Hubs;
+using Application.Game.Server.Services;
 using Application.Game.Server.Workers;
 using Domain.Game.Extensions;
 using Library.Commons.Api.Contants;
@@ -90,7 +91,12 @@ namespace Application.Game.Server
             services.AddFoodConfiguration(configuration);
             services.AddSnakeConfiguration(configuration,$"{ServerConfiguration.SectionName}:{SnakeConfiguration.SectionName}");
             services.AddHostedService<FoodGeneratorWorkerService>();
+            services.AddSingleton<JoinRequestHandler>();
+            services.AddSingleton<RoomCreateRequestHandler>();
+            services.AddSingleton<IRoomClosedNotifier, HubRoomClosedNotifier>();
+            services.AddSingleton<RoomCloser>();
             services.AddHostedService<EventbusWorkerService>();
+            services.AddHostedService<RoomHeartbeatWorkerService>();
             services.AddHostedService<GameWorkerService>();
         }
 
@@ -98,6 +104,16 @@ namespace Application.Game.Server
         {
             var builders = new RabbitMqBuilders(new Uri(appSettings.EventbusConfiguration.ConnectionString));
             services.Add(builders.BuildConsumer<PlayerJoinPayload>(builders.Connection).Configure(EventNames.PlayerJoinRequest, declareQueue: false));
+            services.Add(builders.BuildConsumer<RoomCreatePayload>(builders.Connection).Configure(EventNames.RoomCreateRequest, declareQueue: false));
+        }
+
+        /// <summary>Called by the manager when an administrator deletes a room. Same API key the game server uses toward the manager.</summary>
+        private static async Task<IResult> CloseRoomAsync(Guid roomId, HttpContext context, IConfiguration configuration, RoomCloser closer)
+        {
+            var expected = configuration["AppSettings:ManagementApiConfiguration:ApiKey"];
+            var received = context.Request.Headers[AuthConstants.ApiKeyHeaderName].ToString();
+            if (string.IsNullOrEmpty(expected) || received != expected) return Results.Unauthorized();
+            return await closer.CloseAsync(roomId, cancellationToken: context.RequestAborted) ? Results.NoContent() : Results.NotFound();
         }
 
         private static void Configure(IApplicationBuilder app, IHostEnvironment env, AppSettings appSettings, CorsPolicyName corsPolicyName)
@@ -114,6 +130,7 @@ namespace Application.Game.Server
                 {
 
                 });
+                endpoints.MapDelete("/rooms/{roomId:guid}", CloseRoomAsync);
 
             });
         }

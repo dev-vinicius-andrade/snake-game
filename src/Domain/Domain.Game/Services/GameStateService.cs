@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using Domain.Game.Entities;
 using Domain.Game.Extensions;
 using Domain.Game.Helpers;
@@ -556,6 +556,8 @@ public class GameStateService : IGameStateService
 
     public bool AnyFoodInPosition(IRoom room, IPointAxis position, int delta = 0)
         => GetGameState(room).Foods.Select(c => c.Value.Position).ToList().GetNearBy(position, delta).Any();
+
+    public void RemoveGameState(ITrackableId roomId) => _gameState.TryRemove(roomId.Guid, out _);
 
     public IGameState GetGameState(ITrackableId roomId)
     {

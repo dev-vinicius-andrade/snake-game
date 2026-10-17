@@ -1,4 +1,4 @@
-﻿using Library.Commons.Game.Domain.Enums;
+using Library.Commons.Game.Domain.Enums;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 
 namespace Library.Commons.Game.Domain.Interfaces.Services;
@@ -26,6 +26,7 @@ public interface IGameStateService
     bool AnyFoodInPosition(IRoom room, IPointAxis position, int delta = 0);
     IGameState? GetGameState(ITrackableId roomId);
     IGameState CreateGameState(IRoom room);
+    void RemoveGameState(ITrackableId roomId);
     bool ChangeDirectionByPlayerId(string playerConnectionId, Direction? direction = null);
     bool SetBoostByPlayerId(string playerConnectionId, bool active);
     bool SteerByPlayerId(string playerConnectionId, double angle);

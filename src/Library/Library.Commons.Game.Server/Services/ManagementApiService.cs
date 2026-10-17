@@ -1,8 +1,12 @@
-﻿using System;
+using System;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Linq;
 using Library.Commons.Api.Entities.Requests.Player;
+using Library.Commons.Api.Entities.Requests.Room;
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Entities.Configurations;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 using Library.Commons.Game.Domain.Interfaces.Services;
@@ -50,9 +54,66 @@ internal class ManagementApiService: IManagementApiService
         }
     }
 
-    private bool BuildServerUri(out string rootUri)
+    public Task<bool> PlayerJoinFailedAsync(string playerConnectionId, string reason)
+        => PostAsync($"player/{playerConnectionId}/join-failed", new FailureRequest { Reason = reason });
+
+    public async Task<bool> RoomCreatedAsync(string requesterId, IRoom room)
+    {
+        if (!BuildServerUri(out var hubUrl, out var baseUrl) || room.Code is null) return false;
+        return await PostAsync($"rooms/{requesterId}/created", new RoomCreatedRequest
+        {
+            RoomId = room.Guid,
+            Code = room.Code,
+            Name = room.Name,
+            MaxPlayers = room.MaxPlayers,
+            GameServerUrl = hubUrl,
+            BaseUrl = baseUrl,
+        });
+    }
+
+    public Task<bool> RoomCreateFailedAsync(string requesterId, string reason)
+        => PostAsync($"rooms/{requesterId}/failed", new FailureRequest { Reason = reason });
+
+    public async Task<bool> SendHeartbeatAsync(IReadOnlyCollection<RoomSnapshot> rooms)
+    {
+        if (!BuildServerUri(out var hubUrl, out var baseUrl)) return false;
+        return await PostAsync("rooms/heartbeat", new RoomHeartbeatRequest
+        {
+            GameServerUrl = hubUrl,
+            BaseUrl = baseUrl,
+            Rooms = rooms.Select(snapshot => new RoomSummary
+            {
+                Id = snapshot.Room.Guid,
+                Code = snapshot.Room.Code,
+                Name = snapshot.Room.Name,
+                IsPrivate = snapshot.Room.IsPrivate,
+                Players = snapshot.Players,
+                MaxPlayers = snapshot.Room.MaxPlayers,
+                CreatedAt = snapshot.Room.CreatedAt,
+            }).ToList(),
+        });
+    }
+
+    private async Task<bool> PostAsync<T>(string path, T body)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync(path, JsonContent.Create(body));
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while calling the management api at {Path}", path);
+            return false;
+        }
+    }
+
+    private bool BuildServerUri(out string rootUri) => BuildServerUri(out rootUri, out _);
+
+    private bool BuildServerUri(out string rootUri, out string baseUrl)
     {
         rootUri = string.Empty;
+        baseUrl = string.Empty;
         var domain = _configuration[$"{ServerConfiguration.SectionName}:Domain"];
         if (string.IsNullOrWhiteSpace(domain))
             return false;
@@ -71,11 +132,8 @@ internal class ManagementApiService: IManagementApiService
         var path = _configuration[$"{ServerConfiguration.SectionName}:Path"];
         if (!string.IsNullOrWhiteSpace(path))
             path = path!.StartsWith("/") ? path : $"/{path}";
-        path =  $"{path}{HubEndpoints.Game}";
-        
-        
-
-        rootUri = $"{scheme}://{domain}{path}";
+        baseUrl = $"{scheme}://{domain}{path}";
+        rootUri = $"{baseUrl}{HubEndpoints.Game}";
         return true;
     }
 

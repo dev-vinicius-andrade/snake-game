@@ -1,95 +1,88 @@
-﻿using Application.Game.Server.Entities.Configurations;
+using Application.Game.Server.Services;
 using Library.Commons.Eventbus.RabbitMq.EventArgs;
 using Library.Commons.Eventbus.RabbitMq.Interfaces;
 using Library.Commons.Game.Domain.Entities.Eventbus.Payloads;
-using Library.Commons.Game.Domain.Interfaces.Entities;
-using Library.Commons.Game.Domain.Interfaces.Services;
-using Microsoft.Extensions.Options;
 using ILogger = Serilog.ILogger;
 
 namespace Application.Game.Server.Workers;
 
+/// <summary>Listens for players who want to join and for hosts who want a room. The decisions live in the handlers.</summary>
 public class EventbusWorkerService : BackgroundService
 {
     private readonly ILogger _logger;
-    private readonly IEventbusConsumer<PlayerJoinPayload> _newPlayerEventbusConsumer;
-    private readonly IOptions<AppSettings> _appSettings;
+    private readonly IEventbusConsumer<PlayerJoinPayload> _joinConsumer;
+    private readonly IEventbusConsumer<RoomCreatePayload> _createConsumer;
+    private readonly JoinRequestHandler _joinHandler;
+    private readonly RoomCreateRequestHandler _createHandler;
 
-    private readonly IRoomsService _roomsService;
-    private readonly IManagementApiService _managementApiService;
-    public EventbusWorkerService(IOptions<AppSettings> appSettings, ILogger logger, IEventbusConsumer<PlayerJoinPayload> newPlayerEventbusConsumer, IPlayerService playerService, IRoomsService roomsService, IManagementApiService managementApiService)
+    public EventbusWorkerService(
+        ILogger logger,
+        IEventbusConsumer<PlayerJoinPayload> joinConsumer,
+        IEventbusConsumer<RoomCreatePayload> createConsumer,
+        JoinRequestHandler joinHandler,
+        RoomCreateRequestHandler createHandler)
     {
-        _appSettings = appSettings;
         _logger = logger;
-        _newPlayerEventbusConsumer = newPlayerEventbusConsumer;
-        _roomsService = roomsService;
-        _managementApiService = managementApiService;
+        _joinConsumer = joinConsumer;
+        _createConsumer = createConsumer;
+        _joinHandler = joinHandler;
+        _createHandler = createHandler;
     }
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        StartEventbusConsumers();
-        SetupEventBusHandlers();
+        _joinConsumer.OnMessageReceived += OnJoinRequest;
+        _createConsumer.OnMessageReceived += OnRoomCreateRequest;
+        _joinConsumer.Start();
+        _createConsumer.Start();
         await base.StartAsync(cancellationToken);
     }
 
-    private void StartEventbusConsumers()
-    {
-        _newPlayerEventbusConsumer.Start();
-    }
+    private void OnJoinRequest(object? sender, EventbusConsumerMessageReceivedEventArgs<PlayerJoinPayload> e)
+        => Handle(e.Response, _joinHandler.HandleAsync);
 
-    private void SetupEventBusHandlers()
-    {
-        _newPlayerEventbusConsumer.OnMessageReceived += NewPlayerEventbusConsumerOnOnMessageReceived;
-    }
+    private void OnRoomCreateRequest(object? sender, EventbusConsumerMessageReceivedEventArgs<RoomCreatePayload> e)
+        => Handle(e.Response, _createHandler.HandleAsync);
 
-    private void NewPlayerEventbusConsumerOnOnMessageReceived(object? sender, EventbusConsumerMessageReceivedEventArgs<PlayerJoinPayload> e)
+    private void Handle<T>(IMessageResponse<T> response, Func<T, Task<MessageDisposition>> handler) where T : class
     {
-        var payload = e.Response.Value;
-        if (TryGetOrCreateRoom(out var room)) return;
-        if (room is null) e.Response.Discard(true);
-        _managementApiService.PlayerJoinRoomAsync(payload.Id, payload.Nickname, room!).Wait();
-        e.Response.Acknowledge();
-    }
-
-    private bool TryGetOrCreateRoom(out IRoom? room)
-    {
-        var availableRooms = _roomsService.GetAvailableRooms().ToList();
-        room = null;
-        if (!availableRooms.Any())
+        try
         {
-            if (!_roomsService.CanCreate())
-                return false;
-            room = _roomsService.CreateRoom();
+            Apply(response, handler(response.Value).GetAwaiter().GetResult());
         }
-        else
+        catch (Exception exception)
         {
-            room = availableRooms.First();
-
+            _logger.Error(exception, "Could not handle message {MessageId}", response.MessageId);
+            response.Discard(true);
         }
+    }
 
-        return false;
+    private static void Apply<T>(IMessageResponse<T> response, MessageDisposition disposition) where T : class
+    {
+        switch (disposition)
+        {
+            case MessageDisposition.Acknowledge:
+                response.Acknowledge();
+                break;
+            case MessageDisposition.Requeue:
+                response.Discard(true);
+                break;
+            default:
+                response.Discard(false);
+                break;
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _newPlayerEventbusConsumer.Start();
         while (!stoppingToken.IsCancellationRequested)
-        {
-            _logger.Information("EventbusWorkerService running at: {time}", DateTimeOffset.Now);
             await Task.Delay(1000, stoppingToken);
-        }
-        await StopAsync(stoppingToken);
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        StopEventbusConsumers();
+        _joinConsumer.Stop();
+        _createConsumer.Stop();
         await base.StopAsync(cancellationToken);
-    }
-
-    private void StopEventbusConsumers()
-    {
-        _newPlayerEventbusConsumer.Stop();
     }
 }
