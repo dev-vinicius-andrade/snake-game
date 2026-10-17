@@ -8,7 +8,7 @@
 # Options (environment):
 #   REGISTRY       Required. Registry and project the images are pushed to and pulled from.
 #   INGRESS_CLASS  Default traefik-external. The three hosts are exposed to the internet through it.
-#   CLUSTER_ISSUER Default letsencrypt-production-homel4b-dev-issuer. cert-manager issues each host's certificate; empty to skip.
+#   CLUSTER_ISSUER Default letsencrypt-production-andradev-io-issuer. cert-manager issues each host's certificate; empty to skip.
 #   DOMAIN         Default andradev.io (public). Hosts: snake.$DOMAIN (site), snake-api.$DOMAIN (manager), snake-game.$DOMAIN (game).
 #   TAG            One tag for every image (all are rebuilt). Default: per-image source tags.
 #   FORCE_BUILD=1  Rebuild every image even when the registry already has its tag.
@@ -30,7 +30,7 @@ CHART="$HERE/charts/snake-app"
 : "${REGISTRY:?Set REGISTRY, e.g. REGISTRY=cr.homel4b.dev/<project>}"
 DOMAIN=${DOMAIN:-andradev.io}
 INGRESS_CLASS=${INGRESS_CLASS:-traefik-external}
-CLUSTER_ISSUER=${CLUSTER_ISSUER-letsencrypt-production-homel4b-dev-issuer}
+CLUSTER_ISSUER=${CLUSTER_ISSUER-letsencrypt-production-andradev-io-issuer}
 UI_HOST="snake.$DOMAIN"
 API_HOST="snake-api.$DOMAIN"
 GAME_HOST="snake-game.$DOMAIN"

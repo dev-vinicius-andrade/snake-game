@@ -42,4 +42,4 @@ ingress:
   enabled: true
   className: traefik-external
   host: ""
-  clusterIssuer: letsencrypt-production-homel4b-dev-issuer
+  clusterIssuer: letsencrypt-production-andradev-io-issuer

@@ -32,8 +32,7 @@ check the class name of your external Traefik with `kubectl get ingressclass`): 
 
 - **DNS:** each host must resolve to the external Traefik's public address (and your router must forward 443 to it).
 - **TLS:** each Ingress asks cert-manager for its own certificate with `CLUSTER_ISSUER` (default
-  `letsencrypt-production-homel4b-dev-issuer`, which belongs to homel4b.dev: for andradev.io pass the name of the issuer that
-  serves it, see `kubectl get clusterissuer`) into the Secret `<release>-tls`.
+  `letsencrypt-production-andradev-io-issuer`; use the `letsencrypt-staging-andradev-io-issuer` while testing to avoid rate limits) into the Secret `<release>-tls`.
   Set `CLUSTER_ISSUER=` (empty) to use Traefik's default certificate instead.
 - `DOMAIN=<other>` changes the base domain.
 
