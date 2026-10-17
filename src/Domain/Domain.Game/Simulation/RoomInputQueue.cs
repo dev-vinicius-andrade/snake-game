@@ -15,6 +15,15 @@ public interface IRoomInputQueue
     Task DrainAsync(IGameState gameState, CancellationToken cancellationToken = default);
 }
 
+/// <summary>A command that only matters while it is the newest of its kind, such as "face left".</summary>
+public interface ICoalescableCommand : IPlayerCommand
+{
+    /// <summary>Commands with the same key in one drain collapse into the last one.</summary>
+    string CoalesceKey { get; }
+
+    void Supersede();
+}
+
 public sealed class RoomInputQueue : IRoomInputQueue
 {
     public const int DefaultMaxCommandsPerDrain = 256;
@@ -56,9 +65,22 @@ public sealed class RoomInputQueue : IRoomInputQueue
         if (!_queues.TryGetValue(roomId, out var queue)) return Array.Empty<IPlayerCommand>();
 
         var count = Math.Min(queue.Count, _maxCommandsPerDrain);
-        return Enumerable.Range(0, count)
+        var taken = Enumerable.Range(0, count)
             .Select(_ => queue.TryDequeue(out var command) ? command : null)
             .OfType<IPlayerCommand>()
             .ToArray();
+        return KeepNewestOfEachKind(taken);
     }
+
+    private static IReadOnlyList<IPlayerCommand> KeepNewestOfEachKind(IReadOnlyList<IPlayerCommand> commands)
+    {
+        var seen = new HashSet<string>();
+        var newest = commands.Reverse().Where(command => IsNewestOfItsKind(command, seen)).Reverse().ToArray();
+        foreach (var replaced in commands.Except(newest).OfType<ICoalescableCommand>())
+            replaced.Supersede();
+        return newest;
+    }
+
+    private static bool IsNewestOfItsKind(IPlayerCommand command, ISet<string> seen)
+        => command is not ICoalescableCommand coalescable || seen.Add(coalescable.CoalesceKey);
 }

@@ -157,6 +157,22 @@ public sealed class PlayerCommandsTests
     }
 
     [Fact]
+    public void ChangeDirection_CoalescesPerConnection()
+    {
+        Assert.Equal("direction:conn-1", new ChangeDirectionCommand(ConnectionId, Direction.Left).CoalesceKey);
+        Assert.NotEqual(new ChangeDirectionCommand("other", Direction.Left).CoalesceKey,
+            new ChangeDirectionCommand(ConnectionId, Direction.Left).CoalesceKey);
+    }
+
+    [Fact]
+    public void SetBoost_CoalescesPerConnection()
+        => Assert.Equal("boost:conn-1", new SetBoostCommand(ConnectionId, true).CoalesceKey);
+
+    [Fact]
+    public void Shoot_IsNeverCoalesced()
+        => Assert.IsNotAssignableFrom<ICoalescableCommand>(new ShootCommand(ConnectionId));
+
+    [Fact]
     public async Task Abandon_BeforeExecution_CancelsCompletion()
     {
         var command = new ShootCommand(ConnectionId);

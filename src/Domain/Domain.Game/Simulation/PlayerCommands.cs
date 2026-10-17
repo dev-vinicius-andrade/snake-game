@@ -3,14 +3,18 @@ using Library.Commons.Game.Domain.Interfaces.Entities;
 
 namespace Domain.Game.Simulation;
 
-public sealed class ChangeDirectionCommand(string connectionId, Direction? direction) : PlayerCommand<bool>
+public sealed class ChangeDirectionCommand(string connectionId, Direction? direction) : PlayerCommand<bool>, ICoalescableCommand
 {
+    public string CoalesceKey => $"direction:{connectionId}";
+
     protected override Task<bool> RunAsync(CommandContext context, CancellationToken cancellationToken)
         => Task.FromResult(context.GameStateService.ChangeDirectionByPlayerId(connectionId, direction));
 }
 
-public sealed class SetBoostCommand(string connectionId, bool active) : PlayerCommand<bool>
+public sealed class SetBoostCommand(string connectionId, bool active) : PlayerCommand<bool>, ICoalescableCommand
 {
+    public string CoalesceKey => $"boost:{connectionId}";
+
     protected override Task<bool> RunAsync(CommandContext context, CancellationToken cancellationToken)
         => Task.FromResult(context.GameStateService.SetBoostByPlayerId(connectionId, active));
 }

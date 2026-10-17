@@ -16,11 +16,13 @@ namespace Application.Game.Server.Hubs
         private readonly ITrackableIdGeneratorService _trackableIdGeneratorService;
         private readonly IGameStateService _gameStateService;
         private readonly IRoomInputQueue _roomInputQueue;
+        private readonly Serilog.ILogger _logger;
         private static readonly TimeSpan CommandTimeout = TimeSpan.FromSeconds(3);
 
-        public GameHub(IPlayerService playerService, IPlayerRoomService playerRoomService, IRoomsService roomsService, ITrackableIdGeneratorService trackableIdGeneratorService, IGameStateService gameStateService, IRoomInputQueue roomInputQueue)
+        public GameHub(IPlayerService playerService, IPlayerRoomService playerRoomService, IRoomsService roomsService, ITrackableIdGeneratorService trackableIdGeneratorService, IGameStateService gameStateService, IRoomInputQueue roomInputQueue, Serilog.ILogger logger)
         {
             _roomInputQueue = roomInputQueue;
+            _logger = logger;
             _playerService = playerService;
             _playerRoomService = playerRoomService;
             _roomsService = roomsService;
@@ -43,7 +45,7 @@ namespace Application.Game.Server.Hubs
             var roomTrackableId = _trackableIdGeneratorService.Generate(roomId);
             var playerTrackableId = _trackableIdGeneratorService.Generate(playerId);
             var result = await RunInRoomAsync(roomId,
-                new ReconnectPlayerCommand(roomTrackableId, playerTrackableId, Context.ConnectionId));
+                new ReconnectPlayerCommand(roomTrackableId, playerTrackableId, Context.ConnectionId), Context.ConnectionAborted);
             if(result is null) return;
             await Groups.RemoveFromGroupAsync(result.OldConnectionId, roomId.ToString(),
                 Context.ConnectionAborted);
@@ -63,7 +65,7 @@ namespace Application.Game.Server.Hubs
         private async Task JoinAsNewPlayer(JoinRoomRequest request)
         {
             var player = await RunInRoomAsync(request.RoomId,
-                new JoinNewPlayerCommand(Context.ConnectionId, request.Nickname, request.RoomId));
+                new JoinNewPlayerCommand(Context.ConnectionId, request.Nickname, request.RoomId), Context.ConnectionAborted);
             if (player is null)
                 return;
 
@@ -92,11 +94,13 @@ namespace Application.Game.Server.Hubs
             return Task.CompletedTask;
         }
 
-        public async Task LeaveRoom(LeaveRoomRequest request)
+        public Task LeaveRoom(LeaveRoomRequest request) => LeaveCurrentRoomAsync(Context.ConnectionAborted);
+
+        private async Task LeaveCurrentRoomAsync(CancellationToken cancellationToken)
         {
             var (_, gameState, room) = GetConnectionData();
             if (gameState is null || room is null) return;
-            var player = await RunInRoomAsync(room.Guid, new LeaveCommand(Context.ConnectionId));
+            var player = await RunInRoomAsync(room.Guid, new LeaveCommand(Context.ConnectionId), cancellationToken);
             if (player is null) return;
             await Clients.Group(room.Guid.ToString()).PlayerLefted(new PlayerLeftedEvent
             {
@@ -126,10 +130,10 @@ namespace Application.Game.Server.Hubs
             return Task.CompletedTask;
         }
 
-        private async Task<T> RunInRoomAsync<T>(Guid roomId, PlayerCommand<T> command)
+        private async Task<T> RunInRoomAsync<T>(Guid roomId, PlayerCommand<T> command, CancellationToken cancellationToken)
         {
             _roomInputQueue.Enqueue(roomId, command);
-            return await command.Completion.WaitAsync(CommandTimeout, Context.ConnectionAborted);
+            return await command.Completion.WaitAsync(CommandTimeout, cancellationToken);
         }
 
         private (IPlayer? player, IGameState? gameState, IRoom? room) GetConnectionData()
@@ -152,6 +156,15 @@ namespace Application.Game.Server.Hubs
 
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
+            try
+            {
+                // The connection is already aborted, so the leave must not be tied to its cancellation token.
+                await LeaveCurrentRoomAsync(CancellationToken.None);
+            }
+            catch (Exception failure)
+            {
+                _logger.Error(failure, "Could not remove the player of connection {ConnectionId} on disconnect", Context.ConnectionId);
+            }
             await base.OnDisconnectedAsync(exception);
         }
     }

@@ -44,6 +44,9 @@ public abstract class PlayerCommand<TResult> : IPlayerCommand
 
     public void Abandon() => _completion.TrySetCanceled();
 
+    /// <summary>Releases anyone awaiting the result when a newer command replaced this one before it ran.</summary>
+    public void Supersede() => _completion.TrySetResult(default!);
+
     protected abstract Task<TResult> RunAsync(CommandContext context, CancellationToken cancellationToken);
 
     protected static IPlayer? FindByConnection(IGameState gameState, string connectionId)

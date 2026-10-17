@@ -35,6 +35,7 @@ public class GameStateService : IGameStateService
     private readonly BoostRules _boostRules;
     private readonly DamageCalculator _damageCalculator;
     private readonly SnakeRulesOptions _rulesOptions;
+    private readonly ShotCooldownRules _shotCooldownRules;
 
     public GameStateService(
         IOptions<ServerConfiguration> serverConfiguration,
@@ -49,8 +50,10 @@ public class GameStateService : IGameStateService
         ITickRateService tickRateService, IObstacleService obstacleService,
         SnakeSizeRules snakeSizeRules, SnakeCollisionRules snakeCollisionRules, DeathDropRules deathDropRules,
         SnakeBodyRules snakeBodyRules, BodyShotRules bodyShotRules, BodyHealthRules bodyHealthRules,
-        BoostRules boostRules, DamageCalculator damageCalculator, SnakeRulesOptions rulesOptions)
+        BoostRules boostRules, DamageCalculator damageCalculator, SnakeRulesOptions rulesOptions,
+        ShotCooldownRules shotCooldownRules)
     {
+        _shotCooldownRules = shotCooldownRules;
         _snakeBodyRules = snakeBodyRules;
         _bodyShotRules = bodyShotRules;
         _bodyHealthRules = bodyHealthRules;
@@ -134,6 +137,7 @@ public class GameStateService : IGameStateService
         var boost = _boostRules.Step(player.IsBoosting, player.BoostTicks, player.Score);
         player.BoostTicks = boost.BoostTicks;
         player.Score -= boost.MassSpent;
+        player.ShotCooldownTicks = _shotCooldownRules.Tick(player.ShotCooldownTicks);
         var tickRateMilliseconds = _tickRateService.TickRate.TotalMilliseconds;
         var speedFactor = _snakeConfiguration.Value.Speed * boost.SpeedMultiplier;
         var movementPerTickX = player.Direction.Axis.X * speedFactor / (1000 / tickRateMilliseconds);
@@ -233,7 +237,7 @@ public class GameStateService : IGameStateService
 
     public async Task Shoot(IGameState gameState, IRoom room, IPlayer player)
     {
-        if (player.Score <= 0) return;
+        if (!player.IsAlive || player.Score <= 0 || !_shotCooldownRules.CanShoot(player.ShotCooldownTicks)) return;
         var id = _trackableIdGeneratorService.Generate(Guid.NewGuid());
         while (gameState.Obstacles.ContainsKey(id.Guid))
             id = _trackableIdGeneratorService.Generate(Guid.NewGuid());
@@ -243,6 +247,7 @@ public class GameStateService : IGameStateService
         var newScore = player.Score - 1;
         if (newScore < 0) newScore = 0;
         player.Score = newScore;
+        player.ShotCooldownTicks = _shotCooldownRules.CooldownTicks(_tickRateService.TickRate);
         UpdatePlayer(player);
 
     }

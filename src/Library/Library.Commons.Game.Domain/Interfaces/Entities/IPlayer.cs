@@ -19,5 +19,7 @@ public interface IPlayer : IId, ITrackableId
     bool IsBoosting { get; set; }
     /// <summary>Boosted ticks since the last mass was spent.</summary>
     int BoostTicks { get; set; }
+    /// <summary>Simulation ticks left before the next shot is allowed.</summary>
+    int ShotCooldownTicks { get; set; }
     //DateTime LastDirectionChange { get; set; }
 }

@@ -77,7 +77,6 @@ namespace Application.Game.Server
             services.AddHealthChecks();
             services.AddRequestExceptionHandler<IRequestExceptionHandler, Handlers.ExceptionHandler>();
             services.AddCorsPolicy(appSettings.CorsConfiguration);
-            services.AddSingleton<GameHub>();
         }
 
         private static void AddGameServices(IServiceCollection services, IConfiguration configuration)

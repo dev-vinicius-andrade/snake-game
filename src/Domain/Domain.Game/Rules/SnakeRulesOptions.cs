@@ -17,6 +17,9 @@ public sealed record SnakeRulesOptions
     /// <summary>Simulation ticks of boosting that cost one mass (30 ticks is 2 mass per second at 60 Hz).</summary>
     public int BoostTicksPerMass { get; init; } = 30;
 
+    /// <summary>Minimum time between two shots of the same snake.</summary>
+    public int ShotCooldownMilliseconds { get; init; } = 250;
+
     public void EnsureValid()
     {
         if (MassPerSegment <= 0)
@@ -25,6 +28,8 @@ public sealed record SnakeRulesOptions
             throw new ArgumentOutOfRangeException(nameof(MaxDeathPellets), MaxDeathPellets, "Must be at least 1.");
         if (BoostSpeedMultiplier <= 1)
             throw new ArgumentOutOfRangeException(nameof(BoostSpeedMultiplier), BoostSpeedMultiplier, "Must be greater than 1.");
+        if (ShotCooldownMilliseconds < 1)
+            throw new ArgumentOutOfRangeException(nameof(ShotCooldownMilliseconds), ShotCooldownMilliseconds, "Must be at least 1.");
         if (BoostTicksPerMass < 1)
             throw new ArgumentOutOfRangeException(nameof(BoostTicksPerMass), BoostTicksPerMass, "Must be at least 1.");
     }

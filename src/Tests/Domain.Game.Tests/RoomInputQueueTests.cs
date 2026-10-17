@@ -111,6 +111,74 @@ public sealed class RoomInputQueueTests
     }
 
     [Fact]
+    public async Task DrainAsync_SameCoalesceKey_OnlyTheLastCommandRuns()
+    {
+        var queue = CreateQueue();
+        var executed = new List<string>();
+        queue.Enqueue(_roomId, new KeyedCommand("direction:a", "left", executed));
+        queue.Enqueue(_roomId, new KeyedCommand("direction:a", "up", executed));
+        queue.Enqueue(_roomId, new KeyedCommand("direction:a", "right", executed));
+
+        await queue.DrainAsync(StateOf(_roomId));
+
+        Assert.Equal(new[] { "right" }, executed);
+    }
+
+    [Fact]
+    public async Task DrainAsync_DifferentCoalesceKeys_AllRunInOrder()
+    {
+        var queue = CreateQueue();
+        var executed = new List<string>();
+        queue.Enqueue(_roomId, new KeyedCommand("direction:a", "a-up", executed));
+        queue.Enqueue(_roomId, new KeyedCommand("direction:b", "b-left", executed));
+        queue.Enqueue(_roomId, new KeyedCommand("boost:a", "a-boost", executed));
+
+        await queue.DrainAsync(StateOf(_roomId));
+
+        Assert.Equal(new[] { "a-up", "b-left", "a-boost" }, executed);
+    }
+
+    [Fact]
+    public async Task DrainAsync_CoalescedCommandsInterleavedWithOthers_KeepTheLastOnesPosition()
+    {
+        var queue = CreateQueue();
+        var executed = new List<string>();
+        queue.Enqueue(_roomId, new KeyedCommand("direction:a", "first", executed));
+        queue.Enqueue(_roomId, new RecordingCommand("shoot", executed));
+        queue.Enqueue(_roomId, new KeyedCommand("direction:a", "second", executed));
+
+        await queue.DrainAsync(StateOf(_roomId));
+
+        Assert.Equal(new[] { "shoot", "second" }, executed);
+    }
+
+    [Fact]
+    public async Task DrainAsync_SupersededCommand_CompletesWithDefaultInsteadOfHanging()
+    {
+        var queue = CreateQueue();
+        var older = new KeyedCommand("direction:a", "older", new List<string>());
+        queue.Enqueue(_roomId, older);
+        queue.Enqueue(_roomId, new KeyedCommand("direction:a", "newer", new List<string>()));
+
+        await queue.DrainAsync(StateOf(_roomId));
+
+        Assert.Equal(0, await older.Completion.WaitAsync(TimeSpan.FromSeconds(1)));
+    }
+
+    [Fact]
+    public async Task DrainAsync_CoalescingNeverCrossesDrains()
+    {
+        var queue = CreateQueue();
+        var executed = new List<string>();
+        queue.Enqueue(_roomId, new KeyedCommand("direction:a", "one", executed));
+        await queue.DrainAsync(StateOf(_roomId));
+        queue.Enqueue(_roomId, new KeyedCommand("direction:a", "two", executed));
+        await queue.DrainAsync(StateOf(_roomId));
+
+        Assert.Equal(new[] { "one", "two" }, executed);
+    }
+
+    [Fact]
     public void RoomsWithPendingCommands_ReportsOnlyRoomsWithQueuedCommands()
     {
         var queue = CreateQueue();
@@ -143,6 +211,17 @@ public sealed class RoomInputQueueTests
         {
             executed.Add(name);
             return Task.FromResult(0);
+        }
+    }
+
+    private sealed class KeyedCommand(string key, string name, List<string> executed) : PlayerCommand<int>, ICoalescableCommand
+    {
+        public string CoalesceKey => key;
+
+        protected override Task<int> RunAsync(CommandContext context, CancellationToken cancellationToken)
+        {
+            executed.Add(name);
+            return Task.FromResult(1);
         }
     }
 

@@ -20,6 +20,7 @@ public sealed class GameStateServiceTests
 
     private readonly PointAxisServices _axes = new();
     private readonly IPlayerService _playerService = Substitute.For<IPlayerService>();
+    private readonly IObstacleService _obstacleService = Substitute.For<IObstacleService>();
     private readonly DamageCalculator _damage = new(new DamageModelOptions());
     private readonly GameStateService _service;
     private readonly IGameState _state;
@@ -35,6 +36,14 @@ public sealed class GameStateServiceTests
         var tickRate = Substitute.For<ITickRateService>();
         tickRate.TickRate.Returns(TimeSpan.FromMilliseconds(1000 / 60.0));
         var rules = new SnakeRulesOptions();
+        _obstacleService.Create(default!, default!, default!, default!, default, default!).ReturnsForAnyArgs(call =>
+            new Obstacle(Guid.NewGuid(), HeadSize, _room, call.ArgAt<ITrackableId>(5))
+            {
+                InitialPosition = call.ArgAt<IPointAxis>(2),
+                CurrentPosition = call.ArgAt<IPointAxis>(2),
+                EndPosition = _axes.Create(5000, 5000),
+                Direction = call.ArgAt<IMovementDirection>(3)
+            });
         _service = new GameStateService(
             Options.Create(new ServerConfiguration()),
             Options.Create(new SnakeConfiguration { Speed = 15, HeadSize = HeadSize, InitialSnakeSize = InitialLength - 1 }),
@@ -46,7 +55,7 @@ public sealed class GameStateServiceTests
             Substitute.For<IKnowDirectionsService>(),
             _axes,
             tickRate,
-            Substitute.For<IObstacleService>(),
+            _obstacleService,
             new SnakeSizeRules(rules),
             new SnakeCollisionRules(),
             new DeathDropRules(rules),
@@ -55,7 +64,8 @@ public sealed class GameStateServiceTests
             new BodyHealthRules(new BodyHealer()),
             new BoostRules(rules),
             _damage,
-            rules);
+            rules,
+            new ShotCooldownRules(rules));
     }
 
     private IPointAxis At(double x, double y)
@@ -308,6 +318,89 @@ public sealed class GameStateServiceTests
         Assert.False(intruder.IsAlive);
         Assert.True(wall.IsAlive);
         Assert.Equal(2, _state.Foods.Values.Sum(food => food.Value));
+    }
+
+    [Fact]
+    public async Task Shoot_WithMass_FiresOneShotSpendsMassAndStartsTheCooldown()
+    {
+        var player = AddPlayer("a", 500, 500, score: 3);
+
+        await _service.Shoot(_state, _room, player);
+
+        Assert.Single(_state.Obstacles);
+        Assert.Equal(2, player.Score);
+        Assert.Equal(15, player.ShotCooldownTicks);
+    }
+
+    [Fact]
+    public async Task Shoot_WhileCoolingDown_DoesNothing()
+    {
+        var player = AddPlayer("a", 500, 500, score: 3);
+        await _service.Shoot(_state, _room, player);
+
+        await _service.Shoot(_state, _room, player);
+
+        Assert.Single(_state.Obstacles);
+        Assert.Equal(2, player.Score);
+    }
+
+    [Fact]
+    public async Task Shoot_AfterTheCooldownTicksHavePassed_FiresAgain()
+    {
+        var player = AddPlayer("a", 500, 500, score: 3);
+        await _service.Shoot(_state, _room, player);
+
+        foreach (var _ in Enumerable.Range(0, 15))
+            await _service.MovePlayer(_state, player);
+        await _service.Shoot(_state, _room, player);
+
+        Assert.Equal(2, _state.Obstacles.Count);
+        Assert.Equal(1, player.Score);
+    }
+
+    [Fact]
+    public async Task Shoot_OneTickBeforeTheCooldownEnds_StillDoesNothing()
+    {
+        var player = AddPlayer("a", 500, 500, score: 3);
+        await _service.Shoot(_state, _room, player);
+
+        foreach (var _ in Enumerable.Range(0, 14))
+            await _service.MovePlayer(_state, player);
+        await _service.Shoot(_state, _room, player);
+
+        Assert.Single(_state.Obstacles);
+    }
+
+    [Fact]
+    public async Task Shoot_WithoutMass_DoesNothingAndStartsNoCooldown()
+    {
+        var player = AddPlayer("a", 500, 500, score: 0);
+
+        await _service.Shoot(_state, _room, player);
+
+        Assert.Empty(_state.Obstacles);
+        Assert.Equal(0, player.ShotCooldownTicks);
+    }
+
+    [Fact]
+    public async Task Shoot_DeadPlayer_DoesNothing()
+    {
+        var player = AddPlayer("a", 500, 500, score: 3);
+        player.IsAlive = false;
+
+        await _service.Shoot(_state, _room, player);
+
+        Assert.Empty(_state.Obstacles);
+    }
+
+    [Fact]
+    public async Task MovePlayer_CooldownNeverGoesBelowZero()
+    {
+        var player = AddPlayer("a", 500, 500);
+
+        await _service.MovePlayer(_state, player);
+
+        Assert.Equal(0, player.ShotCooldownTicks);
     }
 
     [Fact]
