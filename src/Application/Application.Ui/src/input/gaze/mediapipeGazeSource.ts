@@ -3,13 +3,20 @@ import type { Calibration } from "./calibration";
 import { isLikelyVirtualCamera, toCameraDevices, type CameraDevice, type MediaDeviceInfoLike } from "./cameraDevices";
 import { CameraError, classifyCameraError, isCameraSupported, type NavigatorLike } from "./cameraErrors";
 import { EyeFrameProcessor } from "./eyeFrameProcessor";
+import { missingFaceGestureBlendshapes } from "./faceGestures";
 import { loadFaceLandmarker } from "./faceLandmarker";
 import type { GazeSample, GazeSource } from "./gazeSource";
+import { HeadFrameProcessor } from "./headFrameProcessor";
+import type { HeadMatrix } from "./headPose";
+
+/** What the camera reads: the eyes (where they look, blinks) or the head (where it points, mouth, eyebrows). */
+export type FaceMode = "eyes" | "head";
 
 /** The part of a MediaPipe `FaceLandmarkerResult` this app reads. */
 export interface LandmarkerResultLike {
   faceLandmarks?: unknown[];
   faceBlendshapes?: Array<{ categories: BlendshapeScore[] }>;
+  facialTransformationMatrixes?: HeadMatrix[];
 }
 
 export interface LandmarkerLike {
@@ -61,7 +68,10 @@ export interface GazeDiagnostics {
 }
 
 export interface CameraGazeSource extends GazeSource {
+  /** Calibration for the mode in use. */
   setCalibration(calibration: Calibration): void;
+  /** What the samples describe. Eyes by default. The calibration of the other mode is kept. */
+  setMode(mode: FaceMode): void;
   getDiagnostics(): GazeDiagnostics;
   /** Which camera to open on the next start. Null is the browser default. */
   setPreferredCamera(cameraId: string | null): void;
@@ -75,6 +85,9 @@ export interface CameraGazeSource extends GazeSource {
 
 export interface MediaPipeGazeSourceOptions {
   processor?: EyeFrameProcessor;
+  headProcessor?: HeadFrameProcessor;
+  /** Mode to start in. */
+  mode?: FaceMode;
   navigatorLike?: NavigatorLike | null;
   /** Opens a camera by device id, or the browser default for null. */
   getStream?: (cameraId: string | null) => Promise<CameraStreamLike>;
@@ -170,7 +183,9 @@ function measureVideoBrightness(video: VideoLike): number | null {
  * processor turns them into calibrated gaze samples. Frames are processed in the browser and never leave it.
  */
 export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = {}): CameraGazeSource {
-  const processor = options.processor ?? new EyeFrameProcessor();
+  const eyeProcessor = options.processor ?? new EyeFrameProcessor();
+  const headProcessor = options.headProcessor ?? new HeadFrameProcessor();
+  let mode: FaceMode = options.mode ?? "eyes";
   const navigatorLike = options.navigatorLike === undefined ? (typeof navigator === "undefined" ? null : navigator) : options.navigatorLike;
   const getStream = options.getStream ?? defaultGetStream;
   const enumerateDevices = options.enumerateDevices ?? defaultEnumerateDevices;
@@ -289,7 +304,7 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
     if ((result?.faceLandmarks?.length ?? 0) > 0) counters.withLandmarks++;
     if (!categories) return;
     counters.withFace++;
-    const missing = missingEyeBlendshapes(categories);
+    const missing = mode === "head" ? missingFaceGestureBlendshapes(categories) : missingEyeBlendshapes(categories);
     if (missing.length === 0) return;
     counters.incomplete++;
     counters.missing = missing;
@@ -305,7 +320,11 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
     const result = detect(currentVideo, currentLandmarker, t);
     const categories = result?.faceBlendshapes?.[0]?.categories ?? null;
     count(result, categories);
-    emit(processor.process({ t, blendshapes: categories }));
+    emit(
+      mode === "head"
+        ? headProcessor.process({ t, blendshapes: categories, matrix: result?.facialTransformationMatrixes?.[0] ?? null })
+        : eyeProcessor.process({ t, blendshapes: categories })
+    );
   }
 
   function tick() {
@@ -384,7 +403,11 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
     },
 
     setCalibration(calibration) {
-      processor.setCalibration(calibration);
+      (mode === "head" ? headProcessor : eyeProcessor).setCalibration(calibration);
+    },
+
+    setMode(next) {
+      mode = next;
     },
 
     getDiagnostics: diagnostics,

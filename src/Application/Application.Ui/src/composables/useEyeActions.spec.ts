@@ -148,3 +148,72 @@ describe("useEyeActions", () => {
     expect(source.listenerCount).toBe(1);
   });
 });
+
+describe("useEyeActions in head mode", () => {
+  const head = (t: number, extra: Record<string, unknown> = {}) => ({ t, x: 0.5, y: 0.5, present: true, jaw: 0, brows: 0, ...extra });
+
+  beforeEach(() => {
+    overrides = { mode: () => "head" };
+  });
+
+  it("shoots with an open mouth", async () => {
+    await started();
+    source.emit(head(0));
+    source.emit(head(100, { jaw: 0.9 }));
+
+    source.emit(head(200, { jaw: 0.9 }));
+
+    expect(intents).toEqual([{ type: "shoot" }]);
+  });
+
+  it("boosts while the eyebrows are raised", async () => {
+    await started();
+    source.emit(head(0, { brows: 0.9 }));
+    source.emit(head(300, { brows: 0.9 }));
+    source.emit(head(400));
+
+    expect(intents).toEqual([
+      { type: "boost", active: true },
+      { type: "boost", active: false },
+    ]);
+  });
+
+  it("ignores blinks and far gaze", async () => {
+    await started();
+    source.emit(camera(0, { x: 1, blink: 0.9 }));
+    source.emit(camera(600, { x: 1, blink: 0.9 }));
+    source.emit(camera(700, { x: 1 }));
+
+    expect(intents).toEqual([]);
+  });
+
+  it("follows the mode as it changes", async () => {
+    let mode: "eyes" | "head" = "eyes";
+    overrides = { mode: () => mode };
+    await started();
+    source.emit(camera(0));
+    mode = "head";
+    source.emit(head(100));
+    source.emit(head(200, { jaw: 0.9 }));
+
+    source.emit(head(300, { jaw: 0.9 }));
+
+    expect(intents).toEqual([{ type: "shoot" }]);
+  });
+
+  it("ends a boost that was running when the mode changes", async () => {
+    let mode: "eyes" | "head" = "head";
+    overrides = { mode: () => mode };
+    await started();
+    source.emit(head(0, { brows: 0.9 }));
+    source.emit(head(300, { brows: 0.9 }));
+
+    mode = "eyes";
+    source.emit(camera(400));
+
+    expect(intents).toEqual([
+      { type: "boost", active: true },
+      { type: "boost", active: false },
+    ]);
+  });
+});

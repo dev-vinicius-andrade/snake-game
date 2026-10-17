@@ -14,7 +14,7 @@ export async function loadFaceLandmarker(urls = resolveFaceLandmarkerUrls()): Pr
       runningMode: "VIDEO",
       numFaces: 1,
       outputFaceBlendshapes: true,
-      outputFacialTransformationMatrixes: false,
+      outputFacialTransformationMatrixes: true,
     });
 
   const landmarker = await create("GPU").catch(() => create("CPU"));

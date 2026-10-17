@@ -24,7 +24,11 @@ class Fixture {
   landmarkerClosed = 0;
   streamRequests = 0;
   landmarkerLoads = 0;
-  result: { faceBlendshapes?: Array<{ categories: BlendshapeScore[] }>; faceLandmarks?: unknown[] } = {
+  result: {
+    faceBlendshapes?: Array<{ categories: BlendshapeScore[] }>;
+    faceLandmarks?: unknown[];
+    facialTransformationMatrixes?: Array<{ data: number[] }>;
+  } = {
     faceBlendshapes: [{ categories: shapes() }],
     faceLandmarks: [[{ x: 0, y: 0, z: 0 }]],
   };
@@ -717,5 +721,70 @@ describe("createMediaPipeGazeSource stop", () => {
 
     expect(fx.trackStops).toBe(1);
     expect(fx.landmarkerClosed).toBe(1);
+  });
+});
+
+describe("createMediaPipeGazeSource head mode", () => {
+  const HEAD_NAMES = ["jawOpen", "browInnerUp", "browOuterUpLeft", "browOuterUpRight"];
+  const headShapes = (overrides: Record<string, number> = {}): BlendshapeScore[] =>
+    HEAD_NAMES.map((categoryName) => ({ categoryName, score: overrides[categoryName] ?? 0 }));
+  const facing = (angle: number) => ({ data: [1, 0, 0, 0, 0, 1, 0, 0, Math.sin(angle), 0, Math.cos(angle), 0, 0, 0, 0, 1] });
+
+  it("reads the eyes until told otherwise", async () => {
+    await started();
+    fx.frame();
+
+    expect(samples.at(-1)).toMatchObject({ present: true, blink: 0 });
+  });
+
+  it("turns the head matrix and mouth into samples", async () => {
+    const source = await started();
+    source.setMode("head");
+    fx.result = { faceLandmarks: [[]], faceBlendshapes: [{ categories: headShapes({ jawOpen: 0.7 }) }], facialTransformationMatrixes: [facing(0.2)] };
+
+    fx.frame();
+
+    expect(samples.at(-1)).toMatchObject({ present: true, jaw: 0.7 });
+    expect(samples.at(-1)!.raw!.x).toBeCloseTo(0.2, 6);
+    expect(samples.at(-1)!.blink).toBeUndefined();
+  });
+
+  it("reports no face when the result has no head matrix", async () => {
+    const source = await started();
+    source.setMode("head");
+    fx.result = { faceLandmarks: [[]], faceBlendshapes: [{ categories: headShapes() }] };
+
+    fx.frame();
+
+    expect(samples.at(-1)).toMatchObject({ present: false });
+  });
+
+  it("calibrates the mode in use and keeps the other one", async () => {
+    const source = await started();
+    source.setMode("head");
+    source.setCalibration({ x: { offset: 0.5, gain: 1 }, y: { offset: 0.5, gain: 1 } });
+    fx.result = { faceLandmarks: [[]], faceBlendshapes: [{ categories: headShapes() }], facialTransformationMatrixes: [facing(0.2)] };
+    fx.frame();
+    const head = samples.at(-1)!;
+
+    source.setMode("eyes");
+    fx.result = { faceLandmarks: [[]], faceBlendshapes: [{ categories: shapes() }] };
+    fx.frame();
+    source.setMode("head");
+    fx.result = { faceLandmarks: [[]], faceBlendshapes: [{ categories: headShapes() }], facialTransformationMatrixes: [facing(0.2)] };
+    fx.frame();
+
+    expect(head.x).toBeCloseTo(0.7, 6);
+    expect(samples.at(-1)!.x).toBeCloseTo(0.7, 6);
+  });
+
+  it("names the missing gesture blendshapes in head mode", async () => {
+    const source = await started();
+    source.setMode("head");
+    fx.result = { faceLandmarks: [[]], faceBlendshapes: [{ categories: headShapes().slice(1) }], facialTransformationMatrixes: [facing(0)] };
+
+    fx.frame();
+
+    expect(source.getDiagnostics().missing).toEqual(["jawOpen"]);
   });
 });

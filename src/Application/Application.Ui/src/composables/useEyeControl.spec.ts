@@ -4,6 +4,8 @@ import type { CalibrationStorage } from "@/input/gaze/calibrationStorage";
 import type { CameraDevice } from "@/input/gaze/cameraDevices";
 import { CameraError } from "@/input/gaze/cameraErrors";
 import type { CameraPreferenceStorage } from "@/input/gaze/cameraPreference";
+import type { FaceModePreference } from "@/input/gaze/faceModePreference";
+import type { FaceMode } from "@/input/gaze/mediapipeGazeSource";
 import type { ControlIntent } from "@/input/intents";
 import { FakeCameraSource } from "@/test/fakeGaze";
 import { useEyeControl, type UseEyeControlOptions } from "./useEyeControl";
@@ -39,6 +41,18 @@ class MemoryCameraPreference implements CameraPreferenceStorage {
   }
 }
 
+class MemoryModePreference implements FaceModePreference {
+  value: FaceMode | null = null;
+  load() {
+    return this.value;
+  }
+  save(mode: FaceMode) {
+    this.value = mode;
+  }
+}
+
+let headStorage: MemoryStorage;
+let modePreference: MemoryModePreference;
 let source: FakeCameraSource;
 let cameraPreference: MemoryCameraPreference;
 let storage: MemoryStorage;
@@ -50,6 +64,8 @@ function create() {
   return useEyeControl({
     source,
     storage,
+    headStorage,
+    modeStorage: modePreference,
     cameraStorage: cameraPreference,
     getRoom: () => room,
     getHead: () => ({ x: 492.5, y: 492.5 }),
@@ -76,6 +92,8 @@ const goodEye: eyeModel = (stage) => ({ x: (stage.x - 0.5) / 0.8, y: (stage.y - 
 beforeEach(() => {
   source = new FakeCameraSource();
   storage = new MemoryStorage();
+  headStorage = new MemoryStorage();
+  modePreference = new MemoryModePreference();
   cameraPreference = new MemoryCameraPreference();
   intents = [];
   overrides = {};
@@ -534,5 +552,149 @@ describe("useEyeControl camera choice", () => {
 
     expect(control.phase.value).toBe("active");
     expect(intents.filter((intent) => intent.type === "steer")).toHaveLength(1);
+  });
+});
+
+const headFrame = (extra: Record<string, unknown> = {}) => ({ t: (clock += 33), x: 0.5, y: 0.5, present: true, jaw: 0, brows: 0, raw: { x: 0, y: 0 }, ...extra });
+const headSaved: Calibration = { x: { offset: 0.5, gain: 3 }, y: { offset: 0.5, gain: 3 } };
+
+describe("useEyeControl head mode", () => {
+  beforeEach(() => {
+    overrides.mode = "head";
+    headStorage.value = headSaved;
+  });
+
+  it("uses the head calibration and tells the camera source the mode", async () => {
+    const control = create();
+
+    await control.enable();
+
+    expect(control.mode.value).toBe("head");
+    expect(source.modes).toEqual(["head"]);
+    expect(source.calibrations).toEqual([headSaved]);
+    expect(control.phase.value).toBe("active");
+  });
+
+  it("calibrates when there is only an eye calibration", async () => {
+    headStorage.value = null;
+    storage.value = saved;
+    const control = create();
+
+    await control.enable();
+
+    expect(control.phase.value).toBe("calibrating");
+  });
+
+  it("saves the calibration in the head store", async () => {
+    headStorage.value = null;
+    const control = create();
+    await control.enable();
+
+    lookAtTargets((stage) => ({ x: (stage.x - 0.5) / 4, y: (stage.y - 0.5) / 4 }), control);
+
+    expect(headStorage.value).not.toBeNull();
+    expect(storage.value).toBeNull();
+    expect(control.phase.value).toBe("active");
+  });
+
+  it("steers like a joystick from the middle of the stage, even with a snake elsewhere", async () => {
+    overrides.getHead = () => ({ x: 92.5, y: 92.5 });
+    overrides.aim = { dwellMs: 0 };
+    const control = create();
+    await control.enable();
+
+    source.emit(headFrame({ x: 0.9, y: 0.5 }));
+
+    expect(intents.filter((intent) => intent.type === "steer")).toEqual([{ type: "steer", angle: 0 }]);
+  });
+
+  it("shoots with an open mouth and boosts with raised eyebrows", async () => {
+    const control = create();
+    await control.enable();
+
+    for (let i = 0; i < 12; i++) source.emit(headFrame({ jaw: 0.9, brows: 0.9 }));
+
+    expect(intents).toContainEqual({ type: "shoot" });
+    expect(intents).toContainEqual({ type: "boost", active: true });
+  });
+
+  it("does not shoot on a blink", async () => {
+    const control = create();
+    await control.enable();
+    source.emit({ t: 0, x: 0.5, y: 0.5, present: true, blink: 0 });
+    source.emit({ t: 100, x: 0.5, y: 0.5, present: true, blink: 0.9 });
+
+    source.emit({ t: 700, x: 0.5, y: 0.5, present: true, blink: 0.1 });
+
+    expect(intents).not.toContainEqual({ type: "shoot" });
+  });
+
+  it("recalibrate forgets the head calibration only", async () => {
+    storage.value = saved;
+    const control = create();
+    await control.enable();
+
+    control.recalibrate();
+
+    expect(headStorage.clears).toBe(1);
+    expect(storage.clears).toBe(0);
+    expect(control.phase.value).toBe("calibrating");
+  });
+});
+
+describe("useEyeControl mode choice", () => {
+  it("starts in the remembered mode", () => {
+    modePreference.value = "head";
+
+    expect(create().mode.value).toBe("head");
+  });
+
+  it("starts in eyes mode when nothing was chosen", () => {
+    expect(create().mode.value).toBe("eyes");
+  });
+
+  it("remembers a new choice, also while off, without starting the camera", () => {
+    const control = create();
+
+    control.setMode("head");
+
+    expect(control.mode.value).toBe("head");
+    expect(modePreference.value).toBe("head");
+    expect(source.started).toBe(false);
+  });
+
+  it("switches while running to the calibration of the new mode", async () => {
+    storage.value = saved;
+    headStorage.value = headSaved;
+    const control = create();
+    await control.enable();
+
+    control.setMode("head");
+
+    expect(source.modes.at(-1)).toBe("head");
+    expect(source.calibrations.at(-1)).toEqual(headSaved);
+    expect(control.phase.value).toBe("active");
+  });
+
+  it("asks for a calibration when the new mode has none", async () => {
+    storage.value = saved;
+    const control = create();
+    await control.enable();
+
+    control.setMode("head");
+
+    expect(control.phase.value).toBe("calibrating");
+    expect(control.calibrationTarget.value?.id).toBe("center");
+  });
+
+  it("changing to the same mode does nothing", async () => {
+    storage.value = saved;
+    const control = create();
+    await control.enable();
+    const calibrations = source.calibrations.length;
+
+    control.setMode("eyes");
+
+    expect(source.calibrations).toHaveLength(calibrations);
   });
 });

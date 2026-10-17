@@ -3,6 +3,7 @@ import {
   CALIBRATION_TARGETS,
   CalibrationRecorder,
   defaultCalibration,
+  type Calibration,
   type CalibrationRecorderOptions,
   type CalibrationTarget,
 } from "@/input/gaze/calibration";
@@ -11,9 +12,11 @@ import type { CameraDevice } from "@/input/gaze/cameraDevices";
 import { classifyCameraError, type CameraErrorKind } from "@/input/gaze/cameraErrors";
 import type { CameraPreferenceStorage } from "@/input/gaze/cameraPreference";
 import type { EyeActionsOptions } from "@/input/gaze/eyeActions";
+import type { FaceModePreference } from "@/input/gaze/faceModePreference";
+import { defaultHeadCalibration } from "@/input/gaze/headFrameProcessor";
 import type { GazeSample, GazeSource } from "@/input/gaze/gazeSource";
 import type { AimOptions } from "@/input/gaze/aimSteering";
-import type { CameraGazeSource } from "@/input/gaze/mediapipeGazeSource";
+import type { CameraGazeSource, FaceMode } from "@/input/gaze/mediapipeGazeSource";
 import type { ControlIntent } from "@/input/intents";
 import type { GamePoint, RoomDimensions } from "@/types/game";
 import { useEyeActions } from "./useEyeActions";
@@ -23,7 +26,14 @@ export type EyeControlPhase = "off" | "starting" | "calibrating" | "active" | "e
 
 export interface UseEyeControlOptions extends EyeActionsOptions {
   source: CameraGazeSource;
+  /** Eye calibration. */
   storage: CalibrationStorage;
+  /** Head calibration. Without it the head calibration is not remembered. */
+  headStorage?: CalibrationStorage;
+  /** Remembers whether the player uses the eyes or the head. */
+  modeStorage?: FaceModePreference;
+  /** Mode to start in. The remembered mode, then eyes, when left out. */
+  mode?: FaceMode;
   /** Remembers which camera the player picked. Without it the browser default is used every time. */
   cameraStorage?: CameraPreferenceStorage;
   getRoom: () => RoomDimensions | null;
@@ -50,20 +60,34 @@ const DEFAULT_CALIBRATION: CalibrationRecorderOptions = { framesPerTarget: 30, s
 const EYE_DEAD_FRACTION = 0.15;
 const EYE_DWELL_MS = 300;
 
+/**
+ * Head turns are deliberate and steady, so the head mode steers like a joystick from the middle of the stage with a
+ * smaller dead zone and no waiting before the first turn.
+ */
+const HEAD_DEAD_FRACTION = 0.12;
+const HEAD_DWELL_MS = 0;
+
+const unsavedCalibration: CalibrationStorage = { load: () => null, save: () => undefined, clear: () => undefined };
+
 /** Lets several consumers listen to one camera while this composable alone starts and stops it. */
 function sharedSource(source: GazeSource): GazeSource {
   return { start: async () => undefined, stop: () => undefined, subscribe: (listener) => source.subscribe(listener) };
 }
 
 /**
- * Controlling the snake with the eyes: start the camera, calibrate once (and remember it), then steer from the
- * middle of the stage, shoot with a long blink and boost by looking far away.
+ * Controlling the snake with the face. Eyes mode: steer toward where the player looks, shoot with a long blink and
+ * boost by looking far away. Head mode: steer by turning the head, shoot by opening the mouth and boost by raising
+ * the eyebrows. Each mode is calibrated once and remembered.
  */
 export function useEyeControl(options: UseEyeControlOptions) {
-  const { source, storage } = options;
+  const { source } = options;
+  const storages: Record<FaceMode, CalibrationStorage> = { eyes: options.storage, head: options.headStorage ?? unsavedCalibration };
+  const defaults: Record<FaceMode, Calibration> = { eyes: defaultCalibration, head: defaultHeadCalibration };
+  const modeStorage: FaceModePreference = options.modeStorage ?? { load: () => null, save: () => undefined };
   const cameraStorage: CameraPreferenceStorage = options.cameraStorage ?? { load: () => null, save: () => undefined };
   const recorder = new CalibrationRecorder(options.calibration ?? DEFAULT_CALIBRATION);
 
+  const mode = shallowRef<FaceMode>(options.mode ?? modeStorage.load() ?? "eyes");
   const phase = shallowRef<EyeControlPhase>("off");
   const errorKind = shallowRef<CameraErrorKind | null>(null);
   const errorMessage = shallowRef<string | null>(null);
@@ -80,7 +104,7 @@ export function useEyeControl(options: UseEyeControlOptions) {
   const active = () => phase.value === "active";
   const shared = sharedSource(source);
 
-  const steering = useGazeControls({
+  const eyeSteering = useGazeControls({
     source: shared,
     origin: options.getHead ? "head" : "center",
     getHead: options.getHead,
@@ -89,9 +113,19 @@ export function useEyeControl(options: UseEyeControlOptions) {
     getRoom: options.getRoom,
     onIntent: options.onIntent,
     canSteer: options.canSteer,
-    enabled: active,
+    enabled: () => active() && mode.value === "eyes",
   });
-  const actions = useEyeActions({ ...options, source: shared, enabled: active });
+  const headSteering = useGazeControls({
+    source: shared,
+    origin: "center",
+    deadFraction: HEAD_DEAD_FRACTION,
+    aim: { dwellMs: HEAD_DWELL_MS, ...options.aim },
+    getRoom: options.getRoom,
+    onIntent: options.onIntent,
+    canSteer: options.canSteer,
+    enabled: () => active() && mode.value === "head",
+  });
+  const actions = useEyeActions({ ...options, source: shared, enabled: active, mode: () => mode.value });
 
   async function refreshCameras() {
     cameras.value = await source.listCameras();
@@ -117,7 +151,7 @@ export function useEyeControl(options: UseEyeControlOptions) {
       beginCalibration();
       return;
     }
-    storage.save(result);
+    storages[mode.value].save(result);
     source.setCalibration(result);
     calibrationFailed.value = false;
     phase.value = "active";
@@ -153,13 +187,33 @@ export function useEyeControl(options: UseEyeControlOptions) {
       return;
     }
 
-    await Promise.all([steering.start(), actions.start()]);
+    source.setMode(mode.value);
+    await Promise.all([eyeSteering.start(), headSteering.start(), actions.start()]);
     stopCalibrationListener = source.subscribe(onCalibrationSample);
     await refreshCameras();
-    const saved = storage.load();
+    applySavedCalibration();
+  }
+
+  /** Active with the saved calibration of the mode in use, or calibrating when there is none. */
+  function applySavedCalibration() {
+    const saved = storages[mode.value].load();
     if (!saved) return beginCalibration();
     source.setCalibration(saved);
+    calibrationFailed.value = false;
+    recorder.reset();
     phase.value = "active";
+    calibrationTarget.value = null;
+    calibrationProgress.value = 0;
+  }
+
+  /** Controls with the eyes or the head. Remembered; while the camera runs the new mode is calibrated or loaded. */
+  function setMode(next: FaceMode) {
+    if (next === mode.value) return;
+    mode.value = next;
+    modeStorage.save(next);
+    if (phase.value !== "active" && phase.value !== "calibrating") return;
+    source.setMode(next);
+    applySavedCalibration();
   }
 
   function fail(failure: unknown) {
@@ -173,7 +227,8 @@ export function useEyeControl(options: UseEyeControlOptions) {
     attempt++;
     stopCalibrationListener?.();
     stopCalibrationListener = null;
-    steering.stop();
+    eyeSteering.stop();
+    headSteering.stop();
     actions.stop();
     source.stop();
     calibrationTarget.value = null;
@@ -207,8 +262,8 @@ export function useEyeControl(options: UseEyeControlOptions) {
   /** Forgets the saved calibration and measures again. Only while the camera runs. */
   function recalibrate() {
     if (phase.value !== "active" && phase.value !== "calibrating") return;
-    storage.clear();
-    source.setCalibration(defaultCalibration);
+    storages[mode.value].clear();
+    source.setCalibration(defaults[mode.value]);
     calibrationFailed.value = false;
     beginCalibration();
   }
@@ -216,6 +271,8 @@ export function useEyeControl(options: UseEyeControlOptions) {
   if (getCurrentScope()) onScopeDispose(disable);
 
   return {
+    mode,
+    setMode,
     phase,
     errorKind,
     errorMessage,
