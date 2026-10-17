@@ -13,6 +13,8 @@ declare module '@vue/runtime-core' {
     EyeSetup: typeof import('./src/components/game/EyeSetup.vue')['default']
     GameHud: typeof import('./src/components/game/GameHud.vue')['default']
     GameStage: typeof import('./src/components/game/GameStage.vue')['default']
+    InviteBadge: typeof import('./src/components/rooms/InviteBadge.vue')['default']
+    RoomActions: typeof import('./src/components/rooms/RoomActions.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SessionOverlay: typeof import('./src/components/game/SessionOverlay.vue')['default']
