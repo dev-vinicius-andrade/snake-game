@@ -15,6 +15,7 @@ using Library.Commons.Eventbus.RabbitMq.Builders;
 using Library.Commons.Game.Domain.Constants;
 using Library.Commons.Game.Domain.Entities.Configurations;
 using Library.Commons.Game.Domain.Entities.Eventbus.Payloads;
+using Library.Commons.Game.Domain.Interfaces.Services;
 using Library.Commons.Game.Server.Constants;
 using Library.Commons.Game.Server.Extensions;
 using Library.Extensions.DependencyInjection.Extensions;
@@ -95,6 +96,12 @@ namespace Application.Game.Server
             services.AddSingleton<RoomCreateRequestHandler>();
             services.AddSingleton<IRoomClosedNotifier, HubRoomClosedNotifier>();
             services.AddSingleton<RoomCloser>();
+            services.AddSingleton<IRoomCloser>(provider => provider.GetRequiredService<RoomCloser>());
+            services.AddSingleton(TimeProvider.System);
+            services.AddSingleton<EmptyRoomReaper>(provider => new EmptyRoomReaper(
+                provider.GetRequiredService<IRoomsService>(), provider.GetRequiredService<IPlayerRoomService>(),
+                provider.GetRequiredService<IRoomCloser>(), provider.GetRequiredService<TimeProvider>()));
+            services.AddHostedService<EmptyRoomReaperWorkerService>();
             services.AddHostedService<EventbusWorkerService>();
             services.AddHostedService<RoomHeartbeatWorkerService>();
             services.AddHostedService<GameWorkerService>();

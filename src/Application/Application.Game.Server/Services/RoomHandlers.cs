@@ -71,6 +71,12 @@ public interface IRoomClosedNotifier
     Task NotifyClosedAsync(Guid roomId, CancellationToken cancellationToken = default);
 }
 
+public interface IRoomCloser
+{
+    /// <summary>False when the room does not exist.</summary>
+    Task<bool> CloseAsync(Guid roomId, TimeSpan? leaveTimeout = null, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Closes a room: players are told and removed through the room's own queue, then the room is forgotten.</summary>
 public sealed class RoomCloser(
     IRoomsService rooms,
@@ -78,7 +84,7 @@ public sealed class RoomCloser(
     IGameStateService gameStates,
     IRoomInputQueue queue,
     IRoomClosedNotifier notifier,
-    ITrackableIdGeneratorService ids)
+    ITrackableIdGeneratorService ids) : IRoomCloser
 {
     private static readonly TimeSpan DefaultLeaveTimeout = TimeSpan.FromSeconds(3);
 

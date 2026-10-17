@@ -41,9 +41,12 @@ AuthConfiguration__AdminApiKeys__0=<long random value> dotnet run --no-build --p
 - Deleting a room tells its players, removes them through the room's own queue, and drops the room and its game state.
   If the game server cannot be reached the room stays listed (502) and disappears once its heartbeats stop.
 
+## Cleaning up
+
+A game server closes **private** rooms that stayed empty for 10 minutes (sweep every 30 s, `EmptyRoomReaper`). A room nobody ever joined counts from its creation; a room that emptied counts from the sweep that noticed it. Public rooms are never closed this way.
+
 ## Limits and known gaps
 
 - The registry is in memory in one manager instance. A restart forgets rooms until the next heartbeat (5 s); private room codes come back with it.
 - Game servers accept the manager's call with the same API key they use toward the manager.
-- Empty private rooms are not closed automatically yet; use the admin page.
 - Observed once during a manual run: the first `JoinRoom` into a room whose host had died timed out after 3 s and worked on retry. Not investigated.
