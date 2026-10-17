@@ -1,6 +1,7 @@
-﻿using System.Net;
+using System.Net;
 using System.Text.Json;
 using Application.Manager.Api.Hubs;
+using Application.Manager.Api.Rooms;
 using Library.Commons.Api.Attributes.Filters;
 using Library.Commons.Api.Entities.Requests.Join;
 using Library.Commons.Api.Entities.Requests.Player;
@@ -19,12 +20,14 @@ namespace Application.Manager.Api.Controllers;
 [AllowAnonymous]
 public class JoinController : Controller
 {
+    private readonly RoomRegistry _registry;
     private readonly JsonSerializerOptions _jsonSerializerOptions;
     private readonly IEventbusPublisher<IBasicProperties> _publisher;
     private readonly IHubContext<ManagerHub> _hubContext;
 
-    public JoinController(JsonSerializerOptions jsonSerializerOptions, IEventbusPublisher<IBasicProperties> publisher, IHubContext<ManagerHub> hubContext)
+    public JoinController(JsonSerializerOptions jsonSerializerOptions, IEventbusPublisher<IBasicProperties> publisher, IHubContext<ManagerHub> hubContext, RoomRegistry registry)
     {
+        _registry = registry;
         _jsonSerializerOptions = jsonSerializerOptions;
         _publisher = publisher;
         _hubContext = hubContext;
@@ -68,6 +71,7 @@ public class JoinController : Controller
     [HttpPost("room/{id:guid}")]
     public async Task<IActionResult> Join(Guid id, JoinRequest request, CancellationToken cancellationToken = default)
     {
+        if (_registry.Get(id) is null) return NotFound();
         try
         {
             PublishJoinEvent(request, id);
@@ -80,5 +84,22 @@ public class JoinController : Controller
             return BadRequest(new ErrorResponseModel(HttpStatusCode.BadRequest,ex) );
         }
         
+    }
+
+    /// <summary>Joins a room by its invite code.</summary>
+    [HttpPost("code/{code}")]
+    public IActionResult JoinByCode(string code, JoinRequest request)
+    {
+        var room = _registry.FindByCode(code);
+        if (room is null) return NotFound();
+        try
+        {
+            PublishJoinEvent(request, room.Summary.Id);
+            return Ok(new { roomId = room.Summary.Id });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new ErrorResponseModel(HttpStatusCode.BadRequest, ex));
+        }
     }
 }

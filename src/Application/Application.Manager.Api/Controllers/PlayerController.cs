@@ -1,6 +1,7 @@
-﻿using Application.Manager.Api.Hubs;
+using Application.Manager.Api.Hubs;
 using Library.Commons.Api.Attributes.Filters;
 using Library.Commons.Api.Entities.Requests.Player;
+using Library.Commons.Api.Entities.Requests.Room;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 
@@ -27,6 +28,14 @@ public class PlayerController : Controller
 
         await _hubContext.Clients.Client(id).SendAsync("onJoinedRoom", request, cancellationToken: cancellationToken);
         _logger.LogInformation($"Player notified joined room {id} {request.Nickname} {request.GameServerUrl}");
+        return Ok();
+    }
+
+    [HttpPost("{id}/join-failed")]
+    [ApiKeyAuth]
+    public async Task<IActionResult> JoinFailed(string id, FailureRequest request, CancellationToken cancellationToken = default)
+    {
+        await _hubContext.Clients.Client(id).SendAsync("onJoinFailed", new { reason = request.Reason }, cancellationToken);
         return Ok();
     }
 }

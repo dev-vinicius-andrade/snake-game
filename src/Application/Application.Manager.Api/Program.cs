@@ -1,6 +1,7 @@
 
 using Application.Manager.Api.Entities.Configurations;
 using Application.Manager.Api.Hubs;
+using Application.Manager.Api.Rooms;
 using Docker.DotNet;
 using Library.Commons.Api.Contants;
 using Library.Commons.Api.Entities;
@@ -47,6 +48,14 @@ namespace Application.Manager.Api
             services.AddDefaultRequestExceptionHandler();
             services.AddCorsPolicy(appSettings.CorsConfiguration);
             services.AddApiKeyAuth(configuration);
+            services.AddSingleton(TimeProvider.System);
+            services.AddSingleton<RoomRegistry>();
+            services.AddSingleton<InviteCodeGenerator>();
+            services.AddSingleton<IRoomCreatePublisher, EventbusRoomCreatePublisher>();
+            services.AddSingleton<RoomCreationService>();
+            services.AddHttpClient<IGameServerClient, HttpGameServerClient>(client => client.Timeout = TimeSpan.FromSeconds(5));
+            services.AddSingleton<RoomAdminService>();
+            services.AddHostedService<RoomRegistryPruneService>();
             
 
             services.AddJsonSerializeOptions(() => new JsonSerializerOptions()
@@ -117,6 +126,23 @@ namespace Application.Manager.Api
                         }
                     }
 
+                }),
+                builders.BuidlEventbusSetup(new RabbitMqPublisherConfiguration
+                {
+                    Name = EventNames.RoomCreateRequest,
+                    CreateDefaultQueue = true,
+                    Durable = true,
+                    Type = ExchangeTypeEnum.Fanout,
+                    QueuesConfiguration =
+                    {
+                        new RabbitMqReaderConfiguration()
+                        {
+                            Name = EventNames.RoomCreateRequest,
+                            Durable = true,
+                            AutoDelete = false,
+                            Exclusive = false
+                        }
+                    }
                 })
             };
             foreach (var setup in setups)
