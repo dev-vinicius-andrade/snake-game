@@ -24,7 +24,12 @@ class Fixture {
   landmarkerClosed = 0;
   streamRequests = 0;
   landmarkerLoads = 0;
-  result: { faceBlendshapes?: Array<{ categories: BlendshapeScore[] }> } = { faceBlendshapes: [{ categories: shapes() }] };
+  result: { faceBlendshapes?: Array<{ categories: BlendshapeScore[] }>; faceLandmarks?: unknown[] } = {
+    faceBlendshapes: [{ categories: shapes() }],
+    faceLandmarks: [[{ x: 0, y: 0, z: 0 }]],
+  };
+  rafRequests = 0;
+  videoFrameCancels: number[] = [];
   detectError: Error | null = null;
   streamError: Error | null = null;
   loadError: Error | null = null;
@@ -62,6 +67,7 @@ class Fixture {
         return this.video;
       },
       requestFrame: (callback: () => void) => {
+        this.rafRequests++;
         this.nextFrame = callback;
         return this.nextHandle++;
       },
@@ -369,6 +375,63 @@ describe("createMediaPipeGazeSource diagnostics", () => {
     expect(source.getDiagnostics()).toMatchObject({ videoWidth: 640, videoHeight: 480, readyState: 4 });
   });
 
+  it("counts frames with face landmarks separately from frames with blendshapes", async () => {
+    fx.result = { faceBlendshapes: [], faceLandmarks: [[{ x: 0, y: 0, z: 0 }]] };
+    const source = await started();
+
+    fx.frame();
+
+    expect(source.getDiagnostics()).toMatchObject({ frames: 1, withLandmarks: 1, withFace: 0 });
+  });
+
+  it("counts no landmarks when the model sees nobody", async () => {
+    fx.result = { faceBlendshapes: [], faceLandmarks: [] };
+    const source = await started();
+
+    fx.frame();
+
+    expect(source.getDiagnostics()).toMatchObject({ withLandmarks: 0, withFace: 0 });
+  });
+
+  it("puts the frame brightness in the summary, to tell a black picture from an empty one", async () => {
+    const logged: string[] = [];
+    await started({ log: (summary: string) => logged.push(summary), measureBrightness: () => 0.42 });
+
+    fx.frame(2100);
+
+    expect(logged[0]).toContain("brightness=0.42");
+  });
+
+  it("says the brightness is unknown when it cannot be measured", async () => {
+    const logged: string[] = [];
+    await started({ log: (summary: string) => logged.push(summary), measureBrightness: () => null });
+
+    fx.frame(2100);
+
+    expect(logged[0]).toContain("brightness=n/a");
+  });
+
+  it("hints that no face was seen once enough frames went by", async () => {
+    fx.result = { faceBlendshapes: [], faceLandmarks: [] };
+    const logged: string[] = [];
+    await started({ log: (summary: string) => logged.push(summary), measureBrightness: () => 0.5 });
+    for (let i = 0; i < 200; i++) fx.frame(1);
+
+    fx.frame(2100);
+
+    expect(logged[0]).toContain("no face found");
+  });
+
+  it("does not hint while a face is found", async () => {
+    const logged: string[] = [];
+    await started({ log: (summary: string) => logged.push(summary), measureBrightness: () => 0.5 });
+    for (let i = 0; i < 200; i++) fx.frame(1);
+
+    fx.frame(2100);
+
+    expect(logged[0]).not.toContain("no face found");
+  });
+
   it("logs a summary every two seconds while running", async () => {
     const logged: unknown[] = [];
     await started({ log: (summary: unknown) => logged.push(summary) });
@@ -404,6 +467,42 @@ describe("createMediaPipeGazeSource diagnostics", () => {
     await source.start();
 
     expect(source.getDiagnostics().frames).toBe(0);
+  });
+});
+
+describe("createMediaPipeGazeSource video frame callbacks", () => {
+  it("uses requestVideoFrameCallback when the video has it, so the model runs once per decoded frame", async () => {
+    fx.video.requestVideoFrameCallback = (callback) => {
+      fx.nextFrame = () => callback();
+      return 77;
+    };
+    fx.video.cancelVideoFrameCallback = (handle) => fx.videoFrameCancels.push(handle);
+    await started();
+
+    fx.frame();
+    fx.frame();
+
+    expect(fx.rafRequests).toBe(0);
+    expect(samples).toHaveLength(2);
+  });
+
+  it("cancels the video frame callback when it stops", async () => {
+    fx.video.requestVideoFrameCallback = (callback) => {
+      fx.nextFrame = () => callback();
+      return 77;
+    };
+    fx.video.cancelVideoFrameCallback = (handle) => fx.videoFrameCancels.push(handle);
+    const source = await started();
+
+    source.stop();
+
+    expect(fx.videoFrameCancels).toEqual([77]);
+  });
+
+  it("falls back to animation frames when the video has no such callback", async () => {
+    await started();
+
+    expect(fx.rafRequests).toBeGreaterThan(0);
   });
 });
 
