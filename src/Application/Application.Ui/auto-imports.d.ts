@@ -185,6 +185,7 @@ declare global {
   const useFocusWithin: typeof import('@vueuse/core')['useFocusWithin']
   const useFps: typeof import('@vueuse/core')['useFps']
   const useFullscreen: typeof import('@vueuse/core')['useFullscreen']
+  const useGameConnection: typeof import('./src/composables/useGameConnection')['useGameConnection']
   const useGamepad: typeof import('@vueuse/core')['useGamepad']
   const useGeolocation: typeof import('@vueuse/core')['useGeolocation']
   const useI18n: typeof import('vue-i18n')['useI18n']
@@ -200,6 +201,7 @@ declare global {
   const useLink: typeof import('vue-router')['useLink']
   const useLocalStorage: typeof import('@vueuse/core')['useLocalStorage']
   const useMagicKeys: typeof import('@vueuse/core')['useMagicKeys']
+  const useManagerJoin: typeof import('./src/composables/useManagerJoin')['useManagerJoin']
   const useManualRefHistory: typeof import('@vueuse/core')['useManualRefHistory']
   const useMediaControls: typeof import('@vueuse/core')['useMediaControls']
   const useMediaQuery: typeof import('@vueuse/core')['useMediaQuery']
@@ -242,7 +244,6 @@ declare global {
   const useScrollLock: typeof import('@vueuse/core')['useScrollLock']
   const useSessionStorage: typeof import('@vueuse/core')['useSessionStorage']
   const useShare: typeof import('@vueuse/core')['useShare']
-  const useSignalR: typeof import('./src/composables/useSignalR')['default']
   const useSlots: typeof import('vue')['useSlots']
   const useSorted: typeof import('@vueuse/core')['useSorted']
   const useSpeechRecognition: typeof import('@vueuse/core')['useSpeechRecognition']
@@ -490,6 +491,7 @@ declare module 'vue' {
     readonly useFocusWithin: UnwrapRef<typeof import('@vueuse/core')['useFocusWithin']>
     readonly useFps: UnwrapRef<typeof import('@vueuse/core')['useFps']>
     readonly useFullscreen: UnwrapRef<typeof import('@vueuse/core')['useFullscreen']>
+    readonly useGameConnection: UnwrapRef<typeof import('./src/composables/useGameConnection')['useGameConnection']>
     readonly useGamepad: UnwrapRef<typeof import('@vueuse/core')['useGamepad']>
     readonly useGeolocation: UnwrapRef<typeof import('@vueuse/core')['useGeolocation']>
     readonly useI18n: UnwrapRef<typeof import('vue-i18n')['useI18n']>
@@ -505,6 +507,7 @@ declare module 'vue' {
     readonly useLink: UnwrapRef<typeof import('vue-router')['useLink']>
     readonly useLocalStorage: UnwrapRef<typeof import('@vueuse/core')['useLocalStorage']>
     readonly useMagicKeys: UnwrapRef<typeof import('@vueuse/core')['useMagicKeys']>
+    readonly useManagerJoin: UnwrapRef<typeof import('./src/composables/useManagerJoin')['useManagerJoin']>
     readonly useManualRefHistory: UnwrapRef<typeof import('@vueuse/core')['useManualRefHistory']>
     readonly useMediaControls: UnwrapRef<typeof import('@vueuse/core')['useMediaControls']>
     readonly useMediaQuery: UnwrapRef<typeof import('@vueuse/core')['useMediaQuery']>
@@ -547,7 +550,6 @@ declare module 'vue' {
     readonly useScrollLock: UnwrapRef<typeof import('@vueuse/core')['useScrollLock']>
     readonly useSessionStorage: UnwrapRef<typeof import('@vueuse/core')['useSessionStorage']>
     readonly useShare: UnwrapRef<typeof import('@vueuse/core')['useShare']>
-    readonly useSignalR: UnwrapRef<typeof import('./src/composables/useSignalR')['default']>
     readonly useSlots: UnwrapRef<typeof import('vue')['useSlots']>
     readonly useSorted: UnwrapRef<typeof import('@vueuse/core')['useSorted']>
     readonly useSpeechRecognition: UnwrapRef<typeof import('@vueuse/core')['useSpeechRecognition']>

@@ -6,7 +6,9 @@
     "build": "vite build && vue-tsc --noEmit",
     "preview": "vite preview",
     "lint": "eslint . --fix --ignore-path .gitignore",
-    "build:icons": "tsc -b src/@iconify && node src/@iconify/build-icons.js"
+    "build:icons": "tsc -b src/@iconify && node src/@iconify/build-icons.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@iconify/json": "^2.1.158",
@@ -49,6 +51,7 @@
     "vite": "^4.0.3",
     "vite-plugin-pages": "^0.28.0",
     "vite-plugin-vuetify": "^1.0.1",
+    "vitest": "^0.34.6",
     "vue-tsc": "^1.0.9"
   }
 }

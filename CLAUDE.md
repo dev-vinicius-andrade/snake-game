@@ -35,10 +35,12 @@ dotnet build SnakeGame.sln
 dotnet run --project Application/Application.Game.Server/Application.Game.Server.csproj
 dotnet run --project Application/Application.Manager.Api/Application.Manager.Api.csproj
 
-# Vue UI (Application/Application.Ui) — the real frontend; port 5143
+# Vue UI (Application/Application.Ui) — the real frontend; port 5143; manager api url via VITE_MANAGER_URL (see .env.example)
 npm install && npm run serve
 npm run build       # vite build + vue-tsc
 npm run lint
+npm test            # vitest run (specs live next to sources as *.spec.ts)
+npx vitest run src/game/snapshot.spec.ts   # single spec
 
 # Angular UI (Application/Application.Ui.Angular) — legacy starter, ignore
 
