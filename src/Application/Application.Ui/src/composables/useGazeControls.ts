@@ -1,4 +1,3 @@
-import { getCurrentScope, onScopeDispose, shallowRef } from "vue";
 import { aimStep, initialAimState, type AimOptions } from "@/input/gaze/aimSteering";
 import type { GazeSample, GazeSource } from "@/input/gaze/gazeSource";
 import { PointFilter, type OneEuroOptions } from "@/input/gaze/oneEuro";
@@ -6,16 +5,25 @@ import type { ControlIntent } from "@/input/intents";
 import { DEFAULT_HEAD_SIZE } from "@/render/pixelRenderer";
 import { headCenter, stageToWorld } from "@/render/stageGeometry";
 import type { GamePoint, RoomDimensions } from "@/types/game";
+import { useGazeSubscription, type GazeStatus } from "./useGazeSubscription";
 
-export type GazeControlsStatus = "off" | "starting" | "tracking" | "error";
+export type GazeControlsStatus = GazeStatus;
 
 /** Three snake segments: aim points closer than this to the head do not steer. */
 export const DEFAULT_DEAD_RADIUS = 45;
 
+/** In joystick mode the dead zone around the middle of the stage is this fraction of the smaller side of the room. */
+export const JOYSTICK_DEAD_FRACTION = 0.12;
+
 export interface UseGazeControlsOptions {
   source: GazeSource;
-  /** Top-left corner of the own snake's head box in world units, or null while there is no snake. */
-  getHead: () => GamePoint | null;
+  /**
+   * `head`: aim from the own snake's head, like a mouse. `center`: aim from the middle of the stage, like a
+   * joystick, which suits a camera that only knows roughly where the eyes point.
+   */
+  origin?: "head" | "center";
+  /** Top-left corner of the own snake's head box in world units, or null while there is no snake. Used in `head` mode. */
+  getHead?: () => GamePoint | null;
   getRoom: () => RoomDimensions | null;
   onIntent: (intent: ControlIntent) => void;
   /** Return false to hold steering back, for example while the keyboard is steering. */
@@ -29,28 +37,43 @@ export interface UseGazeControlsOptions {
 }
 
 /**
- * Turns aim samples (pointer now, camera gaze later) into `steer` intents: smooth the point, aim from the head,
- * respect the dead zone, and report a new heading only when it changed.
+ * Turns aim samples (pointer or camera gaze) into `steer` intents: smooth the point, aim from the head or the
+ * middle of the stage, respect the dead zone, and report a new heading only when it changed.
  */
 export function useGazeControls(options: UseGazeControlsOptions) {
-  const { source } = options;
   const now = options.now ?? Date.now;
-  const aimOptions: AimOptions = { deadRadius: DEFAULT_DEAD_RADIUS, ...options.aim };
+  const origin = options.origin ?? "head";
   const filter = new PointFilter(options.filter);
-
-  const status = shallowRef<GazeControlsStatus>("off");
-  const error = shallowRef<string | null>(null);
   let aimState = initialAimState;
-  let unsubscribe: (() => void) | null = null;
+
+  const forgetAim = () => {
+    filter.reset();
+    aimState = initialAimState;
+  };
+
+  function aimFrom(room: RoomDimensions): GamePoint | null {
+    if (origin === "center") return { x: room.width / 2, y: room.height / 2 };
+    const head = options.getHead?.() ?? null;
+    return head ? headCenter(head, options.headSize ?? DEFAULT_HEAD_SIZE) : null;
+  }
+
+  function aimOptionsFor(room: RoomDimensions): AimOptions {
+    const fallbackRadius = origin === "center" ? JOYSTICK_DEAD_FRACTION * Math.min(room.width, room.height) : DEFAULT_DEAD_RADIUS;
+    return { ...options.aim, deadRadius: options.aim?.deadRadius ?? fallbackRadius };
+  }
 
   function onSample(sample: GazeSample) {
     if (!(options.enabled?.() ?? true)) return;
-    const head = options.getHead();
+    if (sample.present === false) {
+      forgetAim();
+      return;
+    }
     const room = options.getRoom();
-    if (!head || !room) return;
+    const from = room ? aimFrom(room) : null;
+    if (!room || !from) return;
 
     const target = filter.filter(stageToWorld(sample, room), sample.t);
-    const result = aimStep(aimState, headCenter(head, options.headSize ?? DEFAULT_HEAD_SIZE), target, aimOptions);
+    const result = aimStep(aimState, from, target, aimOptionsFor(room));
     if (result.steer === null) {
       aimState = result.state;
       return;
@@ -61,35 +84,5 @@ export function useGazeControls(options: UseGazeControlsOptions) {
     options.onIntent({ type: "steer", angle: result.steer });
   }
 
-  async function start() {
-    if (unsubscribe || status.value === "starting") return;
-    status.value = "starting";
-    error.value = null;
-    filter.reset();
-    aimState = initialAimState;
-    try {
-      await source.start();
-    } catch (failure) {
-      status.value = "error";
-      error.value = failure instanceof Error ? failure.message : String(failure);
-      return;
-    }
-    if (status.value !== "starting") {
-      source.stop();
-      return;
-    }
-    unsubscribe = source.subscribe(onSample);
-    status.value = "tracking";
-  }
-
-  function stop() {
-    unsubscribe?.();
-    unsubscribe = null;
-    source.stop();
-    status.value = "off";
-  }
-
-  if (getCurrentScope()) onScopeDispose(stop);
-
-  return { status, error, start, stop };
+  return useGazeSubscription(options.source, onSample, { onStart: forgetAim });
 }

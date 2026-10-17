@@ -133,6 +133,96 @@ describe("useGazeControls steering", () => {
   });
 });
 
+describe("useGazeControls joystick mode", () => {
+  beforeEach(() => {
+    overrides.origin = "center";
+    overrides.getHead = () => null;
+  });
+
+  it("steers from the middle of the stage and needs no snake", async () => {
+    await started();
+
+    source.emit({ t: 0, x: 0.9, y: 0.5 });
+
+    expect(intents).toEqual([{ type: "steer", angle: 0 }]);
+  });
+
+  it.each([
+    ["down", 0.5, 0.9, Math.PI / 2],
+    ["up", 0.5, 0.1, -Math.PI / 2],
+    ["left", 0.1, 0.5, Math.PI],
+  ])("steers %s", async (_name, x, y, angle) => {
+    await started();
+
+    source.emit({ t: 0, x, y });
+
+    expect((intents[0] as { angle: number }).angle).toBeCloseTo(angle, 9);
+  });
+
+  it("has a dead zone of about a tenth of the room around the middle", async () => {
+    await started();
+
+    source.emit({ t: 0, x: 0.55, y: 0.5 });
+    expect(intents).toEqual([]);
+
+    source.emit({ t: 16, x: 0.9, y: 0.5 });
+    expect(intents).toHaveLength(1);
+  });
+
+  it("scales the dead zone with the smaller side of the room", async () => {
+    overrides.getRoom = () => ({ width: 2000, height: 500 });
+    await started();
+
+    // 0.54 of the width is 80 units from the middle: outside 0.12 * 500 = 60 units.
+    source.emit({ t: 0, x: 0.54, y: 0.5 });
+
+    expect(intents).toHaveLength(1);
+  });
+
+  it("honours an explicit dead radius", async () => {
+    overrides.aim = { deadRadius: 450 };
+    await started();
+
+    source.emit({ t: 0, x: 0.9, y: 0.5 });
+
+    expect(intents).toEqual([]);
+  });
+});
+
+describe("useGazeControls lost face", () => {
+  it("ignores samples without a face", async () => {
+    await started();
+
+    source.emit({ t: 0, x: 0.9, y: 0.5, present: false });
+
+    expect(intents).toEqual([]);
+  });
+
+  it("starts from fresh smoothing and heading after the face comes back", async () => {
+    await started();
+    source.emit({ t: 0, x: 0.9, y: 0.5, present: true });
+    source.emit({ t: 16, x: 0.5, y: 0.5, present: false });
+
+    source.emit({ t: 1000, x: 0.5, y: 0.9, present: true });
+
+    expect(intents).toHaveLength(2);
+    expect((intents[1] as { angle: number }).angle).toBeCloseTo(Math.PI / 2, 9);
+  });
+
+  it("reports the same heading again after the face came back", async () => {
+    await started();
+    source.emit({ t: 0, x: 0.9, y: 0.5, present: true });
+    source.emit({ t: 16, x: 0.5, y: 0.5, present: false });
+
+    source.emit({ t: 1000, x: 0.9, y: 0.5, present: true });
+
+    expect(intents).toEqual([
+      { type: "steer", angle: 0 },
+      { type: "steer", angle: 0 },
+    ]);
+  });
+});
+
 describe("useGazeControls arbitration", () => {
   it("holds steering back while the arbiter says no", async () => {
     overrides.canSteer = () => false;

@@ -13,6 +13,7 @@
   "dependencies": {
     "@iconify/json": "^2.1.158",
     "@mdi/font": "7.0.96",
+    "@mediapipe/tasks-vision": "^1.1.1",
     "@microsoft/signalr": "^7.0.0",
     "@vueuse/core": "^9.9.0",
     "axios": "^1.2.2",

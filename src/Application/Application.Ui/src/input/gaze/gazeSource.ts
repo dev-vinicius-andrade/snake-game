@@ -9,6 +9,12 @@ export interface GazeSample {
   y: number;
   /** 0..1 when the source can tell how sure it is. */
   confidence?: number;
+  /** Camera sources: 0 (eyes open) to 1 (shut). Pointer sources leave it out. */
+  blink?: number;
+  /** Camera sources: false when no face was found in the frame. Pointer sources leave it out, meaning present. */
+  present?: boolean;
+  /** Camera sources: the eye signal before calibration, in -1..1, used to calibrate. */
+  raw?: { x: number; y: number };
 }
 
 /** A device that produces aim points: the pointer (mouse, touch, hardware eye trackers acting as a mouse) or a camera. */
