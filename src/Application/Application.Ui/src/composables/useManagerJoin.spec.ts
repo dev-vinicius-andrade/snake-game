@@ -31,7 +31,7 @@ describe("useManagerJoin", () => {
 
   it("connects to the manager hub, posts the join and resolves with the assignment", async () => {
     const { client, postJoin, createClient, joiner } = setup({
-      postJoin: async () => client.emit("onJoin", assignment),
+      postJoin: async () => client.emit("onJoinedRoom", assignment),
     });
 
     const result = await joiner.join("ana");
@@ -41,16 +41,16 @@ describe("useManagerJoin", () => {
     expect(result).toEqual(assignment);
   });
 
-  it("registers the onJoin handler before starting the connection", async () => {
-    const { client, joiner } = setup({ postJoin: async () => client.emit("onJoin", assignment) });
+  it("registers the onJoinedRoom handler before starting the connection", async () => {
+    const { client, joiner } = setup({ postJoin: async () => client.emit("onJoinedRoom", assignment) });
 
     await joiner.join("ana");
 
-    expect(client.log.indexOf("on:onJoin")).toBeLessThan(client.log.indexOf("start"));
+    expect(client.log.indexOf("on:onJoinedRoom")).toBeLessThan(client.log.indexOf("start"));
   });
 
   it("joins a specific room through the room route", async () => {
-    const { client, postJoin, joiner } = setup({ postJoin: async () => client.emit("onJoin", assignment) });
+    const { client, postJoin, joiner } = setup({ postJoin: async () => client.emit("onJoinedRoom", assignment) });
 
     await joiner.join("ana", assignment.roomId);
 
@@ -63,7 +63,7 @@ describe("useManagerJoin", () => {
   it("accepts the assignment arriving before the post resolves", async () => {
     const { client, joiner } = setup({
       postJoin: async () => {
-        client.emit("onJoin", assignment);
+        client.emit("onJoinedRoom", assignment);
         await Promise.resolve();
       },
     });
@@ -76,22 +76,22 @@ describe("useManagerJoin", () => {
 
     const pending = joiner.join("ana");
     await vi.advanceTimersByTimeAsync(10);
-    client.emit("onJoin", assignment);
+    client.emit("onJoinedRoom", assignment);
 
     await expect(pending).resolves.toEqual(assignment);
   });
 
   it("closes the manager connection once it has the assignment", async () => {
-    const { client, joiner } = setup({ postJoin: async () => client.emit("onJoin", assignment) });
+    const { client, joiner } = setup({ postJoin: async () => client.emit("onJoinedRoom", assignment) });
 
     await joiner.join("ana");
 
     expect(client.log).toContain("stop");
-    expect(client.handlerCount("onJoin")).toBe(0);
+    expect(client.handlerCount("onJoinedRoom")).toBe(0);
   });
 
   it("reports progress through status", async () => {
-    const { client, joiner } = setup({ postJoin: async () => client.emit("onJoin", assignment) });
+    const { client, joiner } = setup({ postJoin: async () => client.emit("onJoinedRoom", assignment) });
     expect(joiner.status.value).toBe("idle");
 
     await joiner.join("ana");
@@ -147,7 +147,7 @@ describe("useManagerJoin", () => {
     [null],
     ["garbage"],
   ])("rejects an invalid assignment %j", async (payload) => {
-    const { client, joiner } = setup({ postJoin: async () => client.emit("onJoin", payload) });
+    const { client, joiner } = setup({ postJoin: async () => client.emit("onJoinedRoom", payload) });
 
     await expect(joiner.join("ana")).rejects.toThrow(/invalid assignment/i);
   });
@@ -160,7 +160,7 @@ describe("useManagerJoin", () => {
   });
 
   it("trims the nickname", async () => {
-    const { client, postJoin, joiner } = setup({ postJoin: async () => client.emit("onJoin", assignment) });
+    const { client, postJoin, joiner } = setup({ postJoin: async () => client.emit("onJoinedRoom", assignment) });
 
     await joiner.join("  ana  ");
 

@@ -44,6 +44,8 @@ npx vitest run src/game/snapshot.spec.ts   # single spec
 
 # Angular UI (Application/Application.Ui.Angular) — legacy starter, ignore
 
+# Run everything locally without compose: see docs/LOCAL_DEV.md (RabbitMQ recipe, env vars, join flow)
+
 # Docker compose (profiles pick which services start)
 docker compose --profile server-core-plus-local-enviroment-plus-ui-angular up --build
 ```

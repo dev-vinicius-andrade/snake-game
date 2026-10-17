@@ -54,7 +54,13 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
   );
 
   function buildHandlers(): Record<string, Handler> {
+    // The server also sends these, but the snapshot carries the same information. Listening keeps SignalR from warning.
+    const ignored = () => undefined;
     return {
+      PlayerJoined: ignored,
+      PlayerLefted: ignored,
+      ConnectedPlayersUpdated: ignored,
+      FoodGenerated: ignored,
       GameStateUpdated: (raw: unknown) => {
         const next = parseSnapshot(raw);
         if (!next) return;

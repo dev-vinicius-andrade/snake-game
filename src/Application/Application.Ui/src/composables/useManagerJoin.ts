@@ -36,7 +36,7 @@ interface AssignmentWaiter {
   dispose(): void;
 }
 
-/** Listens for `onJoin` and times out. Created before the hub starts so an early assignment is never missed. */
+/** Listens for the manager event `onJoinedRoom` (sent by PlayerController.Joined) and times out. Created before the hub starts so an early assignment is never missed. */
 function waitForAssignment(client: HubClient, timeoutMs: number): AssignmentWaiter {
   let settle: { resolve(value: JoinAssignment): void; reject(reason: Error): void };
   const promise = new Promise<JoinAssignment>((resolve, reject) => (settle = { resolve, reject }));
@@ -53,21 +53,21 @@ function waitForAssignment(client: HubClient, timeoutMs: number): AssignmentWait
     () => settle.reject(new Error("Timed out waiting for a game server to accept the player")),
     timeoutMs
   );
-  client.on("onJoin", handler);
+  client.on("onJoinedRoom", handler);
 
   return {
     promise,
     reject: (reason) => settle.reject(reason),
     dispose: () => {
       clearTimeout(timer);
-      client.off("onJoin", handler);
+      client.off("onJoinedRoom", handler);
     },
   };
 }
 
 /**
  * Asks the manager api for a game server. The manager answers asynchronously over its hub:
- * connect to the hub, post the join with the hub connection id, wait for `onJoin`.
+ * connect to the hub, post the join with the hub connection id, wait for `onJoinedRoom`.
  */
 export function useManagerJoin(options: UseManagerJoinOptions = {}) {
   const managerUrl = (options.managerUrl ?? resolveManagerUrl()).replace(/\/+$/, "");

@@ -165,6 +165,17 @@ describe("useGameConnection server events", () => {
     expect(connection.death.value).toEqual({ score: 12 });
   });
 
+  it.each(["PlayerJoined", "PlayerLefted", "ConnectedPlayersUpdated", "FoodGenerated"])(
+    "listens to %s, which the snapshot already covers, so SignalR does not warn about it",
+    async (event) => {
+      const { client, connection } = await connected();
+
+      expect(client.handlerCount(event)).toBe(1);
+      expect(() => client.emit(event, { anything: true })).not.toThrow();
+      expect(connection.snapshot.value).toBeNull();
+    }
+  );
+
   it("ignores events after dispose", async () => {
     const { client, connection } = await connected();
     await connection.dispose();
