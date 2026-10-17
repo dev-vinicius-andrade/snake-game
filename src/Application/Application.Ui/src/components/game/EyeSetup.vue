@@ -2,7 +2,8 @@
 import { ref, watch } from "vue";
 import { useEyeControl } from "@/composables/useEyeControl";
 import { getText } from "@/helpers";
-import { createCalibrationStorage } from "@/input/gaze/calibrationStorage";
+import { HEAD_CALIBRATION_KEY, createCalibrationStorage } from "@/input/gaze/calibrationStorage";
+import { createFaceModePreference } from "@/input/gaze/faceModePreference";
 import { createCameraPreferenceStorage } from "@/input/gaze/cameraPreference";
 import { createMediaPipeGazeSource } from "@/input/gaze/mediapipeGazeSource";
 
@@ -11,17 +12,23 @@ import { createMediaPipeGazeSource } from "@/input/gaze/mediapipeGazeSource";
  * saved, so the game starts with eye control ready. The camera is switched off again when the page is left.
  */
 const storage = createCalibrationStorage();
+const headStorage = createCalibrationStorage(undefined, HEAD_CALIBRATION_KEY);
+const faceMode = createFaceModePreference();
 const eye = useEyeControl({
   source: createMediaPipeGazeSource(),
   storage,
+  headStorage,
+  modeStorage: faceMode,
+  mode: faceMode.load() ?? "head",
   cameraStorage: createCameraPreferenceStorage(),
   getRoom: () => null,
   onIntent: () => undefined,
 });
 
-const calibrated = ref(storage.load() !== null);
-watch(eye.phase, () => {
-  calibrated.value = storage.load() !== null;
+const isCalibrated = () => (eye.mode.value === "head" ? headStorage : storage).load() !== null;
+const calibrated = ref(isCalibrated());
+watch([eye.phase, eye.mode], () => {
+  calibrated.value = isCalibrated();
 });
 </script>
 
@@ -31,6 +38,7 @@ watch(eye.phase, () => {
   </section>
   <EyeControlPanel
     :phase="eye.phase.value"
+    :mode="eye.mode.value"
     :tracking="eye.tracking.value"
     :error-kind="eye.errorKind.value"
     :cameras="eye.cameras.value"
@@ -40,12 +48,14 @@ watch(eye.phase, () => {
     @disable="eye.disable"
     @recalibrate="eye.recalibrate"
     @select-camera="eye.selectCamera"
+    @set-mode="eye.setMode"
   />
   <CalibrationOverlay
     v-if="eye.phase.value === 'calibrating'"
     :target="eye.calibrationTarget.value"
     :progress="eye.calibrationProgress.value"
     :failed="eye.calibrationFailed.value"
+    :mode="eye.mode.value"
     :tracking="eye.tracking.value"
     @cancel="eye.disable"
   />

@@ -4,10 +4,12 @@ import type { EyeControlPhase } from "@/composables/useEyeControl";
 import { getText } from "@/helpers";
 import type { CameraDevice } from "@/input/gaze/cameraDevices";
 import type { CameraErrorKind } from "@/input/gaze/cameraErrors";
+import type { FaceMode } from "@/input/gaze/mediapipeGazeSource";
 import type { TrackingState } from "@/input/gaze/trackingMonitor";
 
 const props = defineProps<{
   phase: EyeControlPhase;
+  mode: FaceMode;
   tracking: TrackingState;
   errorKind: CameraErrorKind | null;
   cameras: CameraDevice[];
@@ -20,6 +22,7 @@ const emit = defineEmits<{
   (event: "disable"): void;
   (event: "recalibrate"): void;
   (event: "select-camera", cameraId: string): void;
+  (event: "set-mode", mode: FaceMode): void;
 }>();
 
 const isOn = computed(() => props.phase === "starting" || props.phase === "calibrating" || props.phase === "active");
@@ -44,6 +47,10 @@ function onCameraChange(event: Event) {
   emit("select-camera", (event.target as HTMLSelectElement).value);
 }
 
+function onModeChange(event: Event) {
+  emit("set-mode", (event.target as HTMLSelectElement).value as FaceMode);
+}
+
 function toggle() {
   if (isOn.value) emit("disable");
   else emit("enable");
@@ -58,6 +65,14 @@ function toggle() {
     <button v-if="phase === 'active'" type="button" class="eye-button" @click="emit('recalibrate')">
       {{ getText({ key: "game.eye.recalibrate" }) }}
     </button>
+    <label class="eye-camera">
+      <span>{{ getText({ key: "game.eye.mode" }) }}</span>
+      <select class="eye-select" :value="mode" @change="onModeChange">
+        <option value="head">{{ getText({ key: "game.eye.modeHead" }) }}</option>
+        <option value="eyes">{{ getText({ key: "game.eye.modeEyes" }) }}</option>
+      </select>
+    </label>
+    <div v-if="phase === 'active'" class="eye-hint">{{ getText({ key: mode === "head" ? "game.eye.headHint" : "game.eye.eyesHint" }) }}</div>
     <label v-if="cameras.length > 0" class="eye-camera">
       <span>{{ getText({ key: "game.eye.camera" }) }}</span>
       <select class="eye-select" :value="activeCameraId ?? ''" @change="onCameraChange">
@@ -115,6 +130,10 @@ function toggle() {
 }
 .eye-status-error {
   color: #ffcc00;
+}
+.eye-hint {
+  margin-top: 6px;
+  opacity: 0.85;
 }
 .eye-privacy {
   margin-top: 6px;

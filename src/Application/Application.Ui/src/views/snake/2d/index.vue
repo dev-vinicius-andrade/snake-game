@@ -8,7 +8,8 @@ import { useGameConnection } from "@/composables/useGameConnection";
 import { useGazeControls } from "@/composables/useGazeControls";
 import { useManagerJoin } from "@/composables/useManagerJoin";
 import { useSnakeSession } from "@/composables/useSnakeSession";
-import { createCalibrationStorage } from "@/input/gaze/calibrationStorage";
+import { HEAD_CALIBRATION_KEY, createCalibrationStorage } from "@/input/gaze/calibrationStorage";
+import { createFaceModePreference } from "@/input/gaze/faceModePreference";
 import { createCameraPreferenceStorage } from "@/input/gaze/cameraPreference";
 import { createMediaPipeGazeSource } from "@/input/gaze/mediapipeGazeSource";
 import { createPointerSource } from "@/input/gaze/pointerSource";
@@ -30,9 +31,13 @@ const aim = useGazeControls({
   enabled: () => mouseAim.value && session.phase.value === "playing",
 });
 
+const faceMode = createFaceModePreference();
 const eye = useEyeControl({
   source: createMediaPipeGazeSource(),
   storage: createCalibrationStorage(),
+  headStorage: createCalibrationStorage(undefined, HEAD_CALIBRATION_KEY),
+  modeStorage: faceMode,
+  mode: faceMode.load() ?? "head",
   cameraStorage: createCameraPreferenceStorage(),
   getRoom: () => game.room.value,
   getHead: () => game.self.value?.head ?? null,
@@ -82,6 +87,7 @@ onBeforeUnmount(() => void session.stop());
     />
     <EyeControlPanel
       :phase="eye.phase.value"
+      :mode="eye.mode.value"
       :tracking="eye.tracking.value"
       :error-kind="eye.errorKind.value"
       :cameras="eye.cameras.value"
@@ -91,12 +97,14 @@ onBeforeUnmount(() => void session.stop());
       @disable="eye.disable"
       @recalibrate="eye.recalibrate"
       @select-camera="eye.selectCamera"
+      @set-mode="eye.setMode"
     />
     <CalibrationOverlay
       v-if="eye.phase.value === 'calibrating'"
       :target="eye.calibrationTarget.value"
       :progress="eye.calibrationProgress.value"
       :failed="eye.calibrationFailed.value"
+      :mode="eye.mode.value"
       :tracking="eye.tracking.value"
       @cancel="eye.disable"
     />

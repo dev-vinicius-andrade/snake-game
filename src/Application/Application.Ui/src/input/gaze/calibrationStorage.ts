@@ -14,6 +14,7 @@ export interface CalibrationStorage {
 }
 
 export const CALIBRATION_STORAGE_KEY = "snake.gazeCalibration";
+export const HEAD_CALIBRATION_KEY = "snake.headCalibration";
 
 /** Keeps the eye calibration between visits. Storage can be blocked or missing, so every call is allowed to fail. */
 export function createCalibrationStorage(

@@ -2,12 +2,14 @@
 import { computed } from "vue";
 import { getText } from "@/helpers";
 import type { CalibrationTarget } from "@/input/gaze/calibration";
+import type { FaceMode } from "@/input/gaze/mediapipeGazeSource";
 import type { TrackingState } from "@/input/gaze/trackingMonitor";
 
 const props = defineProps<{
   target: CalibrationTarget | null;
   progress: number;
   failed: boolean;
+  mode?: FaceMode;
   tracking: TrackingState;
 }>();
 
@@ -22,7 +24,8 @@ const dotStyle = computed(() => ({
 
 const message = computed(() => {
   if (props.tracking === "lost") return getText({ key: "game.eye.faceLost" });
-  return getText({ key: props.failed ? "game.eye.calibrationFailed" : "game.eye.lookAtDot" });
+  if (props.failed) return getText({ key: props.mode === "head" ? "game.eye.headCalibrationFailed" : "game.eye.calibrationFailed" });
+  return getText({ key: props.mode === "head" ? "game.eye.turnToDot" : "game.eye.lookAtDot" });
 });
 </script>
 

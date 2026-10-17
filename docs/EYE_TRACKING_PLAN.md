@@ -85,3 +85,13 @@ Turn it on with the "Eye control" button (bottom right of the game view). Mouse 
   - `landmarks` is how many frames the model found a face in. `withFace` is how many of those also gave blendshapes. `incomplete` and `missing` name eye blendshapes that were absent.
   - `brightness` near 0 means black frames (wrong or covered camera). `skipped` counts loop runs without a new video frame.
   - `landmarks=0` with a lit, real picture in the preview: improve the light, face the lens, and move closer.
+
+## Head and face mode
+
+Eye calibration was too coarse for steering, so the camera has a second mode, chosen in the control panel and remembered (default: head).
+
+- **Steer:** head turn and nod (yaw, pitch) come from the face transformation matrix of the same Face Landmarker (`headPose.ts`). They go through the same 5-dot calibration as the eyes, but stored separately (`snake.headCalibration`), so small head moves can reach every dot. Steering is a joystick from the middle of the stage: dead zone 12% of the smaller side, no dwell.
+- **Shoot:** open the mouth (`jawOpen` >= 0.5 for 100 ms), once per opening.
+- **Boost:** raise the eyebrows (mean of `browInnerUp`, `browOuterUpLeft/Right` >= 0.5 for 250 ms), boost while they stay up.
+- Pure parts: `headPose`, `faceGestures`, `gestureDetectors`, `headFrameProcessor`, `headActions`. Tracking lost ends a boost, as in eye mode.
+- Not verified on a real face: the sign of yaw/pitch (calibration fixes it), and the 0.5 thresholds, which may need tuning per face. The eye mode is unchanged.
