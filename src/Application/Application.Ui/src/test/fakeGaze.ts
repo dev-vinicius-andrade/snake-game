@@ -1,6 +1,6 @@
 import type { Calibration } from "@/input/gaze/calibration";
 import type { GazeSample, GazeSource } from "@/input/gaze/gazeSource";
-import type { CameraGazeSource } from "@/input/gaze/mediapipeGazeSource";
+import type { CameraGazeSource, GazeDiagnostics } from "@/input/gaze/mediapipeGazeSource";
 
 /** In-memory GazeSource for specs. Tests push samples with `emit`. */
 export class FakeGazeSource implements GazeSource {
@@ -43,5 +43,9 @@ export class FakeCameraSource extends FakeGazeSource implements CameraGazeSource
 
   setCalibration(calibration: Calibration) {
     this.calibrations.push(calibration);
+  }
+
+  getDiagnostics(): GazeDiagnostics {
+    return { frames: 0, withFace: 0, incomplete: 0, missing: [], skipped: 0, videoWidth: 0, videoHeight: 0, readyState: 0 };
   }
 }

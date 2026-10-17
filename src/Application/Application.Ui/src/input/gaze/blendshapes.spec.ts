@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractEyeSignals, type BlendshapeScore } from "./blendshapes";
+import { extractEyeSignals, missingEyeBlendshapes, type BlendshapeScore } from "./blendshapes";
 
 const NAMES = [
   "eyeLookInLeft",
@@ -79,5 +79,21 @@ describe("extractEyeSignals", () => {
 
   it("returns null for an empty list", () => {
     expect(extractEyeSignals([])).toBeNull();
+  });
+});
+
+describe("missingEyeBlendshapes", () => {
+  it("is empty when every eye blendshape is there", () => {
+    expect(missingEyeBlendshapes(shapes())).toEqual([]);
+  });
+
+  it("lists what is missing", () => {
+    const partial = shapes().filter((shape) => !["eyeBlinkLeft", "eyeLookUpRight"].includes(shape.categoryName));
+
+    expect(missingEyeBlendshapes(partial)).toEqual(["eyeLookUpRight", "eyeBlinkLeft"].sort((a, b) => NAMES.indexOf(a) - NAMES.indexOf(b)));
+  });
+
+  it("lists everything for an empty result", () => {
+    expect(missingEyeBlendshapes([])).toEqual(NAMES);
   });
 });

@@ -32,7 +32,7 @@ class Fixture {
   clock = 1000;
   nextFrame: (() => void) | null = null;
   cancelled: number[] = [];
-  video: VideoLike & { paused: boolean } = { readyState: 4, currentTime: 0, srcObject: null, muted: false, playsInline: false, paused: false, play: async () => {}, pause() { this.paused = true; } };
+  video: VideoLike & { paused: boolean; removed: boolean } = { removed: false, remove() { this.removed = true; }, readyState: 4, currentTime: 0, videoWidth: 640, videoHeight: 480, srcObject: null, muted: false, playsInline: false, paused: false, play: async () => {}, pause() { this.paused = true; } };
 
   private nextHandle = 1;
 
@@ -326,6 +326,87 @@ describe("createMediaPipeGazeSource frames", () => {
   });
 });
 
+describe("createMediaPipeGazeSource diagnostics", () => {
+  it("starts with nothing counted", async () => {
+    const source = await started();
+
+    expect(source.getDiagnostics()).toMatchObject({ frames: 0, withFace: 0, incomplete: 0, missing: [], skipped: 0 });
+  });
+
+  it("counts frames and frames with a face", async () => {
+    const source = await started();
+    fx.frame();
+    fx.result = { faceBlendshapes: [] };
+    fx.frame();
+
+    expect(source.getDiagnostics()).toMatchObject({ frames: 2, withFace: 1, incomplete: 0 });
+  });
+
+  it("counts a face whose blendshapes are incomplete and names what is missing", async () => {
+    fx.result = { faceBlendshapes: [{ categories: shapes().filter((shape) => shape.categoryName !== "eyeBlinkLeft") }] };
+    const source = await started();
+
+    fx.frame();
+
+    expect(source.getDiagnostics()).toMatchObject({ frames: 1, withFace: 1, incomplete: 1, missing: ["eyeBlinkLeft"] });
+  });
+
+  it("counts frames it skipped because the video had no data or no new frame", async () => {
+    const source = await started();
+    fx.frame();
+    fx.repeatFrame();
+    fx.video.readyState = 1;
+    fx.frame();
+
+    expect(source.getDiagnostics()).toMatchObject({ frames: 1, skipped: 2 });
+  });
+
+  it("reports the video size and state", async () => {
+    fx.video.videoWidth = 640;
+    fx.video.videoHeight = 480;
+    const source = await started();
+
+    expect(source.getDiagnostics()).toMatchObject({ videoWidth: 640, videoHeight: 480, readyState: 4 });
+  });
+
+  it("logs a summary every two seconds while running", async () => {
+    const logged: unknown[] = [];
+    await started({ log: (summary: unknown) => logged.push(summary) });
+
+    fx.frame(500);
+    fx.frame(500);
+    expect(logged).toEqual([]);
+
+    fx.frame(1100);
+    expect(logged).toHaveLength(1);
+    fx.frame(500);
+    expect(logged).toHaveLength(1);
+    fx.frame(2000);
+    expect(logged).toHaveLength(2);
+  });
+
+  it("puts the counts in the summary", async () => {
+    const logged: string[] = [];
+    await started({ log: (summary: string) => logged.push(summary) });
+
+    fx.frame(2100);
+
+    expect(logged[0]).toContain("frames=1");
+    expect(logged[0]).toContain("withFace=1");
+    expect(logged[0]).toContain("video=640x480");
+  });
+
+  it("counts again from zero after a restart", async () => {
+    const source = await started();
+    fx.frame();
+    source.stop();
+
+    await source.start();
+
+    expect(source.getDiagnostics().frames).toBe(0);
+  });
+});
+
 describe("createMediaPipeGazeSource stop", () => {
   it("stops the loop, the camera and the model", async () => {
     const source = await started();
@@ -337,6 +418,14 @@ describe("createMediaPipeGazeSource stop", () => {
     expect(fx.landmarkerClosed).toBe(1);
     expect(fx.video.paused).toBe(true);
     expect(fx.video.srcObject).toBeNull();
+  });
+
+  it("takes the video element out of the page", async () => {
+    const source = await started();
+
+    source.stop();
+
+    expect(fx.video.removed).toBe(true);
   });
 
   it("emits nothing after it stopped", async () => {

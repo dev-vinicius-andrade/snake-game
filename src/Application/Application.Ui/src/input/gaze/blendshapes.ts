@@ -32,6 +32,12 @@ const REQUIRED = [
   "eyeBlinkRight",
 ] as const;
 
+/** Names of the eye blendshapes the result does not contain, in the order they are used. Empty when it is complete. */
+export function missingEyeBlendshapes(categories: readonly BlendshapeScore[]): string[] {
+  const present = new Set(categories.map((category) => category.categoryName));
+  return REQUIRED.filter((name) => !present.has(name));
+}
+
 const clamp01 = (value: number) => (Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0);
 
 /** Null when the face result does not carry every eye blendshape. */
