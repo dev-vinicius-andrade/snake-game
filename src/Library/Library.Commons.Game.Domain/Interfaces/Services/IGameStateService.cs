@@ -27,6 +27,7 @@ public interface IGameStateService
     IGameState? GetGameState(ITrackableId roomId);
     IGameState CreateGameState(IRoom room);
     bool ChangeDirectionByPlayerId(string playerConnectionId, Direction? direction = null);
+    bool SetBoostByPlayerId(string playerConnectionId, bool active);
     Task MovePlayer(IGameState gameState, IPlayer player);
     bool CanGenerateFood(IGameState gameState);
     Task<(IPlayer player,string oldPlayerConnectionId)?> ReconnectPlayer(ITrackableId roomTrackableId, ITrackableId playerTrackableId, string playerConnectionId);

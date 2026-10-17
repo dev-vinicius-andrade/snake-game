@@ -14,5 +14,8 @@ internal record Player(Guid Guid, string Name) : IPlayer
     public IList<IPointAxis> Path { get; set; } = null!;
     public bool IsAlive { get; set; } = true;
     public long Score { get; set; }
+    public IList<double> SegmentHealth { get; set; } = new List<double>();
+    public bool IsBoosting { get; set; }
+    public int BoostTicks { get; set; }
     public string Id { get; set; } = null!;
 }

@@ -17,6 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Domain.Game.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\Library\Library.Commons.Eventbus.RabbitMq\Library.Commons.Eventbus.RabbitMq.csproj" />
     <ProjectReference Include="..\..\Library\Library.Commons.Game.Domain\Library.Commons.Game.Domain.csproj" />
   </ItemGroup>

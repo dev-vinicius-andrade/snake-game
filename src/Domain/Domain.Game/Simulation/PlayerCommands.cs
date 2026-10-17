@@ -9,6 +9,12 @@ public sealed class ChangeDirectionCommand(string connectionId, Direction? direc
         => Task.FromResult(context.GameStateService.ChangeDirectionByPlayerId(connectionId, direction));
 }
 
+public sealed class SetBoostCommand(string connectionId, bool active) : PlayerCommand<bool>
+{
+    protected override Task<bool> RunAsync(CommandContext context, CancellationToken cancellationToken)
+        => Task.FromResult(context.GameStateService.SetBoostByPlayerId(connectionId, active));
+}
+
 public sealed class ShootCommand(string connectionId) : PlayerCommand<bool>
 {
     protected override async Task<bool> RunAsync(CommandContext context, CancellationToken cancellationToken)

@@ -9,4 +9,5 @@ public interface IGameHubListenEvents
     Task ChangeDirection(ChangeDirectionRequest request);
     Task LeaveRoom(LeaveRoomRequest request);
     Task Shoot(ShootRequest request);
+    Task Boost(BoostRequest request);
 }

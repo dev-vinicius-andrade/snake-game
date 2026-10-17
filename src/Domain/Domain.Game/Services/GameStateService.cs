@@ -29,6 +29,12 @@ public class GameStateService : IGameStateService
     private readonly SnakeSizeRules _snakeSizeRules;
     private readonly SnakeCollisionRules _snakeCollisionRules;
     private readonly DeathDropRules _deathDropRules;
+    private readonly SnakeBodyRules _snakeBodyRules;
+    private readonly BodyShotRules _bodyShotRules;
+    private readonly BodyHealthRules _bodyHealthRules;
+    private readonly BoostRules _boostRules;
+    private readonly DamageCalculator _damageCalculator;
+    private readonly SnakeRulesOptions _rulesOptions;
 
     public GameStateService(
         IOptions<ServerConfiguration> serverConfiguration,
@@ -41,8 +47,16 @@ public class GameStateService : IGameStateService
         IKnowDirectionsService knowDirectionsService,
         IPointAxisServices pointAxisServices,
         ITickRateService tickRateService, IObstacleService obstacleService,
-        SnakeSizeRules snakeSizeRules, SnakeCollisionRules snakeCollisionRules, DeathDropRules deathDropRules)
+        SnakeSizeRules snakeSizeRules, SnakeCollisionRules snakeCollisionRules, DeathDropRules deathDropRules,
+        SnakeBodyRules snakeBodyRules, BodyShotRules bodyShotRules, BodyHealthRules bodyHealthRules,
+        BoostRules boostRules, DamageCalculator damageCalculator, SnakeRulesOptions rulesOptions)
     {
+        _snakeBodyRules = snakeBodyRules;
+        _bodyShotRules = bodyShotRules;
+        _bodyHealthRules = bodyHealthRules;
+        _boostRules = boostRules;
+        _damageCalculator = damageCalculator;
+        _rulesOptions = rulesOptions;
         _snakeSizeRules = snakeSizeRules;
         _snakeCollisionRules = snakeCollisionRules;
         _deathDropRules = deathDropRules;
@@ -107,10 +121,21 @@ public class GameStateService : IGameStateService
 
     }
 
+    public bool SetBoostByPlayerId(string playerConnectionId, bool active)
+    {
+        var player = _playerService.Get(playerConnectionId);
+        if (player is null) return false;
+        player.IsBoosting = active;
+        return UpdatePlayer(player);
+    }
+
     public async Task MovePlayer(IGameState gameState, IPlayer player)
     {
+        var boost = _boostRules.Step(player.IsBoosting, player.BoostTicks, player.Score);
+        player.BoostTicks = boost.BoostTicks;
+        player.Score -= boost.MassSpent;
         var tickRateMilliseconds = _tickRateService.TickRate.TotalMilliseconds;
-        var speedFactor = _snakeConfiguration.Value.Speed;
+        var speedFactor = _snakeConfiguration.Value.Speed * boost.SpeedMultiplier;
         var movementPerTickX = player.Direction.Axis.X * speedFactor / (1000 / tickRateMilliseconds);
         var movementPerTickY = player.Direction.Axis.Y * speedFactor / (1000 / tickRateMilliseconds);
         var newCurrentPosition = _pointAxisServices.CreateWith(player.CurrentPosition);
@@ -126,8 +151,7 @@ public class GameStateService : IGameStateService
             newCurrentPosition.Y = 0;
 
         player.CurrentPosition = newCurrentPosition;
-        var targetLength = _snakeSizeRules.TargetLength(_snakeConfiguration.Value.InitialSnakeSize + 1, player.Score);
-        player.Path = _snakeSizeRules.Advance(player.Path, newCurrentPosition, targetLength).ToList();
+        MoveBody(gameState, player, newCurrentPosition);
 
         _playerService.Save(player);
     }
@@ -174,11 +198,13 @@ public class GameStateService : IGameStateService
 
     public async Task CheckFoodCollision(IGameState gameState, IPlayer player)
     {
+        if (!player.IsAlive) return;
 
         var food = gameState.Foods.Values.FirstOrDefault(f => PlayerCurrentPositionCollideWithFood(f, player));
         if (food is null) return;
         gameState.Foods.Remove(food.Guid);
         player.Score += food.Value;
+        HealBody(player, food.Value);
 
     }
 
@@ -223,12 +249,14 @@ public class GameStateService : IGameStateService
 
     public async Task CheckObstacleCollision(IGameState gameState, IPlayer player)
     {
-        var obstacle = gameState.Obstacles.Values.FirstOrDefault(f => PlayerCurrentPositionCollideWithObstacle(f, player));
-        if (obstacle is null) return;
-        if (IsOwnShot(obstacle, player)) return;
-        gameState.Obstacles.Remove(obstacle.Guid);
-        KillPlayer(gameState, player);
-
+        if (!player.IsAlive) return;
+        var impact = FindShotImpact(gameState, player);
+        if (impact is null) return;
+        gameState.Obstacles.Remove(impact.Shot.Guid);
+        if (impact.Hit.IsHead)
+            KillPlayer(gameState, player);
+        else
+            DamageBody(gameState, player, impact);
     }
 
     public Task ResolveSnakeCollisions(IGameState gameState)
@@ -241,6 +269,76 @@ public class GameStateService : IGameStateService
         return Task.CompletedTask;
     }
 
+    private sealed record ShotImpact(IObstacle Shot, ShotHit Hit);
+
+    private int InitialLength => _snakeConfiguration.Value.InitialSnakeSize + 1;
+
+    private ShotImpact? FindShotImpact(IGameState gameState, IPlayer player)
+    {
+        var segments = ToPoints(player.Path);
+        var headSize = _snakeConfiguration.Value.HeadSize;
+        return gameState.Obstacles.Values
+            .Where(shot => !IsOwnShot(shot, player))
+            .Select(shot => new { Shot = shot, Hit = _bodyShotRules.FindHit(segments, ToPoint(shot.CurrentPosition), headSize) })
+            .Where(candidate => candidate.Hit.HasValue)
+            .Select(candidate => new ShotImpact(candidate.Shot, candidate.Hit!.Value))
+            .FirstOrDefault();
+    }
+
+    private void DamageBody(IGameState gameState, IPlayer player, ShotImpact impact)
+    {
+        var targetLength = player.Path.Count;
+        var shooterLength = GetPlayer(gameState, impact.Shot.CreatedyBy)?.Path.Count ?? InitialLength;
+        var damage = _damageCalculator.ShotDamage(shooterLength, targetLength);
+        var outcome = _bodyShotRules.ApplyDamage(ToBodyState(player), impact.Hit.SegmentIndex, damage,
+            _damageCalculator.MaxSegmentHp(targetLength), canBreak: targetLength > InitialLength);
+        ApplyBody(player, outcome.Body);
+        if (outcome.BrokenAt.HasValue)
+            DropBrokenSegment(gameState, player, outcome.BrokenAt.Value);
+        UpdatePlayer(player);
+    }
+
+    private void DropBrokenSegment(IGameState gameState, IPlayer player, Point at)
+    {
+        var lostMass = (long)Math.Ceiling(_rulesOptions.MassPerSegment);
+        player.Score = Math.Max(0, player.Score - lostMass);
+        AddPellet(gameState, new PelletDrop(at, lostMass), player.BackgroundColor);
+    }
+
+    private void HealBody(IPlayer player, long fruitValue)
+    {
+        var maxHp = _damageCalculator.MaxSegmentHp(Math.Max(player.Path.Count, 1));
+        var healed = _bodyHealthRules.Heal(player.SegmentHealth.ToArray(), maxHp, _damageCalculator.HealAmount(fruitValue));
+        player.SegmentHealth = healed.ToList();
+    }
+
+    private void MoveBody(IGameState gameState, IPlayer player, IPointAxis head)
+    {
+        var targetLength = _snakeSizeRules.TargetLength(InitialLength, player.Score);
+        var world = new WorldBounds(gameState.Room.Width, gameState.Room.Height);
+        var body = _snakeBodyRules.Move(ToBodyState(player), ToPoint(head), targetLength, _snakeConfiguration.Value.HeadSize, world);
+        ApplyBody(player, body);
+    }
+
+    private void ApplyBody(IPlayer player, BodyState body)
+    {
+        player.Path = body.Segments.Select(point => ToAxis(player.CurrentPosition, point)).ToList();
+        player.SegmentHealth = body.Health.ToList();
+    }
+
+    private IPointAxis ToAxis(IPointAxis template, Point point)
+    {
+        var axis = _pointAxisServices.CreateWith(template);
+        axis.X = point.X;
+        axis.Y = point.Y;
+        return axis;
+    }
+
+    private static BodyState ToBodyState(IPlayer player)
+        => new(ToPoints(player.Path), player.SegmentHealth.ToArray());
+
+    private static Point ToPoint(IPointAxis axis) => new(axis.X, axis.Y);
+
     private bool IsOwnShot(IObstacle obstacle, IPlayer player)
         => _trackableIdGeneratorService.IsType<IPlayer>(obstacle.CreatedyBy) && obstacle.CreatedyBy.Guid == player.Guid;
 
@@ -248,10 +346,11 @@ public class GameStateService : IGameStateService
         => new(player.Guid, ToPoints(player.Path));
 
     private static Point[] ToPoints(IEnumerable<IPointAxis> path)
-        => path.Select(point => new Point(point.X, point.Y)).ToArray();
+        => path.Select(ToPoint).ToArray();
 
     private void KillPlayer(IGameState gameState, IPlayer player)
     {
+        if (!player.IsAlive) return;
         player.IsAlive = false;
         DropPellets(gameState, player);
         UpdatePlayer(player);

@@ -30,6 +30,7 @@ public class PlayerService:IPlayerService
         player.CurrentPosition = initialPosition;
         player.Direction= direction;
         player.Path =  paths ?? new List<IPointAxis>();
+        player.SegmentHealth = player.Path.Select(_ => 1.0).ToList();
         if (_players.TryAdd(playerId, player))
             return player;
         throw new UnableToCreatePlayerException();

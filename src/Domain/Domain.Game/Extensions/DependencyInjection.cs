@@ -32,6 +32,13 @@ public static class DependencyInjection
         services.AddSingleton<ITickRateService, TickRateService>();
         services.AddSingleton<IObstacleService, ObstacleService>();
         services.AddSingleton(new SnakeRulesOptions());
+        services.AddSingleton(new DamageModelOptions());
+        services.AddSingleton<DamageCalculator>();
+        services.AddSingleton<BodyHealer>();
+        services.AddSingleton<BodyHealthRules>();
+        services.AddSingleton<SnakeBodyRules>();
+        services.AddSingleton<BodyShotRules>();
+        services.AddSingleton<BoostRules>();
         services.AddSingleton<SnakeSizeRules>();
         services.AddSingleton<SnakeCollisionRules>();
         services.AddSingleton<DeathDropRules>();

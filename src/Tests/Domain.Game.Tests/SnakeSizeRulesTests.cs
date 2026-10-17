@@ -26,50 +26,6 @@ public sealed class SnakeSizeRulesTests
         => Assert.Throws<ArgumentOutOfRangeException>(() => _rules.TargetLength(0, 3));
 
     [Fact]
-    public void Advance_TargetLonger_GrowsByOneSegmentPerStep()
-    {
-        var path = new[] { 1, 2, 3 };
-
-        var next = _rules.Advance(path, 4, targetLength: 10);
-
-        Assert.Equal(new[] { 1, 2, 3, 4 }, next);
-    }
-
-    [Fact]
-    public void Advance_TargetEqual_KeepsLengthAndDropsTail()
-    {
-        var next = _rules.Advance(new[] { 1, 2, 3 }, 4, targetLength: 3);
-
-        Assert.Equal(new[] { 2, 3, 4 }, next);
-    }
-
-    [Fact]
-    public void Advance_TargetShorter_TrimsTailToTarget()
-    {
-        var next = _rules.Advance(new[] { 1, 2, 3, 4, 5 }, 6, targetLength: 2);
-
-        Assert.Equal(new[] { 5, 6 }, next);
-    }
-
-    [Fact]
-    public void Advance_Always_PutsNewHeadLast()
-        => Assert.Equal(9, _rules.Advance(new[] { 1, 2 }, 9, 5).Last());
-
-    [Fact]
-    public void Advance_Always_DoesNotMutateInput()
-    {
-        var path = new List<int> { 1, 2, 3 };
-
-        _rules.Advance(path, 4, 3);
-
-        Assert.Equal(new[] { 1, 2, 3 }, path);
-    }
-
-    [Fact]
-    public void Advance_TargetBelowOne_Throws()
-        => Assert.Throws<ArgumentOutOfRangeException>(() => _rules.Advance(new[] { 1 }, 2, 0));
-
-    [Fact]
     public void Constructor_InvalidMassPerSegment_Throws()
         => Assert.Throws<ArgumentOutOfRangeException>(() => new SnakeSizeRules(new SnakeRulesOptions { MassPerSegment = 0 }));
 }

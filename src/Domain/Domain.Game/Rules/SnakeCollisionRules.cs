@@ -31,10 +31,6 @@ public sealed class SnakeCollisionRules
         return snakes
             .Where(other => other.Id != snake.Id)
             .SelectMany(other => other.Segments)
-            .Any(segment => Overlaps(head, segment, hitSize));
+            .Any(segment => HitBox.Overlaps(head, segment, hitSize));
     }
-
-    private static bool Overlaps(Point first, Point second, double size)
-        => first.X <= second.X + size && first.X + size >= second.X
-        && first.Y <= second.Y + size && first.Y + size >= second.Y;
 }

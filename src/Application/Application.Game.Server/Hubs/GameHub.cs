@@ -110,6 +110,14 @@ namespace Application.Game.Server.Hubs
             });
         }
 
+        public Task Boost(BoostRequest request)
+        {
+            var (_, _, room) = GetConnectionData();
+            if (room is not null)
+                _roomInputQueue.Enqueue(room.Guid, new SetBoostCommand(Context.ConnectionId, request.Active));
+            return Task.CompletedTask;
+        }
+
         public Task Shoot(ShootRequest request)
         {
             var (_, _, room) = GetConnectionData();
