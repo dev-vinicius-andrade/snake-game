@@ -37,6 +37,8 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
   const leaderboard = shallowRef<LeaderboardEntry[]>([]);
   const score = shallowRef(0);
   const death = shallowRef<{ score: number } | null>(null);
+  /** An administrator closed the room this session was playing in. */
+  const roomClosed = shallowRef(false);
   const connectionId = shallowRef<string | null>(null);
 
   let client: HubClient | null = null;
@@ -77,6 +79,9 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
       PlayerScoreUpdated: (value: unknown) => {
         if (typeof value === "number") score.value = value;
       },
+      RoomClosed: () => {
+        roomClosed.value = true;
+      },
       PlayerDied: (raw: { score?: number } | null) => {
         death.value = { score: typeof raw?.score === "number" ? raw.score : score.value };
       },
@@ -89,6 +94,7 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
     leaderboard.value = [];
     score.value = 0;
     death.value = null;
+    roomClosed.value = false;
     error.value = null;
     connectionId.value = null;
     lastDirection = null;
@@ -241,6 +247,7 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
     leaderboard,
     score,
     death,
+    roomClosed,
     connectionId,
     self,
     connect,

@@ -30,8 +30,10 @@ function setup(options: { join?: () => Promise<JoinAssignment>; connect?: () => 
     cancel: vi.fn(async () => undefined),
   };
   const death = shallowRef<{ score: number } | null>(null);
+  const roomClosed = shallowRef(false);
   const game = {
     death,
+    roomClosed,
     connect: vi.fn(options.connect ?? (async () => undefined)),
     changeDirection: vi.fn(),
     shoot: vi.fn(),
@@ -42,8 +44,28 @@ function setup(options: { join?: () => Promise<JoinAssignment>; connect?: () => 
   const keyboardTarget = new FakeTarget();
   const clock = { now: 0 };
   const session = useSnakeSession({ joiner, game, keyboardTarget, now: () => clock.now });
-  return { joiner, game, death, keyboardTarget, session, clock };
+  return { joiner, game, death, roomClosed, keyboardTarget, session, clock };
 }
+
+describe("useSnakeSession room closed", () => {
+  it("ends the session with a message when the room is closed", async () => {
+    const { roomClosed, session } = setup();
+    await session.start("ana");
+
+    roomClosed.value = true;
+
+    expect(session.phase.value).toBe("error");
+    expect(session.error.value).toMatch(/closed/i);
+  });
+
+  it("ignores a closed room when not playing", async () => {
+    const { roomClosed, session } = setup();
+
+    roomClosed.value = true;
+
+    expect(session.phase.value).toBe("idle");
+  });
+});
 
 describe("useSnakeSession.start", () => {
   it("joins through the manager, then connects to the game server", async () => {

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { useStorage } from "@vueuse/core";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
+import InviteBadge from "@/components/rooms/InviteBadge.vue";
+import type { JoinTarget } from "@/composables/useManagerJoin";
 import GameStage from "@/components/game/GameStage.vue";
 import { useEyeControl } from "@/composables/useEyeControl";
 import { useGameConnection } from "@/composables/useGameConnection";
@@ -16,6 +18,7 @@ import { createPointerSource } from "@/input/gaze/pointerSource";
 import { usePlayerStore } from "@/store/usePlayerStore";
 
 const router = useRouter();
+const route = useRoute();
 const playerStore = usePlayerStore();
 const game = useGameConnection();
 const session = useSnakeSession({ joiner: useManagerJoin(), game });
@@ -58,8 +61,15 @@ function enableEyeControl() {
 
 const nickname = computed(() => playerStore.data?.nickname?.trim() ?? "");
 
+/** A host or a friend arrives with the room id and the invite code in the address. */
+const inviteCode = computed(() => (typeof route.query.code === "string" ? route.query.code : ""));
+const joinTarget = computed<JoinTarget | undefined>(() => {
+  if (typeof route.query.room === "string" && route.query.room) return route.query.room;
+  return inviteCode.value ? { code: inviteCode.value } : undefined;
+});
+
 function play() {
-  return session.start(nickname.value);
+  return session.start(nickname.value, joinTarget.value);
 }
 
 async function leave() {
@@ -85,6 +95,7 @@ onBeforeUnmount(() => void session.stop());
       :mouse-aim="mouseAim"
       @toggle-mouse-aim="toggleMouseAim"
     />
+    <InviteBadge v-if="inviteCode" :code="inviteCode" />
     <EyeControlPanel
       :phase="eye.phase.value"
       :mode="eye.mode.value"

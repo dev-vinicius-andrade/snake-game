@@ -35,6 +35,7 @@
       </VRow>
     </VContainer>
   </VRow>
+  <RoomActions :disabled="!isPlayerNameValid" />
   <EyeSetup />
 </template>
 <script setup lang="ts">

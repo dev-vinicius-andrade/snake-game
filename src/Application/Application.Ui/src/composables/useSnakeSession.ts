@@ -11,7 +11,7 @@ export interface SnakeSessionDeps {
   joiner: Pick<ReturnType<typeof useManagerJoin>, "join" | "cancel">;
   game: Pick<
     ReturnType<typeof useGameConnection>,
-    "death" | "connect" | "changeDirection" | "steer" | "shoot" | "boost" | "leave"
+    "death" | "roomClosed" | "connect" | "changeDirection" | "steer" | "shoot" | "boost" | "leave"
   >;
   /** Where key events come from. Defaults to `window`. */
   keyboardTarget?: KeyEventTarget;
@@ -62,6 +62,18 @@ export function useSnakeSession({ joiner, game, keyboardTarget, now = Date.now }
       if (!death || phase.value !== "playing") return;
       if (boosting) handlers.boost({ type: "boost", active: false });
       phase.value = "dead";
+    },
+    { flush: "sync" }
+  );
+
+  watch(
+    game.roomClosed,
+    (closed) => {
+      if (!closed || phase.value !== "playing") return;
+      if (boosting) handlers.boost({ type: "boost", active: false });
+      keyboard.detach();
+      phase.value = "error";
+      error.value = "The room was closed by an administrator";
     },
     { flush: "sync" }
   );

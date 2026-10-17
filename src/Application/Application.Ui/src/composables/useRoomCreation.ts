@@ -99,7 +99,7 @@ export function useRoomCreation(options: UseRoomCreationOptions = {}) {
   let active: { client: HubClient; waiter: Waiter } | null = null;
   let cancelled = false;
 
-  async function create(room: NewRoom): Promise<CreatedRoom> {
+  async function create(newRoom: NewRoom): Promise<CreatedRoom> {
     await cancel();
     cancelled = false;
     error.value = null;
@@ -108,7 +108,7 @@ export function useRoomCreation(options: UseRoomCreationOptions = {}) {
     const waiter = waitForRoom(client, timeoutMs);
     active = { client, waiter };
     try {
-      return await request(client, waiter, room);
+      return await request(client, waiter, newRoom);
     } catch (failure) {
       status.value = cancelled ? "idle" : "error";
       error.value = cancelled ? null : (failure as Error).message;
@@ -120,12 +120,12 @@ export function useRoomCreation(options: UseRoomCreationOptions = {}) {
     }
   }
 
-  async function request(client: HubClient, waiter: Waiter, room: NewRoom) {
+  async function request(client: HubClient, waiter: Waiter, newRoom: NewRoom) {
     await client.start();
     if (!client.connectionId) throw new Error("The manager hub did not provide a connection id");
     status.value = "waiting";
-    const name = room.name.trim();
-    await postCreate(`${managerUrl}/rooms`, { id: client.connectionId, name: name || undefined, maxPlayers: room.maxPlayers });
+    const name = newRoom.name.trim();
+    await postCreate(`${managerUrl}/rooms`, { id: client.connectionId, name: name || undefined, maxPlayers: newRoom.maxPlayers });
     const created = await waiter.promise;
     status.value = "created";
     return created;

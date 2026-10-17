@@ -87,6 +87,26 @@ describe("useGameConnection.connect", () => {
   });
 });
 
+describe("useGameConnection room closed", () => {
+  it("knows when an administrator closed the room", async () => {
+    const { client, connection } = await connected();
+    expect(connection.roomClosed.value).toBe(false);
+
+    client.emit("RoomClosed", {});
+
+    expect(connection.roomClosed.value).toBe(true);
+  });
+
+  it("starts fresh on the next connect", async () => {
+    const { client, connection } = await connected();
+    client.emit("RoomClosed", {});
+
+    await connection.connect(assignment);
+
+    expect(connection.roomClosed.value).toBe(false);
+  });
+});
+
 describe("useGameConnection server events", () => {
   it("parses GameStateUpdated into the snapshot", async () => {
     const { client, connection } = await connected();
