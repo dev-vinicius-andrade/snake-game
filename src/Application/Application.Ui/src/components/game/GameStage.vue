@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useCanvasRenderer } from "@/composables/useCanvasRenderer";
+import type { StageRect } from "@/render/stageGeometry";
 import type { GameSnapshot } from "@/types/game";
 
 const props = defineProps<{
@@ -14,6 +15,14 @@ const aspectRatio = computed(() => {
   const room = props.snapshot?.room;
   return room ? `${room.width} / ${room.height}` : "16 / 9";
 });
+
+/** Where the canvas is on the page, so pointer positions can be turned into game positions. */
+function getRect(): StageRect | null {
+  const box = canvas.value?.getBoundingClientRect();
+  return box ? { left: box.left, top: box.top, width: box.width, height: box.height } : null;
+}
+
+defineExpose({ getRect });
 
 useCanvasRenderer(canvas, () => ({
   snapshot: props.snapshot,

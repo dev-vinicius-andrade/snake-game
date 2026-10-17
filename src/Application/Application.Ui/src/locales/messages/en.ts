@@ -42,6 +42,8 @@ export const messages = {
       shoot: "Shoot: Space",
       boost: "Boost: hold Shift",
     },
+    mouseAimOn: "Mouse aim: on",
+    mouseAimOff: "Mouse aim: off",
   },
 };
 export default messages;

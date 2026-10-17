@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fixture from "@/game/__fixtures__/gameState.json";
 import { FakeHubClient } from "@/test/fakeHub";
 import { useGameConnection } from "./useGameConnection";
@@ -317,5 +317,141 @@ describe("useGameConnection lifecycle", () => {
 
     expect(first.log).toContain("stop");
     expect(second.invocationsOf("ChangeDirection")).toHaveLength(1);
+  });
+});
+
+describe("useGameConnection steering", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const angles = (client: FakeHubClient) => client.invocationsOf("Steer").map((call) => (call.args[0] as { angle: number }).angle);
+
+  it("sends the wanted angle", async () => {
+    const { client, connection } = await connected();
+
+    connection.steer(1);
+
+    expect(client.invocationsOf("Steer")[0].args).toEqual([{ angle: 1 }]);
+  });
+
+  it("does not resend the same angle", async () => {
+    const { client, connection } = await connected();
+
+    connection.steer(1);
+    await vi.advanceTimersByTimeAsync(100);
+    connection.steer(1);
+
+    expect(angles(client)).toEqual([1]);
+  });
+
+  it("ignores changes below two degrees", async () => {
+    const { client, connection } = await connected();
+
+    connection.steer(1);
+    await vi.advanceTimersByTimeAsync(100);
+    connection.steer(1.01);
+
+    expect(angles(client)).toEqual([1]);
+  });
+
+  it("sends changes of two degrees or more", async () => {
+    const { client, connection } = await connected();
+
+    connection.steer(1);
+    await vi.advanceTimersByTimeAsync(100);
+    connection.steer(1.1);
+
+    expect(angles(client)).toEqual([1, 1.1]);
+  });
+
+  it("treats the two sides of the wrap point as the same angle", async () => {
+    const { client, connection } = await connected();
+
+    connection.steer(Math.PI);
+    await vi.advanceTimersByTimeAsync(100);
+    connection.steer(-Math.PI);
+
+    expect(angles(client)).toHaveLength(1);
+  });
+
+  it("sends at most about thirty updates per second and keeps the newest one", async () => {
+    const { client, connection } = await connected();
+
+    connection.steer(1);
+    await vi.advanceTimersByTimeAsync(10);
+    connection.steer(1.5);
+    await vi.advanceTimersByTimeAsync(10);
+    connection.steer(2);
+    expect(angles(client)).toEqual([1]);
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(angles(client)).toEqual([1, 2]);
+  });
+
+  it("drops a delayed update that no longer differs from what was sent", async () => {
+    const { client, connection } = await connected();
+
+    connection.steer(1);
+    await vi.advanceTimersByTimeAsync(10);
+    connection.steer(2);
+    connection.steer(1);
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(angles(client)).toEqual([1]);
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY])("ignores %s", async (angle) => {
+    const { client, connection } = await connected();
+
+    connection.steer(angle);
+
+    expect(client.invocationsOf("Steer")).toHaveLength(0);
+  });
+
+  it("sends again after a keyboard turn, because the server heading changed", async () => {
+    const { client, connection } = await connected();
+    connection.steer(1);
+    await vi.advanceTimersByTimeAsync(100);
+    connection.changeDirection("up");
+    await vi.advanceTimersByTimeAsync(100);
+
+    connection.steer(1);
+
+    expect(angles(client)).toEqual([1, 1]);
+  });
+
+  it("does nothing before connecting", () => {
+    const { client, connection } = setup();
+
+    connection.steer(1);
+
+    expect(client.invocations).toHaveLength(0);
+  });
+
+  it("does nothing after the player died", async () => {
+    const { client, connection } = await connected();
+    client.emit("PlayerDied", { score: 1 });
+
+    connection.steer(1);
+
+    expect(client.invocationsOf("Steer")).toHaveLength(0);
+  });
+
+  it("drops a pending update on dispose", async () => {
+    const { client, connection } = await connected();
+    connection.steer(1);
+    await vi.advanceTimersByTimeAsync(10);
+    connection.steer(2);
+
+    await connection.dispose();
+    await vi.advanceTimersByTimeAsync(200);
+
+    expect(angles(client)).toEqual([1]);
   });
 });

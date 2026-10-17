@@ -36,11 +36,13 @@ function setup(options: { join?: () => Promise<JoinAssignment>; connect?: () => 
     changeDirection: vi.fn(),
     shoot: vi.fn(),
     boost: vi.fn(),
+    steer: vi.fn(),
     leave: vi.fn(async () => undefined),
   };
   const keyboardTarget = new FakeTarget();
-  const session = useSnakeSession({ joiner, game, keyboardTarget });
-  return { joiner, game, death, keyboardTarget, session };
+  const clock = { now: 0 };
+  const session = useSnakeSession({ joiner, game, keyboardTarget, now: () => clock.now });
+  return { joiner, game, death, keyboardTarget, session, clock };
 }
 
 describe("useSnakeSession.start", () => {
@@ -144,6 +146,45 @@ describe("useSnakeSession input", () => {
     keyboardTarget.key("keydown", "ArrowUp");
 
     expect(game.changeDirection).not.toHaveBeenCalled();
+  });
+
+  it("routes steer intents to the game connection", async () => {
+    const { game, session } = setup();
+    await session.start("ana");
+
+    session.handleIntent({ type: "steer", angle: 1.25 });
+
+    expect(game.steer).toHaveBeenCalledWith(1.25);
+  });
+
+  it("ignores steer intents unless playing", () => {
+    const { game, session } = setup();
+
+    session.handleIntent({ type: "steer", angle: 1.25 });
+
+    expect(game.steer).not.toHaveBeenCalled();
+  });
+
+  it("lets gaze steer until the keyboard sets a direction", async () => {
+    const { keyboardTarget, session, clock } = setup();
+    await session.start("ana");
+    expect(session.allowsGazeSteer(0)).toBe(true);
+
+    clock.now = 1000;
+    keyboardTarget.key("keydown", "ArrowUp");
+
+    expect(session.allowsGazeSteer(1500)).toBe(false);
+    expect(session.allowsGazeSteer(2000)).toBe(true);
+  });
+
+  it("does not let shooting hold gaze steering back", async () => {
+    const { keyboardTarget, session, clock } = setup();
+    await session.start("ana");
+
+    clock.now = 1000;
+    keyboardTarget.key("keydown", "Space");
+
+    expect(session.allowsGazeSteer(1001)).toBe(true);
   });
 
   it("ignores intents unless playing", () => {

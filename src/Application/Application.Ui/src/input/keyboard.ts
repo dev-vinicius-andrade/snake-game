@@ -1,10 +1,7 @@
 import type { ControlDirection } from "@/types/game";
+import type { ControlIntent } from "./intents";
 
-/** What the player wants, independent of the device that expressed it (keyboard now, eyes later). */
-export type ControlIntent =
-  | { type: "direction"; direction: ControlDirection }
-  | { type: "shoot" }
-  | { type: "boost"; active: boolean };
+export type { ControlIntent };
 
 export interface KeyboardState {
   /** Direction key codes currently held, oldest first. The last one decides the direction. */

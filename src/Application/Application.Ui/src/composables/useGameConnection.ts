@@ -1,5 +1,6 @@
 import { computed, getCurrentScope, onScopeDispose, shallowRef } from "vue";
 import { parseLeaderboard, parseRoomSize, parseSnapshot } from "@/game/snapshot";
+import { angleDistance } from "@/input/angles";
 import { createHubClient, type HubClient, type HubClientFactory } from "@/services/hub";
 import type {
   ControlDirection,
@@ -15,6 +16,10 @@ export interface UseGameConnectionOptions {
 }
 
 type Handler = (...args: any[]) => void;
+
+/** At most about thirty steering updates per second, and none for changes under two degrees. */
+const STEER_MIN_INTERVAL_MS = 33;
+const STEER_MIN_DELTA_RADIANS = (2 * Math.PI) / 180;
 
 const messageOf = (failure: unknown) => (failure instanceof Error ? failure.message : String(failure));
 
@@ -39,6 +44,10 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
   let handlers: Record<string, Handler> = {};
   let lastDirection: ControlDirection | null = null;
   let lastBoost = false;
+  let lastSteer: number | null = null;
+  let lastSteerAt = Number.NEGATIVE_INFINITY;
+  let pendingSteer: number | null = null;
+  let steerTimer: ReturnType<typeof setTimeout> | null = null;
 
   const self = computed(
     () => snapshot.value?.snakes.find((snake) => snake.connectionId === connectionId.value) ?? null
@@ -78,9 +87,19 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
     connectionId.value = null;
     lastDirection = null;
     lastBoost = false;
+    cancelPendingSteer();
+    lastSteer = null;
+    lastSteerAt = Number.NEGATIVE_INFINITY;
+  }
+
+  function cancelPendingSteer() {
+    if (steerTimer !== null) clearTimeout(steerTimer);
+    steerTimer = null;
+    pendingSteer = null;
   }
 
   async function detach() {
+    cancelPendingSteer();
     const previous = client;
     if (!previous) return;
     client = null;
@@ -149,7 +168,40 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
   function changeDirection(direction: ControlDirection) {
     if (!canSend() || direction === lastDirection) return;
     lastDirection = direction;
+    // A keyboard turn moves the server heading, so the last steering angle no longer describes it.
+    lastSteer = null;
+    cancelPendingSteer();
     send("ChangeDirection", { direction });
+  }
+
+  /** Heading in radians (0 is right, positive turns clockwise on screen). Throttled, and tiny changes are dropped. */
+  function steer(angle: number) {
+    if (!Number.isFinite(angle) || !canSend()) return;
+    if (lastSteer !== null && angleDistance(angle, lastSteer) < STEER_MIN_DELTA_RADIANS) {
+      pendingSteer = null;
+      return;
+    }
+    const wait = lastSteerAt + STEER_MIN_INTERVAL_MS - Date.now();
+    if (wait <= 0) {
+      sendSteer(angle);
+      return;
+    }
+    pendingSteer = angle;
+    steerTimer ??= setTimeout(flushSteer, wait);
+  }
+
+  function sendSteer(angle: number) {
+    lastSteer = angle;
+    lastSteerAt = Date.now();
+    pendingSteer = null;
+    send("Steer", { angle });
+  }
+
+  function flushSteer() {
+    steerTimer = null;
+    const angle = pendingSteer;
+    pendingSteer = null;
+    if (angle !== null) steer(angle);
   }
 
   function shoot() {
@@ -187,6 +239,7 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
     self,
     connect,
     changeDirection,
+    steer,
     shoot,
     boost,
     leave,

@@ -8,6 +8,11 @@ const props = defineProps<{
   score: number;
   leaderboard: LeaderboardEntry[];
   status: GameConnectionStatus;
+  mouseAim: boolean;
+}>();
+
+const emit = defineEmits<{
+  (event: "toggle-mouse-aim"): void;
 }>();
 
 const connectionNotice = computed(() => {
@@ -42,6 +47,9 @@ const controls = computed(() => [
 
   <section class="hud-panel hud-controls">
     <div v-for="line in controls" :key="line">{{ line }}</div>
+    <button type="button" class="hud-toggle" :aria-pressed="mouseAim" @click="emit('toggle-mouse-aim')">
+      {{ getText({ key: mouseAim ? "game.mouseAimOn" : "game.mouseAimOff" }) }}
+    </button>
   </section>
 </template>
 
@@ -70,6 +78,17 @@ const controls = computed(() => [
   left: 8px;
   font-size: 12px;
   opacity: 0.8;
+}
+.hud-toggle {
+  margin-top: 6px;
+  padding: 2px 8px;
+  color: inherit;
+  font: inherit;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 2px;
+  cursor: pointer;
+  pointer-events: auto;
 }
 .hud-name {
   font-weight: bold;

@@ -1,0 +1,36 @@
+import type { GazeSample, GazeSource } from "@/input/gaze/gazeSource";
+
+/** In-memory GazeSource for specs. Tests push samples with `emit`. */
+export class FakeGazeSource implements GazeSource {
+  started = false;
+  startCalls = 0;
+  stopCalls = 0;
+  startError?: Error;
+  private listeners = new Set<(sample: GazeSample) => void>();
+
+  async start() {
+    this.startCalls++;
+    if (this.startError) throw this.startError;
+    this.started = true;
+  }
+
+  stop() {
+    this.stopCalls++;
+    this.started = false;
+  }
+
+  subscribe(listener: (sample: GazeSample) => void) {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  get listenerCount() {
+    return this.listeners.size;
+  }
+
+  emit(sample: GazeSample) {
+    this.listeners.forEach((listener) => listener(sample));
+  }
+}
