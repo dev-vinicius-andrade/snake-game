@@ -9,7 +9,7 @@
 #   REGISTRY       Required. Registry and project the images are pushed to and pulled from.
 #   INGRESS_CLASS  Default traefik-external. The three hosts are exposed to the internet through it.
 #   CLUSTER_ISSUER Default letsencrypt-production-homel4b-dev-issuer. cert-manager issues each host's certificate; empty to skip.
-#   DOMAIN         Default homel4b.dev. Hosts: snake.$DOMAIN (site), snake-api.$DOMAIN (manager), snake-game.$DOMAIN (game).
+#   DOMAIN         Default andradev.io (public). Hosts: snake.$DOMAIN (site), snake-api.$DOMAIN (manager), snake-game.$DOMAIN (game).
 #   TAG            One tag for every image (all are rebuilt). Default: per-image source tags.
 #   FORCE_BUILD=1  Rebuild every image even when the registry already has its tag.
 #   SKIP_BUILD=1   Build nothing; the images must already be in the registry under their tags.
@@ -28,7 +28,7 @@ REPO=$(cd "$HERE/../.." && pwd)
 SRC="$REPO/src"
 CHART="$HERE/charts/snake-app"
 : "${REGISTRY:?Set REGISTRY, e.g. REGISTRY=cr.homel4b.dev/<project>}"
-DOMAIN=${DOMAIN:-homel4b.dev}
+DOMAIN=${DOMAIN:-andradev.io}
 INGRESS_CLASS=${INGRESS_CLASS:-traefik-external}
 CLUSTER_ISSUER=${CLUSTER_ISSUER-letsencrypt-production-homel4b-dev-issuer}
 UI_HOST="snake.$DOMAIN"
@@ -163,5 +163,6 @@ step "Done"
 kube get pods
 echo
 echo "Site   https://$UI_HOST"
-echo "Admin  https://$UI_HOST/admin   (key: kubectl --context $CONTEXT -n $NS get secret snake-secrets -o go-template='{{index .data "admin-key"}}' | base64 -d)"
+echo "Admin  https://$UI_HOST/admin"
+echo "Admin key:  kubectl --context $CONTEXT -n $NS get secret snake-secrets -o go-template='{{index .data \"admin-key\"}}' | base64 -d"
 echo "Manager https://$API_HOST   Game server https://$GAME_HOST"

@@ -11,9 +11,9 @@ pushes the images, then Helm installs the workloads behind the **external** Trae
 
 | Workload | Image | Where | Address |
 | --- | --- | --- | --- |
-| Site (Vue, nginx) | `snake-ui` | `home-apps`, release `snake-ui` | https://snake.homel4b.dev |
-| Manager api + manager hub + `/admin` api | `snake-manager` | `home-apps`, release `snake-manager` | https://snake-api.homel4b.dev |
-| Game server (game hub, rooms in memory) | `snake-game-server` | `home-apps`, release `snake-game`, **1 replica** | https://snake-game.homel4b.dev |
+| Site (Vue, nginx) | `snake-ui` | `home-apps`, release `snake-ui` | https://snake.andradev.io |
+| Manager api + manager hub + `/admin` api | `snake-manager` | `home-apps`, release `snake-manager` | https://snake-api.andradev.io |
+| Game server (game hub, rooms in memory) | `snake-game-server` | `home-apps`, release `snake-game`, **1 replica** | https://snake-game.andradev.io |
 | RabbitMQ 3.13 (2 Gi volume) | `rabbitmq:3.13-management-alpine` | `infrastructure`, StatefulSet `rabbitmq` | `rabbitmq.infrastructure.svc.cluster.local:5672` |
 | Redis 7 (cache, no persistence) | `redis:7-alpine` | `infrastructure`, Deployment `redis` | `redis.infrastructure.svc.cluster.local:6379` |
 
@@ -27,12 +27,13 @@ you asked for it; delete `redis.yaml` and the two Redis lines in `values/manager
 ## Hosts, DNS and TLS
 
 Everything the browser talks to is exposed through the **external Traefik** (`INGRESS_CLASS`, default `traefik-external`;
-check the class name of your external Traefik with `kubectl get ingressclass`): `snake.homel4b.dev` (site),
-`snake-api.homel4b.dev` (manager) and `snake-game.homel4b.dev` (game server). RabbitMQ and Redis are not exposed.
+check the class name of your external Traefik with `kubectl get ingressclass`): `snake.andradev.io` (site),
+`snake-api.andradev.io` (manager) and `snake-game.andradev.io` (game server). RabbitMQ and Redis are not exposed.
 
 - **DNS:** each host must resolve to the external Traefik's public address (and your router must forward 443 to it).
 - **TLS:** each Ingress asks cert-manager for its own certificate with `CLUSTER_ISSUER` (default
-  `letsencrypt-production-homel4b-dev-issuer`, the DNS-01 issuer the Empower deploy uses) into the Secret `<release>-tls`.
+  `letsencrypt-production-homel4b-dev-issuer`, which belongs to homel4b.dev: for andradev.io pass the name of the issuer that
+  serves it, see `kubectl get clusterissuer`) into the Secret `<release>-tls`.
   Set `CLUSTER_ISSUER=` (empty) to use Traefik's default certificate instead.
 - `DOMAIN=<other>` changes the base domain.
 
@@ -81,7 +82,7 @@ What the script does:
 
 ## Secrets and the admin page
 
-- **Admin key** for `https://snake.homel4b.dev/admin`:
+- **Admin key** for `https://snake.andradev.io/admin`:
 
   ```bash
   kubectl --context home-lab-main -n home-apps get secret snake-secrets -o go-template='{{index .data "admin-key"}}' | base64 -d
