@@ -8,9 +8,38 @@ namespace Domain.Game.Tests;
 public sealed class RoomSimulationTests
 {
     private readonly IGameStateService _gameStateService = Substitute.For<IGameStateService>();
+    private readonly IRoomInputQueue _inputQueue = Substitute.For<IRoomInputQueue>();
     private readonly RoomSimulation _simulation;
 
-    public RoomSimulationTests() => _simulation = new RoomSimulation(_gameStateService);
+    public RoomSimulationTests() => _simulation = new RoomSimulation(_gameStateService, _inputQueue);
+
+    [Fact]
+    public async Task StepAsync_Always_DrainsInputBeforeAnythingMoves()
+    {
+        var calls = new List<string>();
+        var player = Player();
+        var state = StateWith(player);
+        _inputQueue.When(queue => queue.DrainAsync(state, Arg.Any<CancellationToken>())).Do(_ => calls.Add("drain"));
+        _gameStateService.When(service => service.MoveObstacles(state)).Do(_ => calls.Add("obstacles"));
+        _gameStateService.When(service => service.MovePlayer(state, player)).Do(_ => calls.Add("move"));
+
+        await _simulation.StepAsync(state);
+
+        Assert.Equal(new[] { "drain", "obstacles", "move" }, calls);
+    }
+
+    [Fact]
+    public async Task StepAsync_PlayerJoinsDuringDrain_IsSimulatedInSameStep()
+    {
+        var state = StateWith();
+        var joiner = Player();
+        _inputQueue.When(queue => queue.DrainAsync(state, Arg.Any<CancellationToken>()))
+            .Do(_ => state.Players.Returns(new Dictionary<Guid, IPlayer> { [Guid.NewGuid()] = joiner }));
+
+        await _simulation.StepAsync(state);
+
+        await _gameStateService.Received(1).MovePlayer(state, joiner);
+    }
 
     private static IPlayer Player(bool isAlive = true)
     {

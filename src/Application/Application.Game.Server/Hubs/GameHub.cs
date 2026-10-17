@@ -1,4 +1,5 @@
-﻿using Library.Commons.Game.Domain.Interfaces.Services;
+using Domain.Game.Simulation;
+using Library.Commons.Game.Domain.Interfaces.Services;
 using Library.Commons.Game.Server.Entities.Hub.Events;
 using Library.Commons.Game.Server.Entities.Hub.Requests;
 using Library.Commons.Game.Server.Interfaces;
@@ -14,9 +15,12 @@ namespace Application.Game.Server.Hubs
         private readonly IRoomsService _roomsService;
         private readonly ITrackableIdGeneratorService _trackableIdGeneratorService;
         private readonly IGameStateService _gameStateService;
+        private readonly IRoomInputQueue _roomInputQueue;
+        private static readonly TimeSpan CommandTimeout = TimeSpan.FromSeconds(3);
 
-        public GameHub(IPlayerService playerService, IPlayerRoomService playerRoomService, IRoomsService roomsService, ITrackableIdGeneratorService trackableIdGeneratorService, IGameStateService gameStateService)
+        public GameHub(IPlayerService playerService, IPlayerRoomService playerRoomService, IRoomsService roomsService, ITrackableIdGeneratorService trackableIdGeneratorService, IGameStateService gameStateService, IRoomInputQueue roomInputQueue)
         {
+            _roomInputQueue = roomInputQueue;
             _playerService = playerService;
             _playerRoomService = playerRoomService;
             _roomsService = roomsService;
@@ -38,10 +42,10 @@ namespace Application.Game.Server.Hubs
         {
             var roomTrackableId = _trackableIdGeneratorService.Generate(roomId);
             var playerTrackableId = _trackableIdGeneratorService.Generate(playerId);
-            var result =
-                await _gameStateService.ReconnectPlayer(roomTrackableId, playerTrackableId, Context.ConnectionId);
-            if(!result.HasValue) return;
-            await Groups.RemoveFromGroupAsync(result.Value.oldPlayerConnectionId, roomId.ToString(),
+            var result = await RunInRoomAsync(roomId,
+                new ReconnectPlayerCommand(roomTrackableId, playerTrackableId, Context.ConnectionId));
+            if(result is null) return;
+            await Groups.RemoveFromGroupAsync(result.OldConnectionId, roomId.ToString(),
                 Context.ConnectionAborted);
             var gameState = _gameStateService.GetGameState(roomTrackableId);
             if(gameState == null) return;
@@ -58,9 +62,8 @@ namespace Application.Game.Server.Hubs
 
         private async Task JoinAsNewPlayer(JoinRoomRequest request)
         {
-            var player =
-                await _gameStateService.CreatePlayerInRoom(Context.ConnectionId, request.Nickname, request.RoomId,
-                    Context.ConnectionAborted);
+            var player = await RunInRoomAsync(request.RoomId,
+                new JoinNewPlayerCommand(Context.ConnectionId, request.Nickname, request.RoomId));
             if (player is null)
                 return;
 
@@ -81,64 +84,44 @@ namespace Application.Game.Server.Hubs
             });
         }
 
-        public async Task ChangeDirection(ChangeDirectionRequest request)
+        public Task ChangeDirection(ChangeDirectionRequest request)
         {
-            var (player, gameState,room) = GetConnectionData();
-            var direction = request.Direction;
-            if (!_gameStateService.ChangeDirectionByPlayerId(Context.ConnectionId, direction))
-                return;
-
+            var (_, _, room) = GetConnectionData();
+            if (room is not null)
+                _roomInputQueue.Enqueue(room.Guid, new ChangeDirectionCommand(Context.ConnectionId, request.Direction));
+            return Task.CompletedTask;
         }
 
         public async Task LeaveRoom(LeaveRoomRequest request)
         {
-            var player = _playerService.Get(Context.ConnectionId);
-            if (player is null)
+            var (_, gameState, room) = GetConnectionData();
+            if (gameState is null || room is null) return;
+            var player = await RunInRoomAsync(room.Guid, new LeaveCommand(Context.ConnectionId));
+            if (player is null) return;
+            await Clients.Group(room.Guid.ToString()).PlayerLefted(new PlayerLeftedEvent
             {
-                await base.OnDisconnectedAsync(null);
-                return;
-            }
-            var trackableRoomId = _playerRoomService.GetRoomTrackableId(player);
-
-            if (trackableRoomId is null)
-            {
-                await base.OnDisconnectedAsync(null);
-                return;
-            }
-            var room = _roomsService.GetRoom(trackableRoomId);
-            if (room is null)
-            {
-                await base.OnDisconnectedAsync(null);
-                return;
-            }
-            _playerRoomService.DisconnectPlayer(player, room);
-            var gameState = _gameStateService.GetGameState(room);
-            if (gameState is null)
-            {
-                await base.OnDisconnectedAsync(null);
-                return;
-            }
-            gameState.Players.Remove(player.Guid);
-            await Clients.Group(gameState.Room.Guid.ToString()).PlayerLefted(new PlayerLeftedEvent
-            {
-                RoomId = gameState.Room.Guid,
+                RoomId = room.Guid,
                 PlayerTrackableId = player.Guid,
                 PlayerId = Context.ConnectionId
-
             });
-            await Clients.Group(gameState.Room.Guid.ToString()).ConnectedPlayersUpdated(new()
+            await Clients.Group(room.Guid.ToString()).ConnectedPlayersUpdated(new()
             {
                 Players = gameState.Players.Values.ToList()
             });
-
         }
 
-        public async Task Shoot(ShootRequest request)
+        public Task Shoot(ShootRequest request)
         {
-            var (player, gameState, room) = GetConnectionData();
-            if (player is null || gameState is null || room is null)
-                return;
-            await _gameStateService.Shoot(gameState,room,player);
+            var (_, _, room) = GetConnectionData();
+            if (room is not null)
+                _roomInputQueue.Enqueue(room.Guid, new ShootCommand(Context.ConnectionId));
+            return Task.CompletedTask;
+        }
+
+        private async Task<T> RunInRoomAsync<T>(Guid roomId, PlayerCommand<T> command)
+        {
+            _roomInputQueue.Enqueue(roomId, command);
+            return await command.Completion.WaitAsync(CommandTimeout, Context.ConnectionAborted);
         }
 
         private (IPlayer? player, IGameState? gameState, IRoom? room) GetConnectionData()

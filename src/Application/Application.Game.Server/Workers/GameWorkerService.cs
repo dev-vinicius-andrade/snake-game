@@ -25,6 +25,7 @@ public class GameWorkerService : BackgroundService
     private readonly ITrackableIdGeneratorService _trackableIdGeneratorService;
     private readonly ITickRateService _tickRateService;
     private readonly RoomSimulation _roomSimulation;
+    private readonly IRoomInputQueue _roomInputQueue;
     private readonly ConcurrentDictionary<Guid, FixedTimestepClock> _clocks = new();
 
     public GameWorkerService(
@@ -34,8 +35,10 @@ public class GameWorkerService : BackgroundService
         IGameStateService gameStateService,
         ITrackableIdGeneratorService trackableIdGeneratorService,
         ITickRateService tickRateService,
-        RoomSimulation roomSimulation)
+        RoomSimulation roomSimulation,
+        IRoomInputQueue roomInputQueue)
     {
+        _roomInputQueue = roomInputQueue;
         _logger = logger;
         _gameHub = gameHub;
         _playerRoomService = playerRoomService;
@@ -60,18 +63,20 @@ public class GameWorkerService : BackgroundService
 
     private async Task RunFrameAsync(TimeSpan elapsed, CancellationToken cancellationToken)
     {
-        var rooms = _playerRoomService.GetRoomsPlayers();
-        DiscardClocksOfClosedRooms(rooms.Keys);
-        await Parallel.ForEachAsync(rooms.Keys, cancellationToken,
-            (roomId, token) => ProcessRoomAsync(roomId, elapsed, token));
+        var roomsWithPlayers = _playerRoomService.GetRoomsPlayers().Keys;
+        var roomsWithPendingInput = _roomInputQueue.RoomsWithPendingCommands().ToHashSet();
+        var activeRooms = roomsWithPlayers.Union(roomsWithPendingInput).ToArray();
+        DiscardClocksOfClosedRooms(activeRooms);
+        await Parallel.ForEachAsync(activeRooms, cancellationToken,
+            (roomId, token) => ProcessRoomAsync(roomId, roomsWithPendingInput.Contains(roomId), elapsed, token));
     }
 
-    private async ValueTask ProcessRoomAsync(Guid roomId, TimeSpan elapsed, CancellationToken cancellationToken)
+    private async ValueTask ProcessRoomAsync(Guid roomId, bool hasPendingInput, TimeSpan elapsed, CancellationToken cancellationToken)
     {
         try
         {
             var gameState = _gameStateService.GetGameState(_trackableIdGeneratorService.Generate(roomId));
-            if (gameState is null || gameState.Players.Count == 0) return;
+            if (gameState is null || (gameState.Players.Count == 0 && !hasPendingInput)) return;
             var ticks = _clocks.GetOrAdd(roomId, CreateClock).Advance(elapsed);
             if (ticks.Count == 0) return;
             var diedPlayers = await StepAsync(gameState, ticks, cancellationToken);

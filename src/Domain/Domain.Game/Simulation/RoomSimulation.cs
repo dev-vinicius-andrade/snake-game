@@ -13,17 +13,21 @@ public sealed record SimulationStepResult(IReadOnlyList<IPlayer> DiedPlayers);
 public sealed class RoomSimulation
 {
     private readonly IGameStateService _gameStateService;
+    private readonly IRoomInputQueue _inputQueue;
 
-    public RoomSimulation(IGameStateService gameStateService)
+    public RoomSimulation(IGameStateService gameStateService, IRoomInputQueue inputQueue)
     {
         ArgumentNullException.ThrowIfNull(gameStateService);
+        ArgumentNullException.ThrowIfNull(inputQueue);
         _gameStateService = gameStateService;
+        _inputQueue = inputQueue;
     }
 
     public async Task<SimulationStepResult> StepAsync(IGameState gameState, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(gameState);
 
+        await _inputQueue.DrainAsync(gameState, cancellationToken);
         await _gameStateService.MoveObstacles(gameState);
         var livingPlayers = SnapshotLivingPlayers(gameState);
         await AdvancePlayersAsync(gameState, livingPlayers, cancellationToken);

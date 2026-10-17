@@ -30,6 +30,7 @@ public static class DependencyInjection
         services.AddSingleton<IPointAxisServices, PointAxisServices>();
         services.AddSingleton<ITickRateService, TickRateService>();
         services.AddSingleton<IObstacleService, ObstacleService>();
+        services.AddSingleton<IRoomInputQueue, RoomInputQueue>();
         services.AddSingleton<RoomSimulation>();
         return services;
     }
