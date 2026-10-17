@@ -13,7 +13,11 @@ export interface GazeSample {
   blink?: number;
   /** Camera sources: false when no face was found in the frame. Pointer sources leave it out, meaning present. */
   present?: boolean;
-  /** Camera sources: the eye signal before calibration, in -1..1, used to calibrate. */
+  /** Head sources: how far the mouth is open, 0..1. */
+  jaw?: number;
+  /** Head sources: how far the eyebrows are raised, 0..1. */
+  brows?: number;
+  /** Camera sources: the signal before calibration, in -1..1, used to calibrate. */
   raw?: { x: number; y: number };
 }
 
