@@ -35,6 +35,7 @@ const eye = useEyeControl({
   storage: createCalibrationStorage(),
   cameraStorage: createCameraPreferenceStorage(),
   getRoom: () => game.room.value,
+  getHead: () => game.self.value?.head ?? null,
   onIntent: session.handleIntent,
   canSteer: session.allowsGazeSteer,
 });

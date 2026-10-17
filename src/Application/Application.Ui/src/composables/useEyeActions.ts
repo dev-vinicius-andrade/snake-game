@@ -14,6 +14,8 @@ export interface UseEyeActionsOptions extends EyeActionsOptions {
   enabled?: () => boolean;
 }
 
+const NO_ROOM = { width: 1, height: 1 };
+
 /** Blink to shoot, far gaze to boost, and whether the face is tracked, from camera gaze samples. */
 export function useEyeActions(options: UseEyeActionsOptions) {
   const actions = new EyeActions(options);
@@ -21,9 +23,8 @@ export function useEyeActions(options: UseEyeActionsOptions) {
 
   function onSample(sample: GazeSample) {
     const room = options.getRoom();
-    if (!room) return;
-    // Tracking is followed even while disabled: calibrating needs to know whether the face is found.
-    const result = actions.process(sample, room, { act: options.enabled?.() ?? true });
+    // Tracking is followed even while disabled or without a game (the start page): calibrating needs to know whether the face is found.
+    const result = actions.process(sample, room ?? NO_ROOM, { act: room !== null && (options.enabled?.() ?? true) });
     if (result.tracking) tracking.value = result.tracking;
     result.intents.forEach(options.onIntent);
   }

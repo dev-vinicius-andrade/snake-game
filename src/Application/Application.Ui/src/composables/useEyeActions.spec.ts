@@ -68,6 +68,17 @@ describe("useEyeActions", () => {
     expect(actions.tracking.value).toBe("lost");
   });
 
+  it("follows the face without a room, as on the start page, but never acts", async () => {
+    overrides.getRoom = () => null;
+    const actions = await started();
+
+    source.emit(camera(0, { x: 1 }));
+    source.emit(camera(400, { x: 1 }));
+
+    expect(actions.tracking.value).toBe("tracking");
+    expect(intents).toEqual([]);
+  });
+
   it("does nothing without a room", async () => {
     overrides.getRoom = () => null;
     await started();

@@ -50,9 +50,12 @@ Turn it on with the "Eye control" button (bottom right of the game view). Mouse 
 3. **Calibration.** Five dots (centre, left, right, up, down), about 1.5 s each: the first half second is skipped while the eyes travel,
    then the median of 30 frames is kept. A least squares line per axis maps the eye signal to the stage (a negative gain is fine, so a flipped
    convention calibrates itself). The result is stored in `localStorage` and reused. "Recalibrate" forgets it.
-4. **Steering.** Joystick style: the calibrated gaze point is smoothed (One Euro), and its direction from the middle of the stage becomes the heading,
-   with a dead zone of 12 % of the smaller side of the room and the same angle hysteresis and `Steer` throttling as the mouse.
-   A keyboard direction keeps gaze steering out of the way for one second.
+4. **Steering.** The snake turns toward where you look, measured from its own head, like aiming with a mouse. Looking at the snake does
+   nothing, wherever it is on the screen. The calibrated gaze point is smoothed (One Euro). A dead zone of 15 % of the smaller side of the
+   room around the head means "keep your heading", and a turn needs the gaze to stay in one direction (within about 20 degrees) for 0.3 s,
+   so a glance at the leaderboard or at another snake does not steer. Once steering, it follows the gaze without waiting again until the gaze
+   returns to the dead zone. A keyboard direction keeps gaze steering out of the way for one second. Without a snake (or on the start page)
+   there is nothing to aim from and nothing steers.
 5. **Shoot.** A deliberate blink: eyes shut for 0.5 to 2 s, reported when they open. Natural blinks (about 0.1 to 0.4 s) are ignored.
 6. **Boost.** Keep looking far from the middle (40 % of the smaller side of the room) for 0.4 s; it ends when the gaze comes back in.
 7. **Tracking lost.** After 0.6 s without a face nothing fires, a running boost ends, and the panel says "Face not found". The snake keeps its heading.
@@ -62,7 +65,9 @@ Turn it on with the "Eye control" button (bottom right of the game view). Mouse 
 - No webcam was available while this was built. The pure parts are covered by specs (blendshape maths, calibration fit, blink, far gaze, tracking,
   frame processing, camera source lifecycle with fakes, the whole `useEyeControl` flow) and the denied-permission path was seen in the browser pane
   (error text shown, mouse aim switched off). Real tracking quality, thresholds and the dead zone and far radius defaults need to be tried and tuned.
-- Calibration runs while the game is on, so the snake keeps moving. Calibrating before joining would be safer.
+- Calibrate on the **start page** ("Eye control" button, bottom right): nothing moves there, and the calibration is saved for the game.
+  Turning eye control on in the game with a saved calibration starts steering at once. Recalibrating inside a game still works but the snake keeps moving.
+- Head movement changes what the eyes signal. Keep roughly the same position and distance as during calibration, or recalibrate.
 - Model and wasm come from Google storage and jsDelivr by default. Set `VITE_FACE_LANDMARKER_MODEL_URL` and `VITE_MEDIAPIPE_WASM_URL`
   (see `.env.example`) to serve them yourself. Camera images are never sent anywhere either way.
 - Camera access needs `https` or `localhost`.

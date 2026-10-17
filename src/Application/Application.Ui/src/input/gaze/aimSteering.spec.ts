@@ -114,3 +114,69 @@ describe("aimStep", () => {
     expect(() => step(initialAimState, { x: 700, y: 500 }, bad)).toThrow(RangeError);
   });
 });
+
+describe("aimStep dwell", () => {
+  const dwell: AimOptions = { deadRadius: 100, dwellMs: 300 };
+  const at = (state: AimState, target: { x: number; y: number }, t: number) => aimStep(state, head, target, dwell, t);
+  const right = { x: 700, y: 500 };
+
+  it("does not steer at the first glance outside the dead zone", () => {
+    expect(at(initialAimState, right, 0).steer).toBeNull();
+  });
+
+  it("steers once the gaze stayed in that direction for the dwell time", () => {
+    let state = at(initialAimState, right, 0).state;
+    state = at(state, right, 299).state;
+
+    expect(at(state, right, 299).steer).toBeNull();
+    expect(at(state, right, 300).steer).toBe(0);
+  });
+
+  it("starts the wait over when the gaze moves to another direction", () => {
+    let state = at(initialAimState, right, 0).state;
+    state = at(state, { x: 500, y: 700 }, 200).state;
+
+    expect(at(state, { x: 500, y: 700 }, 400).steer).toBeNull();
+    expect(at(state, { x: 500, y: 700 }, 500).steer).toBeCloseTo(Math.PI / 2, 9);
+  });
+
+  it("is not restarted by a little jitter in the direction", () => {
+    let state = at(initialAimState, right, 0).state;
+    state = at(state, { x: 700, y: 500 + 200 * Math.tan(0.1) }, 150).state;
+
+    expect(at(state, { x: 700, y: 500 - 200 * Math.tan(0.1) }, 300).steer).not.toBeNull();
+  });
+
+  it("starts the wait over when the gaze falls back into the dead zone", () => {
+    let state = at(initialAimState, right, 0).state;
+    state = at(state, { x: 510, y: 500 }, 100).state;
+    state = at(state, right, 150).state;
+
+    expect(at(state, right, 400).steer).toBeNull();
+    expect(at(state, right, 450).steer).toBe(0);
+  });
+
+  it("follows the gaze without waiting again once steering", () => {
+    let state = at(initialAimState, right, 0).state;
+    state = at(state, right, 300).state;
+
+    expect(at(state, { x: 700, y: 500 + 200 * Math.tan(0.4) }, 316).steer).toBeCloseTo(0.4, 9);
+  });
+
+  it("waits again after the gaze went back to the dead zone", () => {
+    let state = at(initialAimState, right, 0).state;
+    state = at(state, right, 300).state;
+    state = at(state, { x: 510, y: 500 }, 400).state;
+
+    expect(at(state, right, 450).steer).toBeNull();
+  });
+
+  it("does not wait at all without a dwell time", () => {
+    expect(aimStep(initialAimState, head, right, { deadRadius: 100 }, 0).steer).toBe(0);
+    expect(aimStep(initialAimState, head, right, { deadRadius: 100, dwellMs: 0 }, 0).steer).toBe(0);
+  });
+
+  it.each([{ dwellMs: -1 }, { dwellMs: 300, dwellAngle: 0 }, { dwellMs: 300, dwellAngle: -0.1 }])("rejects the options %j", (bad) => {
+    expect(() => aimStep(initialAimState, head, right, { deadRadius: 100, ...bad }, 0)).toThrow(RangeError);
+  });
+});

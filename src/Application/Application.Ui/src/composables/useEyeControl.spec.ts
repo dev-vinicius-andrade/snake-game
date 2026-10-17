@@ -52,6 +52,7 @@ function create() {
     storage,
     cameraStorage: cameraPreference,
     getRoom: () => room,
+    getHead: () => ({ x: 492.5, y: 492.5 }),
     onIntent: (intent) => intents.push(intent),
     calibration: { framesPerTarget: 3, settleFrames: 0 },
     tracking: { recoverAfterMs: 0, lostAfterMs: 500 },
@@ -247,6 +248,50 @@ describe("useEyeControl calibration", () => {
 describe("useEyeControl active", () => {
   beforeEach(() => {
     storage.value = saved;
+    overrides.aim = { dwellMs: 0 };
+  });
+
+  it("steers toward where the gaze is, from the snake's head", async () => {
+    overrides.getHead = () => ({ x: 92.5, y: 492.5 });
+    const control = create();
+    await control.enable();
+
+    source.emit(frame({ x: 0.5, y: 0.5 }));
+
+    expect(intents).toEqual([{ type: "steer", angle: 0 }]);
+  });
+
+  it("does nothing when you look at the snake, wherever it is on the screen", async () => {
+    overrides.getHead = () => ({ x: 892.5, y: 92.5 });
+    const control = create();
+    await control.enable();
+
+    source.emit(frame({ x: 0.9, y: 0.1 }));
+
+    expect(intents).toEqual([]);
+  });
+
+  it("waits a moment before turning, so a glance does not steer", async () => {
+    overrides.aim = undefined;
+    const control = create();
+    await control.enable();
+
+    source.emit({ t: 0, x: 0.9, y: 0.5, present: true, blink: 0, raw: { x: 0, y: 0 } });
+    source.emit({ t: 100, x: 0.9, y: 0.5, present: true, blink: 0, raw: { x: 0, y: 0 } });
+    expect(intents.filter((intent) => intent.type === "steer")).toEqual([]);
+
+    source.emit({ t: 400, x: 0.9, y: 0.5, present: true, blink: 0, raw: { x: 0, y: 0 } });
+    expect(intents.filter((intent) => intent.type === "steer")).toEqual([{ type: "steer", angle: 0 }]);
+  });
+
+  it("does not steer while there is no snake to aim from", async () => {
+    overrides.getHead = () => null;
+    const control = create();
+    await control.enable();
+
+    source.emit(frame({ x: 0.9, y: 0.5 }));
+
+    expect(intents).toEqual([]);
   });
 
   it("steers from the middle of the stage", async () => {
@@ -283,6 +328,31 @@ describe("useEyeControl active", () => {
     const control = create();
     await control.enable();
     expect(control.tracking.value).toBe("lost");
+
+    source.emit(frame());
+
+    expect(control.tracking.value).toBe("tracking");
+  });
+});
+
+describe("useEyeControl without a game, as on the start page", () => {
+  it("calibrates and saves with no room and no snake", async () => {
+    overrides.getRoom = () => null;
+    overrides.getHead = () => null;
+    const control = create();
+    await control.enable();
+
+    lookAtTargets(goodEye, control);
+
+    expect(control.phase.value).toBe("active");
+    expect(storage.value).not.toBeNull();
+    expect(intents).toEqual([]);
+  });
+
+  it("knows the face is tracked while calibrating with no room", async () => {
+    overrides.getRoom = () => null;
+    const control = create();
+    await control.enable();
 
     source.emit(frame());
 
@@ -452,6 +522,7 @@ describe("useEyeControl camera choice", () => {
   });
 
   it("can be turned on again after a failed switch without listening twice", async () => {
+    overrides.aim = { dwellMs: 0 };
     const control = create();
     await control.enable();
     source.selectError = new CameraError("busy", "in use");

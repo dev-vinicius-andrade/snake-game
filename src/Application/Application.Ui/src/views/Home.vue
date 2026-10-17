@@ -35,6 +35,7 @@
       </VRow>
     </VContainer>
   </VRow>
+  <EyeSetup />
 </template>
 <script setup lang="ts">
 export interface IHomeComponentData {

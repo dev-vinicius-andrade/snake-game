@@ -22,6 +22,8 @@ export interface UseGazeControlsOptions {
    * joystick, which suits a camera that only knows roughly where the eyes point.
    */
   origin?: "head" | "center";
+  /** Dead radius as a fraction of the smaller side of the room. An explicit `aim.deadRadius` wins. */
+  deadFraction?: number;
   /** Top-left corner of the own snake's head box in world units, or null while there is no snake. Used in `head` mode. */
   getHead?: () => GamePoint | null;
   getRoom: () => RoomDimensions | null;
@@ -58,7 +60,8 @@ export function useGazeControls(options: UseGazeControlsOptions) {
   }
 
   function aimOptionsFor(room: RoomDimensions): AimOptions {
-    const fallbackRadius = origin === "center" ? JOYSTICK_DEAD_FRACTION * Math.min(room.width, room.height) : DEFAULT_DEAD_RADIUS;
+    const fraction = options.deadFraction ?? (origin === "center" ? JOYSTICK_DEAD_FRACTION : undefined);
+    const fallbackRadius = fraction === undefined ? DEFAULT_DEAD_RADIUS : fraction * Math.min(room.width, room.height);
     return { ...options.aim, deadRadius: options.aim?.deadRadius ?? fallbackRadius };
   }
 
@@ -73,7 +76,7 @@ export function useGazeControls(options: UseGazeControlsOptions) {
     if (!room || !from) return;
 
     const target = filter.filter(stageToWorld(sample, room), sample.t);
-    const result = aimStep(aimState, from, target, aimOptionsFor(room));
+    const result = aimStep(aimState, from, target, aimOptionsFor(room), sample.t);
     if (result.steer === null) {
       aimState = result.state;
       return;

@@ -223,6 +223,42 @@ describe("useGazeControls lost face", () => {
   });
 });
 
+describe("useGazeControls dwell and dead zone fraction", () => {
+  it("waits for the dwell time before steering, using the sample times", async () => {
+    overrides.aim = { dwellMs: 300 };
+    await started();
+
+    source.emit({ t: 0, x: 0.9, y: 0.5 });
+    source.emit({ t: 200, x: 0.9, y: 0.5 });
+    expect(intents).toEqual([]);
+
+    source.emit({ t: 300, x: 0.9, y: 0.5 });
+    expect(intents).toEqual([{ type: "steer", angle: 0 }]);
+  });
+
+  it("takes the dead radius as a fraction of the smaller side of the room", async () => {
+    overrides.deadFraction = 0.3;
+    await started();
+
+    source.emit({ t: 0, x: 0.7, y: 0.5 });
+    expect(intents).toEqual([]);
+
+    source.emit({ t: 16, x: 0.95, y: 0.5 });
+    source.emit({ t: 32, x: 0.99, y: 0.5 });
+    expect(intents.length).toBeGreaterThan(0);
+  });
+
+  it("lets an explicit dead radius win over the fraction", async () => {
+    overrides.deadFraction = 0.3;
+    overrides.aim = { deadRadius: 10 };
+    await started();
+
+    source.emit({ t: 0, x: 0.52, y: 0.5 });
+
+    expect(intents).toHaveLength(1);
+  });
+});
+
 describe("useGazeControls arbitration", () => {
   it("holds steering back while the arbiter says no", async () => {
     overrides.canSteer = () => false;

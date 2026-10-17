@@ -55,6 +55,8 @@ export const messages = {
       faceLost: "Face not found. Look at the camera.",
       privacy: "Camera images stay in your browser.",
       camera: "Camera",
+      setupHint: "Want to play with your eyes? Turn on eye control here and calibrate before you join, while nothing is moving.",
+      calibrated: "Eye calibration saved. Turn on eye control in the game to use it.",
       virtualCamera: "This looks like a virtual camera (OBS or similar). Pick your webcam in the list.",
       errors: {
         denied: "Camera access was refused. Allow it in the browser and try again.",

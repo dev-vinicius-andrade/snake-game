@@ -10,6 +10,7 @@ declare module '@vue/runtime-core' {
     CalibrationOverlay: typeof import('./src/components/game/CalibrationOverlay.vue')['default']
     Dialog: typeof import('./src/components/Dialog.vue')['default']
     EyeControlPanel: typeof import('./src/components/game/EyeControlPanel.vue')['default']
+    EyeSetup: typeof import('./src/components/game/EyeSetup.vue')['default']
     GameHud: typeof import('./src/components/game/GameHud.vue')['default']
     GameStage: typeof import('./src/components/game/GameStage.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

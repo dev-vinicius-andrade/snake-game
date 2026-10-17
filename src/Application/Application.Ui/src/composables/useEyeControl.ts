@@ -12,9 +12,10 @@ import { classifyCameraError, type CameraErrorKind } from "@/input/gaze/cameraEr
 import type { CameraPreferenceStorage } from "@/input/gaze/cameraPreference";
 import type { EyeActionsOptions } from "@/input/gaze/eyeActions";
 import type { GazeSample, GazeSource } from "@/input/gaze/gazeSource";
+import type { AimOptions } from "@/input/gaze/aimSteering";
 import type { CameraGazeSource } from "@/input/gaze/mediapipeGazeSource";
 import type { ControlIntent } from "@/input/intents";
-import type { RoomDimensions } from "@/types/game";
+import type { GamePoint, RoomDimensions } from "@/types/game";
 import { useEyeActions } from "./useEyeActions";
 import { useGazeControls } from "./useGazeControls";
 
@@ -26,6 +27,13 @@ export interface UseEyeControlOptions extends EyeActionsOptions {
   /** Remembers which camera the player picked. Without it the browser default is used every time. */
   cameraStorage?: CameraPreferenceStorage;
   getRoom: () => RoomDimensions | null;
+  /**
+   * Top-left corner of the own snake's head box. With it the snake steers toward where the player looks, so looking at
+   * the snake itself changes nothing. Without it (the start page) steering aims from the middle of the stage.
+   */
+  getHead?: () => GamePoint | null;
+  /** Tuning for steering. The defaults wait 0.3 s before the first turn. */
+  aim?: Partial<AimOptions>;
   onIntent: (intent: ControlIntent) => void;
   /** Return false to hold steering back, for example while the keyboard is steering. */
   canSteer?: (now: number) => boolean;
@@ -34,6 +42,13 @@ export interface UseEyeControlOptions extends EyeActionsOptions {
 
 /** Calibrating shows each target for about a second and a half: half a second to get there, one to measure. */
 const DEFAULT_CALIBRATION: CalibrationRecorderOptions = { framesPerTarget: 30, settleFrames: 15 };
+
+/**
+ * A webcam knows roughly where the eyes point, not exactly: the dead zone around the snake's head is a sixth of the room,
+ * and a turn needs the gaze to stay put for a moment so glancing at something does not steer.
+ */
+const EYE_DEAD_FRACTION = 0.15;
+const EYE_DWELL_MS = 300;
 
 /** Lets several consumers listen to one camera while this composable alone starts and stops it. */
 function sharedSource(source: GazeSource): GazeSource {
@@ -67,7 +82,10 @@ export function useEyeControl(options: UseEyeControlOptions) {
 
   const steering = useGazeControls({
     source: shared,
-    origin: "center",
+    origin: options.getHead ? "head" : "center",
+    getHead: options.getHead,
+    deadFraction: EYE_DEAD_FRACTION,
+    aim: { dwellMs: EYE_DWELL_MS, ...options.aim },
     getRoom: options.getRoom,
     onIntent: options.onIntent,
     canSteer: options.canSteer,
