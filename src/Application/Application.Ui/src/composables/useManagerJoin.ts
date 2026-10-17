@@ -17,9 +17,32 @@ export interface UseManagerJoinOptions {
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 
+/** A room by id, or by the invite code its host shared. */
+export type JoinTarget = string | { code: string };
+
 const defaultPostJoin: PostJoin = async (url, body) => {
-  await axios.post(url, body);
+  try {
+    await axios.post(url, body);
+  } catch (failure) {
+    if (axios.isAxiosError(failure) && failure.response?.status === 404) throw new Error("That room does not exist anymore");
+    throw failure;
+  }
 };
+
+const JOIN_FAILURES: Record<string, string> = {
+  roomFull: "That room is full",
+  noCapacity: "No game server is free right now",
+};
+
+function joinFailureMessage(payload: unknown): string {
+  const reason = (payload as { reason?: unknown } | null)?.reason;
+  return (typeof reason === "string" && JOIN_FAILURES[reason]) || "Could not join the game";
+}
+
+function joinRoute(target?: JoinTarget): string {
+  if (!target) return "join";
+  return typeof target === "string" ? `join/room/${target}` : `join/code/${encodeURIComponent(target.code)}`;
+}
 
 function parseAssignment(raw: unknown): JoinAssignment {
   const value = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
@@ -53,7 +76,9 @@ function waitForAssignment(client: HubClient, timeoutMs: number): AssignmentWait
     () => settle.reject(new Error("Timed out waiting for a game server to accept the player")),
     timeoutMs
   );
+  const failureHandler = (payload: unknown) => settle.reject(new Error(joinFailureMessage(payload)));
   client.on("onJoinedRoom", handler);
+  client.on("onJoinFailed", failureHandler);
 
   return {
     promise,
@@ -61,6 +86,7 @@ function waitForAssignment(client: HubClient, timeoutMs: number): AssignmentWait
     dispose: () => {
       clearTimeout(timer);
       client.off("onJoinedRoom", handler);
+      client.off("onJoinFailed", failureHandler);
     },
   };
 }
@@ -80,7 +106,7 @@ export function useManagerJoin(options: UseManagerJoinOptions = {}) {
   let active: { client: HubClient; waiter: AssignmentWaiter } | null = null;
   let cancelled = false;
 
-  async function join(nickname: string, roomId?: string): Promise<JoinAssignment> {
+  async function join(nickname: string, target?: JoinTarget): Promise<JoinAssignment> {
     const trimmed = nickname.trim();
     if (!trimmed) throw new Error("A nickname is required to join");
     await cancel();
@@ -92,7 +118,7 @@ export function useManagerJoin(options: UseManagerJoinOptions = {}) {
     const waiter = waitForAssignment(client, timeoutMs);
     active = { client, waiter };
     try {
-      return await requestAssignment(client, waiter, trimmed, roomId);
+      return await requestAssignment(client, waiter, trimmed, target);
     } catch (failure) {
       status.value = cancelled ? "idle" : "error";
       error.value = cancelled ? null : (failure as Error).message;
@@ -104,12 +130,11 @@ export function useManagerJoin(options: UseManagerJoinOptions = {}) {
     }
   }
 
-  async function requestAssignment(client: HubClient, waiter: AssignmentWaiter, nickname: string, roomId?: string) {
+  async function requestAssignment(client: HubClient, waiter: AssignmentWaiter, nickname: string, target?: JoinTarget) {
     await client.start();
     if (!client.connectionId) throw new Error("The manager hub did not provide a connection id");
     status.value = "waiting";
-    const route = roomId ? `join/room/${roomId}` : "join";
-    await postJoin(`${managerUrl}/${route}`, { id: client.connectionId, nickname });
+    await postJoin(`${managerUrl}/${joinRoute(target)}`, { id: client.connectionId, nickname });
     const assignment = await waiter.promise;
     status.value = "assigned";
     return assignment;

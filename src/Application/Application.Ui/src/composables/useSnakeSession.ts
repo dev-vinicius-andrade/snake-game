@@ -3,7 +3,7 @@ import { InputArbiter } from "@/input/arbiter";
 import type { ControlIntent } from "@/input/intents";
 import type { useGameConnection } from "./useGameConnection";
 import { useKeyboardControls, type KeyEventTarget } from "./useKeyboardControls";
-import type { useManagerJoin } from "./useManagerJoin";
+import type { JoinTarget, useManagerJoin } from "./useManagerJoin";
 
 export type SessionPhase = "idle" | "joining" | "playing" | "dead" | "error";
 
@@ -66,14 +66,14 @@ export function useSnakeSession({ joiner, game, keyboardTarget, now = Date.now }
     { flush: "sync" }
   );
 
-  async function start(nickname: string, roomId?: string) {
+  async function start(nickname: string, target?: JoinTarget) {
     stopped = false;
     boosting = false;
     error.value = null;
     phase.value = "joining";
     keyboard.detach();
     try {
-      const assignment = await joiner.join(nickname.trim(), roomId);
+      const assignment = await joiner.join(nickname.trim(), target);
       if (stopped) return;
       await game.connect(assignment);
       if (stopped) return;
