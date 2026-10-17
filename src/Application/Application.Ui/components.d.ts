@@ -7,11 +7,11 @@ export {}
 
 declare module '@vue/runtime-core' {
   export interface GlobalComponents {
-    copy: typeof import('./src/components/GameRoom copy.vue')['default']
     Dialog: typeof import('./src/components/Dialog.vue')['default']
-    GameCanvas: typeof import('./src/components/GameCanvas.vue')['default']
-    GameRoom: typeof import('./src/components/GameRoom.vue')['default']
+    GameHud: typeof import('./src/components/game/GameHud.vue')['default']
+    GameStage: typeof import('./src/components/game/GameStage.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SessionOverlay: typeof import('./src/components/game/SessionOverlay.vue')['default']
   }
 }

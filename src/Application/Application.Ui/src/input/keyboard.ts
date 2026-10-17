@@ -1,0 +1,80 @@
+import type { ControlDirection } from "@/types/game";
+
+/** What the player wants, independent of the device that expressed it (keyboard now, eyes later). */
+export type ControlIntent =
+  | { type: "direction"; direction: ControlDirection }
+  | { type: "shoot" }
+  | { type: "boost"; active: boolean };
+
+export interface KeyboardState {
+  /** Direction key codes currently held, oldest first. The last one decides the direction. */
+  readonly held: readonly string[];
+  readonly boosting: boolean;
+}
+
+export interface KeyInput {
+  code: string;
+  pressed: boolean;
+  repeat?: boolean;
+}
+
+export interface KeyResult {
+  state: KeyboardState;
+  intents: ControlIntent[];
+  /** True when the key means something to the game, so the browser default should be prevented. */
+  handled: boolean;
+}
+
+export const initialKeyboardState: KeyboardState = { held: [], boosting: false };
+
+const DIRECTION_KEYS: ReadonlyMap<string, ControlDirection> = new Map([
+  ["ArrowUp", "up"],
+  ["KeyW", "up"],
+  ["ArrowDown", "down"],
+  ["KeyS", "down"],
+  ["ArrowLeft", "left"],
+  ["KeyA", "left"],
+  ["ArrowRight", "right"],
+  ["KeyD", "right"],
+]);
+const SHOOT_KEYS: ReadonlySet<string> = new Set(["Space"]);
+const BOOST_KEYS: ReadonlySet<string> = new Set(["ShiftLeft", "ShiftRight"]);
+
+export const directionForKey = (code: string): ControlDirection | null => DIRECTION_KEYS.get(code) ?? null;
+
+const activeDirection = (held: readonly string[]): ControlDirection | null =>
+  held.length === 0 ? null : directionForKey(held[held.length - 1]);
+
+function reduceDirectionKey(state: KeyboardState, { code, pressed }: KeyInput): KeyResult {
+  const held = pressed
+    ? state.held.includes(code)
+      ? state.held
+      : [...state.held, code]
+    : state.held.filter((heldCode) => heldCode !== code);
+  const before = activeDirection(state.held);
+  const after = activeDirection(held);
+  const intents: ControlIntent[] = after && after !== before ? [{ type: "direction", direction: after }] : [];
+  const changed = held.length !== state.held.length;
+  return { state: changed ? { ...state, held } : state, intents, handled: true };
+}
+
+function reduceBoostKey(state: KeyboardState, { pressed }: KeyInput): KeyResult {
+  if (state.boosting === pressed) return { state, intents: [], handled: true };
+  return { state: { ...state, boosting: pressed }, intents: [{ type: "boost", active: pressed }], handled: true };
+}
+
+export function reduceKey(state: KeyboardState, input: KeyInput): KeyResult {
+  if (DIRECTION_KEYS.has(input.code)) return reduceDirectionKey(state, input);
+  if (SHOOT_KEYS.has(input.code)) {
+    const fresh = input.pressed && !input.repeat;
+    return { state, intents: fresh ? [{ type: "shoot" }] : [], handled: true };
+  }
+  if (BOOST_KEYS.has(input.code)) return reduceBoostKey(state, input);
+  return { state, intents: [], handled: false };
+}
+
+/** Window lost focus: key-up events will never arrive, so forget everything that is held. */
+export function releaseAll(state: KeyboardState): KeyResult {
+  const intents: ControlIntent[] = state.boosting ? [{ type: "boost", active: false }] : [];
+  return { state: initialKeyboardState, intents, handled: true };
+}

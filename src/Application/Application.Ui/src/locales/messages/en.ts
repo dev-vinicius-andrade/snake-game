@@ -25,5 +25,23 @@ export const messages = {
     join: "Join",
     joinRandomRoom: "Join Random Room",
   },
+  game: {
+    score: "Score",
+    leaderboard: "Top players",
+    joining: "Finding a game...",
+    joinFailed: "Could not join a game",
+    reconnecting: "Reconnecting...",
+    disconnected: "Disconnected",
+    died: "You died",
+    finalScore: "Final score: {score}",
+    playAgain: "Play again",
+    retry: "Try again",
+    back: "Back",
+    controls: {
+      move: "Move: arrows or WASD",
+      shoot: "Shoot: Space",
+      boost: "Boost: hold Shift",
+    },
+  },
 };
 export default messages;
