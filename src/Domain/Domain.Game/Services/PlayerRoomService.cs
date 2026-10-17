@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using Library.Commons.Game.Domain.Entities.Configurations;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 using Library.Commons.Game.Domain.Interfaces.Services;
@@ -27,7 +27,7 @@ public class PlayerRoomService: IPlayerRoomService
             _roomsPlayers.TryAdd(room.Guid, new List<IPlayer>());
 
 
-        if (_roomsPlayers[room.Guid].Count >= _appSettings.Value.RoomsConfiguration.MaxPlayersPerRoom)
+        if (IsRoomFull(room))
             return false;
         _roomsPlayers[room.Guid].Add(player);
         return true;
@@ -53,7 +53,13 @@ public class PlayerRoomService: IPlayerRoomService
     }
     public bool IsRoomFull(IRoom room)
     {
-        return _roomsPlayers.ContainsKey(room.Guid) && _roomsPlayers[room.Guid].Count >= _appSettings.Value.RoomsConfiguration.MaxPlayersPerRoom;
+        return _roomsPlayers.TryGetValue(room.Guid, out var players) && players.Count >= CapacityOf(room);
+    }
+
+    private int CapacityOf(IRoom room)
+    {
+        var serverLimit = _appSettings.Value.RoomsConfiguration.MaxPlayersPerRoom;
+        return room.MaxPlayers > 0 ? Math.Min(room.MaxPlayers, serverLimit) : serverLimit;
     }
 
     public IReadOnlyDictionary<Guid, IList<IPlayer>> GetRoomsPlayers()

@@ -1,4 +1,4 @@
-﻿using Domain.Game.Constants;
+using Domain.Game.Constants;
 using Domain.Game.Rules;
 using Domain.Game.Services;
 using Domain.Game.Simulation;
@@ -24,6 +24,7 @@ public static class DependencyInjection
             services.AddKnowDirections();
         services.AddSingleton<IPlayerService, PlayerService>();
         services.AddSingleton<IRoomsService, RoomsService>();
+        services.AddSingleton<IRoomJoinRouter, RoomJoinRouter>();
         services.AddSingleton<IGameStateService, GameStateService>();
         services.AddSingleton<IPlayerRoomService, PlayerRoomService>();
         services.AddSingleton<ITrackableIdGeneratorService, TrackableIdGeneratorService>();

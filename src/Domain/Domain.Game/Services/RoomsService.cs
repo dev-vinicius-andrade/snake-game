@@ -1,6 +1,7 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using Domain.Game.Entities;
 using Library.Commons.Game.Domain.Constants;
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Entities.Configurations;
 using Library.Commons.Game.Domain.Exceptions;
 using Library.Commons.Game.Domain.Interfaces.Entities;
@@ -27,10 +28,13 @@ public class RoomsService : IRoomsService
         return _rooms.Count() < _serverConfiguration.Value.RoomsConfiguration.MaxRooms;
     }
 
-    public IRoom CreateRoom()
+    public IRoom CreateRoom(RoomOptions? options = null)
     {
         if (!IsAvailable())
             throw new MaxRoomReachedException(_serverConfiguration.Value.RoomsConfiguration.MaxRooms);
+        var code = NormalizeCode(options?.Code);
+        if (code is not null && GetRoomByCode(code) is not null)
+            throw new UnableToCreateRoomException();
         var roomId = Guid.NewGuid();
         while (_rooms.ContainsKey(roomId))
             roomId = Guid.NewGuid();
@@ -38,6 +42,10 @@ public class RoomsService : IRoomsService
         {
             Width = _serverConfiguration.Value.RoomsConfiguration?.Width??RoomDefaultValues.Width,
             Height = _serverConfiguration.Value.RoomsConfiguration?.Height ?? RoomDefaultValues.Height,
+            Name = options?.Name,
+            Code = code,
+            IsPrivate = options?.IsPrivate ?? false,
+            MaxPlayers = LimitMaxPlayers(options?.MaxPlayers ?? 0),
         };
 
         var added = _rooms.TryAdd(roomId, room);
@@ -45,6 +53,19 @@ public class RoomsService : IRoomsService
             added = _rooms.TryAdd(roomId, room);
 
         return room;
+    }
+
+    private static string? NormalizeCode(string? code) => string.IsNullOrWhiteSpace(code) ? null : code.Trim().ToUpperInvariant();
+
+    private int LimitMaxPlayers(int requested) =>
+        requested <= 0 ? 0 : Math.Min(requested, _serverConfiguration.Value.RoomsConfiguration.MaxPlayersPerRoom);
+
+    public IRoom? TryGetRoom(Guid roomId) => _rooms.TryGetValue(roomId, out var room) ? room : null;
+
+    public IRoom? GetRoomByCode(string code)
+    {
+        var normalized = NormalizeCode(code);
+        return normalized is null ? null : _rooms.Values.FirstOrDefault(room => room.Code == normalized);
     }
 
     public IRoom? GetRoom(ITrackableId id)
@@ -65,7 +86,7 @@ public class RoomsService : IRoomsService
     {
 
         return _rooms.Values.Where(
-            room => !_playerRoomService.IsRoomFull(room)).ToList();
+            room => !room.IsPrivate && !_playerRoomService.IsRoomFull(room)).ToList();
 
     }
 
