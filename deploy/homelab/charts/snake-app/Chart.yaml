@@ -1,0 +1,5 @@
+apiVersion: v2
+name: snake-app
+description: One web workload of the snake game (manager api, game server or site). The release name is the workload name.
+type: application
+version: 0.1.0

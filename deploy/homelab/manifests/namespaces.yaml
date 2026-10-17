@@ -1,0 +1,10 @@
+# The apps' namespace. `infrastructure` (RabbitMQ, Redis) is created by rabbitmq.yaml / redis.yaml's own apply if missing.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: home-apps
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: infrastructure

@@ -1,0 +1,7 @@
+node_modules
+dist
+obj
+.env.local
+.env.*.local
+*.log
+*.esproj.user

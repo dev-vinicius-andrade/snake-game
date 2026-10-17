@@ -1,0 +1,21 @@
+# The Vue site, served by nginx. The manager url is baked in at build time (VITE_MANAGER_URL).
+# Set by deploy.sh: image, ingress.host.
+imagePullSecrets:
+  - name: cr-homel4b
+
+# nginx-unprivileged runs as 101 and listens on 8080.
+runAsUser: 101
+containerPort: 8080
+
+probe:
+  path: /
+  initialDelaySeconds: 3
+
+ingress:
+  enabled: true
+  host: ""
+
+resources:
+  cpuRequests: "20m"
+  memoryRequests: "32Mi"
+  memoryLimit: "128Mi"

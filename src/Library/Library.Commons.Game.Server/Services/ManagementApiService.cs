@@ -132,8 +132,11 @@ internal class ManagementApiService: IManagementApiService
         var path = _configuration[$"{ServerConfiguration.SectionName}:Path"];
         if (!string.IsNullOrWhiteSpace(path))
             path = path!.StartsWith("/") ? path : $"/{path}";
-        baseUrl = $"{scheme}://{domain}{path}";
-        rootUri = $"{baseUrl}{HubEndpoints.Game}";
+        var publicBaseUrl = $"{scheme}://{domain}{path}";
+        rootUri = $"{publicBaseUrl}{HubEndpoints.Game}";
+        // Players use the public address; the manager can use a shorter in-cluster one to reach this server.
+        var internalUrl = _configuration[$"{ServerConfiguration.SectionName}:InternalUrl"];
+        baseUrl = string.IsNullOrWhiteSpace(internalUrl) ? publicBaseUrl : internalUrl.TrimEnd('/');
         return true;
     }
 

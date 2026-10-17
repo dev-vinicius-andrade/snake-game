@@ -1,0 +1,45 @@
+# Defaults for one workload. Each workload overrides them in deploy/homelab/values/<workload>.yaml.
+
+replicaCount: 1
+
+# Recreate: never two pods at once. The game server keeps its rooms in memory, so a second pod would split the players.
+strategy: Recreate
+
+image:
+  repository: "" # set by deploy.sh
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+containerPort: 8080
+
+# The numeric user of the image: the kubelet cannot check "runAsNonRoot" against a user name.
+# 1654 is "app" in the .NET 8 images, 101 is nginx-unprivileged.
+runAsUser: 1654
+
+probe:
+  path: /health
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+env: {}
+
+# NAME: { secretName, key }
+secretEnv: {}
+
+resources:
+  cpuRequests: "50m"
+  memoryRequests: "128Mi"
+  memoryLimit: "512Mi"
+
+service:
+  port: 8080
+
+# Routed by the external Traefik. With a clusterIssuer, cert-manager issues the certificate of the host into the
+# Secret <release>-tls (a DNS-01 issuer works for hosts that are not reachable for HTTP-01).
+ingress:
+  enabled: true
+  className: traefik-external
+  host: ""
+  clusterIssuer: letsencrypt-production-homel4b-dev-issuer

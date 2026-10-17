@@ -1,0 +1,36 @@
+# Game server: rooms and the game hub. Players connect to it directly from the browser (wss), so it has its own host.
+# One replica: rooms live in memory, and the browser reaches a pod through the ingress, not through the room.
+# Set by deploy.sh: image, ingress.host, ServerConfiguration__Domain, AppSettings__ManagementApiConfiguration__BaseUrl.
+replicaCount: 1
+
+imagePullSecrets:
+  - name: cr-homel4b
+
+ingress:
+  enabled: true
+  host: ""
+
+resources:
+  cpuRequests: "200m"
+  memoryRequests: "256Mi"
+  memoryLimit: "1Gi"
+
+env:
+  ASPNETCORE_URLS: "http://+:8080"
+  ASPNETCORE_ENVIRONMENT: "Production"
+  Serilog__MinimumLevel: "Information"
+  # The address players and the manager use to reach this server. The port is set explicitly: leaving it out
+  # breaks the url builder for https.
+  ServerConfiguration__Scheme: "https"
+  ServerConfiguration__Port: "443"
+  # Rooms: a room holds up to 10 players, the server up to 20 rooms.
+  ServerConfiguration__RoomsConfiguration__MaxRooms: "20"
+  ServerConfiguration__RoomsConfiguration__MaxPlayersPerRoom: "10"
+
+secretEnv:
+  AppSettings__EventbusConfiguration__ConnectionString:
+    secretName: snake-secrets
+    key: rabbitmq-url
+  AppSettings__ManagementApiConfiguration__ApiKey:
+    secretName: snake-secrets
+    key: api-key

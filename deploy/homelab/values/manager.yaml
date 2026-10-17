@@ -1,0 +1,36 @@
+# Manager api: join and room endpoints, the manager hub, the room registry and the admin api.
+# Set by deploy.sh: image, ingress.host.
+imagePullSecrets:
+  - name: cr-homel4b
+
+ingress:
+  enabled: true
+  host: ""
+
+resources:
+  cpuRequests: "50m"
+  memoryRequests: "128Mi"
+  memoryLimit: "512Mi"
+
+env:
+  ASPNETCORE_URLS: "http://+:8080"
+  ASPNETCORE_ENVIRONMENT: "Production"
+  Serilog__MinimumLevel: "Information"
+  # Redis is wired in but nothing needs it to play (see docs/ROOMS.md); the connection is lazy and failures are ignored.
+  AppSettings__RedisConfiguration__Host: "redis.infrastructure.svc.cluster.local"
+
+secretEnv:
+  AppSettings__EventbusConfiguration__ConnectionString:
+    secretName: snake-secrets
+    key: rabbitmq-url
+  AppSettings__RedisConfiguration__Password:
+    secretName: snake-secrets
+    key: redis-password
+  # Used by the game servers toward the manager, and by the manager toward the game servers.
+  AuthConfiguration__ApiKeys__0:
+    secretName: snake-secrets
+    key: api-key
+  # Opens the admin api and the /admin page. Without it the admin api is closed to everyone.
+  AuthConfiguration__AdminApiKeys__0:
+    secretName: snake-secrets
+    key: admin-key
