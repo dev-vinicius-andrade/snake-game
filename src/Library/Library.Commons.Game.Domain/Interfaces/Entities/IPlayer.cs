@@ -1,4 +1,5 @@
-﻿using Library.Commons.Game.Domain.Enums;
+using System.Text.Json.Serialization;
+using Library.Commons.Game.Domain.Enums;
 
 namespace Library.Commons.Game.Domain.Interfaces.Entities;
 
@@ -11,6 +12,11 @@ public interface IPlayer : IId, ITrackableId
     IColor BackgroundColor { get; set; }
     IColor? BorderColor { get; set; }
     IList<IPointAxis> Path { get; set; }
+    /// <summary>
+    /// Where the head has been, oldest first and the head last. The body is laid out along it, so it never goes to clients.
+    /// </summary>
+    [JsonIgnore]
+    IList<IPointAxis> Trail { get; set; }
     bool IsAlive { get; set; }
     long Score { get; set; }
     /// <summary>HP ratio (0..1) of each body segment, aligned with <see cref="Path"/> (tail to head).</summary>

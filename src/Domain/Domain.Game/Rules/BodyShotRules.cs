@@ -45,7 +45,7 @@ public sealed class BodyShotRules
 
     private static ShotDamageOutcome Break(BodyState body, int segmentIndex)
         => new(
-            new BodyState(RemoveAt(body.Segments, segmentIndex), RemoveAt(body.Health, segmentIndex)),
+            body with { Segments = RemoveAt(body.Segments, segmentIndex), Health = RemoveAt(body.Health, segmentIndex) },
             body.Segments[segmentIndex]);
 
     private static T[] RemoveAt<T>(IReadOnlyList<T> items, int index)

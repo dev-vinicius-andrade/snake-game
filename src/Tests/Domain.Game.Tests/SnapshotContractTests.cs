@@ -46,6 +46,7 @@ public sealed class SnapshotContractTests(ITestOutputHelper output)
             Direction = new MovementDirection(Direction.Right, Point(1, 0)),
             BackgroundColor = new Color("#ff0000", "#aa0000"),
             Path = path,
+            Trail = new List<IPointAxis> { Point(470, 500), Point(485, 500), Point(500, 500) },
             SegmentHealth = new List<double> { 0.5, 1.0 },
             Score = 7,
             IsBoosting = true,
@@ -104,6 +105,14 @@ public sealed class SnapshotContractTests(ITestOutputHelper output)
         Assert.Equal("right", player.GetProperty("currentDirection").GetString());
         Assert.Equal(0.5, player.GetProperty("heading").GetDouble());
         Assert.Equal(1.0, player.GetProperty("targetHeading").GetDouble());
+    }
+
+    [Fact]
+    public void Player_DoesNotSendItsTrailToClients()
+    {
+        var player = SerializeSampleState().GetProperty("players").EnumerateObject().Single().Value;
+
+        Assert.False(player.TryGetProperty("trail", out _));
     }
 
     [Fact]

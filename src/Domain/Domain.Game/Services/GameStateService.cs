@@ -355,6 +355,7 @@ public class GameStateService : IGameStateService
     private void ApplyBody(IPlayer player, BodyState body)
     {
         player.Path = body.Segments.Select(point => ToAxis(player.CurrentPosition, point)).ToList();
+        player.Trail = body.Trail.Select(point => ToAxis(player.CurrentPosition, point)).ToList();
         player.SegmentHealth = body.Health.ToList();
     }
 
@@ -367,7 +368,7 @@ public class GameStateService : IGameStateService
     }
 
     private static BodyState ToBodyState(IPlayer player)
-        => new(ToPoints(player.Path), player.SegmentHealth.ToArray());
+        => new(ToPoints(player.Path), player.SegmentHealth.ToArray(), ToPoints(player.Trail));
 
     private static Point ToPoint(IPointAxis axis) => new(axis.X, axis.Y);
 

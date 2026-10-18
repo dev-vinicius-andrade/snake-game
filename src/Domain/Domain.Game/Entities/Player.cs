@@ -1,4 +1,5 @@
-﻿using Library.Commons.Game.Domain.Enums;
+using System.Text.Json.Serialization;
+using Library.Commons.Game.Domain.Enums;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 
 namespace Domain.Game.Entities;
@@ -12,6 +13,8 @@ internal record Player(Guid Guid, string Name) : IPlayer
     public IColor BackgroundColor { get; set; } = null!;
     public IColor? BorderColor { get; set; }
     public IList<IPointAxis> Path { get; set; } = null!;
+    [JsonIgnore]
+    public IList<IPointAxis> Trail { get; set; } = new List<IPointAxis>();
     public bool IsAlive { get; set; } = true;
     public long Score { get; set; }
     public IList<double> SegmentHealth { get; set; } = new List<double>();
