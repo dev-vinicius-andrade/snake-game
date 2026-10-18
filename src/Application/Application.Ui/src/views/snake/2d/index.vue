@@ -16,6 +16,7 @@ import { createCameraPreferenceStorage } from "@/input/gaze/cameraPreference";
 import { createMediaPipeGazeSource } from "@/input/gaze/mediapipeGazeSource";
 import { createPointerSource } from "@/input/gaze/pointerSource";
 import { toViewPoint } from "@/render/camera";
+import { DEFAULT_HEAD_SIZE } from "@/render/pixelRenderer";
 import { usePlayerStore } from "@/store/usePlayerStore";
 
 const router = useRouter();
@@ -33,10 +34,10 @@ const mouseAim = useStorage("snake.mouseAim", false);
  */
 const visibleRoom = () => stage.value?.getCamera()?.size ?? null;
 const headOnScreen = () => {
-  const head = game.self.value?.head;
   const camera = stage.value?.getCamera();
-  if (!head || !camera) return null;
-  return toViewPoint(head, camera.origin);
+  if (!camera || !game.self.value) return null;
+  // The screen shows the world slightly in the past, blended between server updates: measure from the same moment.
+  return toViewPoint({ x: camera.target.x - DEFAULT_HEAD_SIZE / 2, y: camera.target.y - DEFAULT_HEAD_SIZE / 2 }, camera.origin);
 };
 const aim = useGazeControls({
   source: createPointerSource({ target: window, getRect: () => stage.value?.getRect() ?? null }),

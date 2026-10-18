@@ -62,6 +62,8 @@ export function toViewPoint(point: GamePoint, origin: GamePoint): GamePoint {
 
 /** Everything the stage needs to draw one frame of the camera and to turn pointer positions into world positions. */
 export interface Camera {
+  /** What the camera follows, in the middle of the view. */
+  target: GamePoint;
   /** World position of the top-left corner of the view. */
   origin: GamePoint;
   /** The part of the world in view, in world units. Aim sources use it as the size of their "room". */
@@ -74,6 +76,7 @@ export interface Camera {
 export function followCamera(layout: ViewLayout, target: GamePoint): Camera {
   const size = { width: layout.worldWidth, height: layout.worldHeight };
   return {
+    target,
     origin: cameraOrigin(target, size),
     size,
     view: { width: layout.logicalWidth, height: layout.logicalHeight },

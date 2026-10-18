@@ -135,6 +135,10 @@ describe("followCamera", () => {
     expect(on(100.3, 77.9)).toEqual(on(1800.1, 1000.6));
   });
 
+  it("says what it follows, so aiming can use the same point as the screen", () => {
+    expect(followCamera(layout, { x: 960, y: 540 }).target).toEqual({ x: 960, y: 540 });
+  });
+
   it("is not held back by the walls", () => {
     expect(followCamera(layout, { x: 0, y: 0 }).origin).toEqual({ x: -535, y: -300 });
   });
