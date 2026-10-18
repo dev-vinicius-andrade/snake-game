@@ -3,6 +3,7 @@ import { useElementSize } from "@vueuse/core";
 import { computed, ref } from "vue";
 import { useCanvasRenderer } from "@/composables/useCanvasRenderer";
 import { followCamera, viewLayout, type Camera } from "@/render/camera";
+import { CameraSmoother } from "@/render/cameraSmoothing";
 import { DEFAULT_HEAD_SIZE } from "@/render/pixelRenderer";
 import { headCenter, type StageRect } from "@/render/stageGeometry";
 import type { GamePoint, GameSnapshot } from "@/types/game";
@@ -18,6 +19,8 @@ const layout = computed(() => viewLayout(width.value, height.value, { world: pro
 
 /** The camera follows the own snake. When it died, or before it appears, it stays where it last was. */
 let lastTarget: GamePoint | null = null;
+/** Eases the camera, so it glides into the walls and moves evenly between server snapshots. */
+const smoother = new CameraSmoother();
 
 function target(snapshot: GameSnapshot): GamePoint {
   const own = snapshot.snakes.find((snake) => snake.guid === props.selfGuid && snake.isAlive);
@@ -28,7 +31,9 @@ function target(snapshot: GameSnapshot): GamePoint {
 /** Where the camera is right now, or null until there is a snapshot and the screen has a size. */
 function currentCamera(): Camera | null {
   const snapshot = props.snapshot;
-  return snapshot && layout.value ? followCamera(layout.value, snapshot.room, target(snapshot)) : null;
+  if (!snapshot || !layout.value) return null;
+  const camera = followCamera(layout.value, snapshot.room, target(snapshot));
+  return { ...camera, origin: smoother.step(camera.origin, performance.now()) };
 }
 
 /** Where the canvas is on the page, so pointer positions can be turned into positions on the screen. */
