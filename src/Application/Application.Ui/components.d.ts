@@ -18,6 +18,7 @@ declare module '@vue/runtime-core' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SessionOverlay: typeof import('./src/components/game/SessionOverlay.vue')['default']
+    SiteFooter: typeof import('./src/components/brand/SiteFooter.vue')['default']
     SnakeLogo: typeof import('./src/components/brand/SnakeLogo.vue')['default']
   }
 }

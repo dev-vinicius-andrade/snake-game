@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
+import SiteFooter from "@/components/brand/SiteFooter.vue";
 import SnakeLogo from "@/components/brand/SnakeLogo.vue";
 import RoomActions from "@/components/rooms/RoomActions.vue";
 import { getText } from "@/helpers";
@@ -43,6 +44,7 @@ function playNow() {
     </section>
 
     <EyeSetup />
+    <SiteFooter />
   </main>
 </template>
 

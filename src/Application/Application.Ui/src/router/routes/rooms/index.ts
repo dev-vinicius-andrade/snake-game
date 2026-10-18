@@ -13,6 +13,17 @@ export default [
     ],
   },
   {
+    path: "/about",
+    component: () => import("@layouts/Blank.vue"),
+    children: [
+      {
+        path: "",
+        name: "about",
+        component: () => import("@/views/about/index.vue"),
+      },
+    ],
+  },
+  {
     path: "/admin",
     component: () => import("@layouts/Blank.vue"),
     children: [
