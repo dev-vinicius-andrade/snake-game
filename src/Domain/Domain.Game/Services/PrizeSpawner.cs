@@ -13,17 +13,14 @@ public sealed class PrizeSpawner
     private const string PrizeColor = "#ffd23f";
 
     private readonly PrizeRules _rules;
-    private readonly PrizeOptions _options;
     private readonly TimeProvider _time;
     private readonly ConcurrentDictionary<Guid, PrizeState> _states = new();
 
-    public PrizeSpawner(PrizeRules rules, PrizeOptions options, TimeProvider time)
+    public PrizeSpawner(PrizeRules rules, TimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(rules);
-        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(time);
         _rules = rules;
-        _options = options;
         _time = time;
     }
 
@@ -63,13 +60,14 @@ public sealed class PrizeSpawner
     private void AddPrize(IGameState gameState)
     {
         var room = gameState.Room;
+        var options = _rules.Options;
         var prize = new Food(Guid.NewGuid())
         {
             Position = RandomHelper.RandomPosition(0, room.Width, 0, room.Height),
             Color = new Color(PrizeColor, PrizeColor),
-            Value = _options.Value,
+            Value = options.Value,
             Kind = FoodKind.Prize,
-            FoodsCredit = _options.FoodsCredit
+            FoodsCredit = options.FoodsCredit
         };
         gameState.Foods.Add(prize.Guid, prize);
     }

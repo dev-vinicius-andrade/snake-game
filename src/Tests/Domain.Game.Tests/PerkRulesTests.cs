@@ -237,4 +237,46 @@ public sealed class PerkRulesTests
 
         Assert.Equal(Enum.GetValues<PerkEffect>().ToHashSet(), effects);
     }
+
+    [Fact]
+    public void Reconfigure_ChangesWhatPerksDoFromNowOn()
+    {
+        var rules = Rules(Perk("a", 1, PerkEffect.ExtraShots, 1));
+
+        rules.Reconfigure(new PerkOptions { Perks = [Perk("b", 1, PerkEffect.BoostSpeed, 0.5)] });
+
+        Assert.Equal(0, rules.EffectsFor(1).ExtraShots);
+        Assert.Equal(0.5, rules.EffectsFor(1).BoostSpeedBonus, 6);
+        Assert.Equal(new[] { "b" }, rules.UnlockedIds(1));
+    }
+
+    [Fact]
+    public void Reconfigure_WithBadOptions_ThrowsAndKeepsTheOldOnes()
+    {
+        var rules = Rules(Perk("a", 1, PerkEffect.ExtraShots, 1));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => rules.Reconfigure(new PerkOptions { Perks = [Perk("b", 0, PerkEffect.BoostSpeed, 0.5)] }));
+
+        Assert.Equal(1, rules.EffectsFor(1).ExtraShots);
+    }
+
+    [Fact]
+    public void Reconfigure_ChangesTheBurstIntervalAndTheSpread()
+    {
+        var rules = new PerkRules(new PerkOptions());
+
+        rules.Reconfigure(new PerkOptions { BurstIntervalMilliseconds = 200, ShotSpreadDegrees = 20 });
+
+        Assert.Equal(200, rules.BurstIntervalMilliseconds);
+        Assert.Equal(20 * Math.PI / 180, rules.ShotOffsets(2).Last() * 2, 9);
+    }
+
+    [Fact]
+    public void Settings_AreWhatWasLastApplied()
+    {
+        var options = new PerkOptions { Perks = [Perk("a", 3, PerkEffect.Magnet, 40)] };
+        var rules = new PerkRules(options);
+
+        Assert.Same(options, rules.Options);
+    }
 }

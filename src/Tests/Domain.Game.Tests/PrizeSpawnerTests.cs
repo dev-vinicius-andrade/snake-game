@@ -18,6 +18,7 @@ public sealed class PrizeSpawnerTests
 
     private readonly FakeTime _time = new(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero));
     private readonly PrizeOptions _options = new() { SpawnIntervalSeconds = 60, LifetimeSeconds = 30, Value = 25, FoodsCredit = 6, MinPlayers = 2 };
+    private readonly PrizeRules _rules;
     private readonly PrizeSpawner _spawner;
     private readonly GameState _state;
 
@@ -28,7 +29,8 @@ public sealed class PrizeSpawnerTests
         room.Width = 1920;
         room.Height = 1080;
         _state = new GameState(room);
-        _spawner = new PrizeSpawner(new PrizeRules(_options), _options, _time);
+        _rules = new PrizeRules(_options);
+        _spawner = new PrizeSpawner(_rules, _time);
     }
 
     private void AddPlayers(int count)
@@ -156,5 +158,19 @@ public sealed class PrizeSpawnerTests
         Pass(30);
 
         Assert.Contains(food.Guid, _state.Foods.Keys);
+    }
+
+    [Fact]
+    public void Update_UsesTheValueItWasReconfiguredWith()
+    {
+        AddPlayers(2);
+        _spawner.Update(_state);
+        _rules.Reconfigure(new PrizeOptions { SpawnIntervalSeconds = 60, LifetimeSeconds = 30, Value = 99, FoodsCredit = 2, MinPlayers = 2 });
+
+        Pass(60);
+
+        var prize = Assert.Single(Prizes());
+        Assert.Equal(99, prize.Value);
+        Assert.Equal(2, prize.FoodsCredit);
     }
 }

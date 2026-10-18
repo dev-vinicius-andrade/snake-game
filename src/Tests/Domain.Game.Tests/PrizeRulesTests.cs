@@ -117,4 +117,24 @@ public sealed class PrizeRulesTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => new PrizeRules(options));
     }
+
+    [Fact]
+    public void Reconfigure_ChangesTheIntervalFromNowOn()
+    {
+        var rules = new PrizeRules(new PrizeOptions { SpawnIntervalSeconds = 60 });
+
+        rules.Reconfigure(new PrizeOptions { SpawnIntervalSeconds = 10 });
+
+        Assert.Equal(Start.AddSeconds(10), rules.Step(PrizeState.None, Start, false, 3).State.NextSpawnAt);
+    }
+
+    [Fact]
+    public void Reconfigure_WithBadOptions_ThrowsAndKeepsTheOldOnes()
+    {
+        var rules = new PrizeRules(new PrizeOptions { SpawnIntervalSeconds = 60 });
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => rules.Reconfigure(new PrizeOptions { SpawnIntervalSeconds = 0 }));
+
+        Assert.Equal(60, rules.Options.SpawnIntervalSeconds);
+    }
 }

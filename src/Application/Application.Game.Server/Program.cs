@@ -53,17 +53,7 @@ namespace Application.Game.Server
 
         private static JsonSerializerOptions BuilderJsonSerializerOptions()
         {
-            return new JsonSerializerOptions()
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                PropertyNameCaseInsensitive = true,
-                WriteIndented = true,
-                AllowTrailingCommas = true,
-                ReadCommentHandling = JsonCommentHandling.Skip,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-                Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
-            };
+            return GameJsonOptions.Create();
         }
 
         private static void AddJsonSerializerOptions(IServiceCollection services, JsonSerializerOptions? jsonSerializerOptions=null)

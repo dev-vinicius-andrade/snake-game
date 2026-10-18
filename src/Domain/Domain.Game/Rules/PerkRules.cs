@@ -30,27 +30,40 @@ public sealed class PerkRules
     private const double MinReloadFactor = 0.2;
     private const double MinDamageFactor = 0.2;
 
-    private readonly bool _enabled;
-    private readonly double _spreadRadians;
-    private readonly IReadOnlyList<PerkDefinition> _perks;
+    /// <summary>Everything the rules read, kept together so a change of options swaps it all at once.</summary>
+    private sealed record Settings(
+        PerkOptions Options, bool Enabled, double SpreadRadians, IReadOnlyList<PerkDefinition> Perks);
+
+    private volatile Settings _settings;
 
     public PerkRules(PerkOptions options)
+    {
+        _settings = Build(options);
+    }
+
+    /// <summary>
+    /// Switches to other options while the game runs. Options that do not hold up are refused and the old ones stay.
+    /// </summary>
+    public void Reconfigure(PerkOptions options) => _settings = Build(options);
+
+    /// <summary>The options in use.</summary>
+    public PerkOptions Options => _settings.Options;
+
+    /// <summary>Time between the shots of a burst.</summary>
+    public int BurstIntervalMilliseconds => _settings.Options.BurstIntervalMilliseconds;
+
+    private static Settings Build(PerkOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
         if (options.ShotSpreadDegrees is <= 0 or >= 90)
             throw new ArgumentOutOfRangeException(nameof(options), options.ShotSpreadDegrees, "Shot spread must be in (0, 90).");
-        _enabled = options.Enabled;
         if (options.BurstIntervalMilliseconds < 1)
             throw new ArgumentOutOfRangeException(nameof(options), options.BurstIntervalMilliseconds, "Burst interval must be at least 1 ms.");
-        BurstIntervalMilliseconds = options.BurstIntervalMilliseconds;
-        _spreadRadians = options.ShotSpreadDegrees * Math.PI / 180;
-        _perks = Validated(options.Perks.Count == 0 ? PerkOptions.BuiltIn : options.Perks)
+        var perks = Validated(options.Perks.Count == 0 ? PerkOptions.BuiltIn : options.Perks)
             .OrderBy(perk => perk.FoodsRequired)
             .ToArray();
+        return new Settings(options, options.Enabled, options.ShotSpreadDegrees * Math.PI / 180, perks);
     }
-
-    /// <summary>Time between the shots of a burst.</summary>
-    public int BurstIntervalMilliseconds { get; }
 
     /// <summary>Ids of the perks earned with <paramref name="foodsEaten"/> foods, in the order they unlock.</summary>
     public IReadOnlyList<string> UnlockedIds(int foodsEaten)
@@ -80,11 +93,15 @@ public sealed class PerkRules
     public IEnumerable<double> ShotOffsets(int shots)
     {
         if (shots < 1) throw new ArgumentOutOfRangeException(nameof(shots), shots, "Must be at least 1.");
-        return Enumerable.Range(0, shots).Select(index => (index - (shots - 1) / 2.0) * _spreadRadians);
+        var spread = _settings.SpreadRadians;
+        return Enumerable.Range(0, shots).Select(index => (index - (shots - 1) / 2.0) * spread);
     }
 
     private IEnumerable<PerkDefinition> Unlocked(int foodsEaten)
-        => _enabled ? _perks.Where(perk => perk.FoodsRequired <= foodsEaten) : [];
+    {
+        var settings = _settings;
+        return settings.Enabled ? settings.Perks.Where(perk => perk.FoodsRequired <= foodsEaten) : [];
+    }
 
     private static bool Has(IEnumerable<PerkDefinition> perks, PerkEffect effect)
         => perks.Any(perk => perk.Effect == effect);
