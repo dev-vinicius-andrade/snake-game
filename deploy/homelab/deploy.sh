@@ -90,6 +90,9 @@ podman login --get-login "${REGISTRY%%/*}" >/dev/null 2>&1 \
 kubectl --context "$CONTEXT" apply -f "$HERE/manifests/namespaces.yaml" >/dev/null
 kube get secret cr-homel4b >/dev/null 2>&1 \
   || { echo "Missing Secret cr-homel4b in $NS: see deploy/homelab/README.md"; exit 1; }
+# Pods can only pull with a docker-registry Secret; any other type leaves them in ImagePullBackOff.
+[ "$(kube get secret cr-homel4b -o jsonpath='{.type}')" = "kubernetes.io/dockerconfigjson" ] \
+  || { echo "Secret cr-homel4b in $NS is not a docker-registry Secret: recreate it as in deploy/homelab/README.md"; exit 1; }
 if [ "$TUNNEL" = "true" ]; then
   if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
     kube create secret generic cloudflared-token --from-literal=token="$CLOUDFLARE_TUNNEL_TOKEN" --dry-run=client -o yaml | kube apply -f - >/dev/null
