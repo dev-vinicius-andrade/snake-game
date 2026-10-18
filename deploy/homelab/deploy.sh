@@ -7,8 +7,11 @@
 #
 # Options (environment):
 #   REGISTRY       Required. Registry and project the images are pushed to and pulled from.
-#   INGRESS_CLASS  Default traefik-external. The three hosts are exposed to the internet through it.
-#   CLUSTER_ISSUER Default letsencrypt-production-andradev-io-issuer. cert-manager issues each host's certificate; empty to skip.
+#   TUNNEL         Default true. The three hosts reach the cluster through a Cloudflare Tunnel (nothing open on the router):
+#                  deploys cloudflared, which needs the Secret cloudflared-token (see README.md) or CLOUDFLARE_TUNNEL_TOKEN.
+#   TUNNEL_IMAGE   cloudflared image. Default docker.io/cloudflare/cloudflared:2025.8.1.
+#   INGRESS        Default false. true also creates Ingresses on INGRESS_CLASS (default traefik-external) with a certificate
+#                  from CLUSTER_ISSUER (default letsencrypt-production-andradev-io-issuer; empty to skip), for a direct path.
 #   DOMAIN         Default andradev.io (public). Hosts: snake.$DOMAIN (site), snake-api.$DOMAIN (manager), snake-game.$DOMAIN (game).
 #   TAG            One tag for every image (all are rebuilt). Default: per-image source tags.
 #   FORCE_BUILD=1  Rebuild every image even when the registry already has its tag.
@@ -29,6 +32,9 @@ SRC="$REPO/src"
 CHART="$HERE/charts/snake-app"
 : "${REGISTRY:?Set REGISTRY, e.g. REGISTRY=cr.homel4b.dev/<project>}"
 DOMAIN=${DOMAIN:-andradev.io}
+TUNNEL=${TUNNEL:-true}
+TUNNEL_IMAGE=${TUNNEL_IMAGE:-docker.io/cloudflare/cloudflared:2025.8.1}
+INGRESS=${INGRESS:-false}
 INGRESS_CLASS=${INGRESS_CLASS:-traefik-external}
 CLUSTER_ISSUER=${CLUSTER_ISSUER-letsencrypt-production-andradev-io-issuer}
 UI_HOST="snake.$DOMAIN"
@@ -76,6 +82,13 @@ podman login --get-login "${REGISTRY%%/*}" >/dev/null 2>&1 \
 kubectl --context "$CONTEXT" apply -f "$HERE/manifests/namespaces.yaml" >/dev/null
 kube get secret cr-homel4b >/dev/null 2>&1 \
   || { echo "Missing Secret cr-homel4b in $NS: see deploy/homelab/README.md"; exit 1; }
+if [ "$TUNNEL" = "true" ]; then
+  if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
+    kube create secret generic cloudflared-token --from-literal=token="$CLOUDFLARE_TUNNEL_TOKEN" --dry-run=client -o yaml | kube apply -f - >/dev/null
+  fi
+  kube get secret cloudflared-token >/dev/null 2>&1 \
+    || { echo "Missing Secret cloudflared-token in $NS (key: token): see the Tunnel section of deploy/homelab/README.md"; exit 1; }
+fi
 
 # ── Images ────────────────────────────────────────────────────────────────────
 in_registry() { # name tag
@@ -149,7 +162,7 @@ install() { # release name values-file tag host [extra helm args...]
   local release=$1 image=$2 values=$3 tag=$4 host=$5
   shift 5
   helm_install "$release" "$CHART" -f "$HERE/values/$values.yaml" \
-    --set-string "image.repository=$REGISTRY/$image" --set-string "image.tag=$tag" --set-string "ingress.host=$host" \
+    --set-string "image.repository=$REGISTRY/$image" --set-string "image.tag=$tag" --set-string "ingress.host=$host" --set "ingress.enabled=$INGRESS" \
     --set-string "ingress.className=$INGRESS_CLASS" --set-string "ingress.clusterIssuer=$CLUSTER_ISSUER" "$@"
 }
 install snake-manager snake-manager manager "$MANAGER_TAG" "$API_HOST"
@@ -158,6 +171,13 @@ install snake-game snake-game-server game-server "$GAME_TAG" "$GAME_HOST" \
   --set-string "env.ServerConfiguration__InternalUrl=$GAME_INTERNAL_URL" \
   --set-string "env.AppSettings__ManagementApiConfiguration__BaseUrl=$MANAGER_INTERNAL_URL"
 install snake-ui snake-ui ui "$UI_TAG" "$UI_HOST"
+
+if [ "$TUNNEL" = "true" ]; then
+  step "Cloudflare Tunnel"
+  export TUNNEL_IMAGE
+  envsubst '${TUNNEL_IMAGE}' < "$HERE/manifests/cloudflared.yaml" | kube apply -f -
+  kube rollout status deployment/cloudflared --timeout 5m
+fi
 
 step "Done"
 kube get pods
