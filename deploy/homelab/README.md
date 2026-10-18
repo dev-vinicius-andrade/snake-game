@@ -85,6 +85,8 @@ path needs inbound 443 to reach the cluster, so it is off by default. With `TUNN
 REGISTRY=cr.homel4b.dev/<project> ./deploy/homelab/deploy.sh
 ```
 
+The script deploys to the kube context `home-lab-main`. If yours has another name, list them with `kubectl config get-contexts -o name` and run with `KUBE_CONTEXT=<name>` in front.
+
 What the script does:
 
 1. Checks the cluster and the registry login, applies the two namespaces, checks the `cr-homel4b` and `cloudflared-token` Secrets.

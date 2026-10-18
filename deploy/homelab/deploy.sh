@@ -23,7 +23,8 @@
 # Before the first run (see README.md): `podman login` to the registry, and the Secret cr-homel4b (image pulls) in home-apps.
 set -euo pipefail
 
-CONTEXT=home-lab-main
+# Kube context to deploy to. Override with KUBE_CONTEXT=<name> (see `kubectl config get-contexts`).
+CONTEXT="${KUBE_CONTEXT:-home-lab-main}"
 NS=home-apps
 INFRA_NS=infrastructure
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -76,6 +77,11 @@ secret_value() { # namespace secret key -> decoded value, empty when missing
 }
 
 step "Checks (context $CONTEXT, namespaces $NS and $INFRA_NS, registry $REGISTRY)"
+kubectl config get-contexts "$CONTEXT" >/dev/null 2>&1 || {
+  echo "error: kube context '$CONTEXT' does not exist. Set KUBE_CONTEXT to one of:" >&2
+  kubectl config get-contexts -o name >&2
+  exit 1
+}
 kubectl --context "$CONTEXT" cluster-info >/dev/null
 podman login --get-login "${REGISTRY%%/*}" >/dev/null 2>&1 \
   || { echo "Not logged in to ${REGISTRY%%/*}: run podman login ${REGISTRY%%/*}"; exit 1; }
