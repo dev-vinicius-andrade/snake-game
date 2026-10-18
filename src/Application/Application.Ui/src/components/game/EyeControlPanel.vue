@@ -98,16 +98,16 @@ function toggle() {
   color: #ffffff;
   font-family: monospace;
   font-size: 12px;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--snake-surface);
+  border: 2px solid var(--snake-line);
 }
 .eye-button {
   margin-right: 6px;
   padding: 2px 8px;
   color: inherit;
   font: inherit;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 2px;
+  background: var(--snake-surface-2);
+  border: 2px solid var(--snake-line);
   cursor: pointer;
 }
 .eye-camera {
@@ -121,15 +121,14 @@ function toggle() {
   padding: 2px 4px;
   color: #ffffff;
   font: inherit;
-  background: #2b2b36;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 2px;
+  background: var(--snake-surface-2);
+  border: 2px solid var(--snake-line);
 }
 .eye-status {
   margin-top: 6px;
 }
 .eye-status-error {
-  color: #ffcc00;
+  color: var(--snake-amber);
 }
 .eye-hint {
   margin-top: 6px;
@@ -138,5 +137,15 @@ function toggle() {
 .eye-privacy {
   margin-top: 6px;
   opacity: 0.7;
+}
+
+@media (max-width: 600px) {
+  .eye-panel {
+    position: static;
+    width: 100%;
+    max-width: 440px;
+    box-sizing: border-box;
+    margin: 0 auto;
+  }
 }
 </style>

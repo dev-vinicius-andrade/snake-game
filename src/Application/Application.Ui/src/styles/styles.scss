@@ -1,5 +1,113 @@
-//
+// Design tokens shared by plain CSS (HUD, overlays) and Vuetify (see plugins/vuetify.ts).
+:root {
+  --snake-bg: #0b0d17;
+  --snake-surface: #161a2b;
+  --snake-surface-2: #1f2540;
+  --snake-line: #2c3558;
+  --snake-text: #e6e9f5;
+  --snake-muted: #8b93b8;
+  --snake-green: #4ade80;
+  --snake-green-dark: #22a45a;
+  --snake-amber: #fbbf24;
+  --snake-red: #f87171;
+  --snake-pixel-font: "Press Start 2P", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  color: var(--snake-text);
+  background-color: var(--snake-bg);
+  // A faint pixel grid behind every page.
+  background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+// Vuetify paints the application shell in its own background; let the grid show through.
+.v-application,
+.v-application .v-main {
+  background: transparent !important;
+}
+
 .fill-parent {
   width: 100%;
   height: 100%;
+}
+
+.pixel-font {
+  font-family: var(--snake-pixel-font);
+  letter-spacing: 0.02em;
+}
+
+// Thick border with a hard shadow, like a boxed menu in a retro game.
+.pixel-card,
+.v-card {
+  background: var(--snake-surface) !important;
+  border: 3px solid var(--snake-line) !important;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.55) !important;
+}
+
+.v-card .v-card-title {
+  font-family: var(--snake-pixel-font);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  white-space: normal;
+  padding: 16px 20px 8px;
+}
+
+.v-card-text {
+  padding: 8px 20px 12px !important;
+}
+
+.v-card-actions {
+  padding: 8px 16px 16px !important;
+}
+
+// A button you can press: flat colour, hard shadow, sinks when clicked.
+.v-btn {
+  min-height: 44px; // comfortable touch target
+  font-family: var(--snake-pixel-font);
+  font-size: 0.65rem;
+  font-weight: 400;
+  white-space: normal; // a long label wraps instead of running out of the button
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  text-transform: none;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.55);
+  transition: transform 0.05s, box-shadow 0.05s;
+
+  &:active:not(.v-btn--disabled) {
+    transform: translateY(3px);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
+  }
+
+  &.v-btn--variant-text,
+  &.v-btn--variant-plain {
+    box-shadow: none;
+  }
+
+  &.v-btn--icon {
+    min-height: 0;
+    box-shadow: none;
+  }
+}
+
+.v-field--variant-outlined .v-field__outline {
+  --v-field-border-width: 2px;
+  --v-field-border-opacity: 0.35;
+}
+
+.v-overlay__scrim {
+  background: #05060d !important;
+}
+
+// People who ask for less motion get none.
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
 }

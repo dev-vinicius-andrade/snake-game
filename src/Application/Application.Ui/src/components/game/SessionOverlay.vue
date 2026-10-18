@@ -48,25 +48,31 @@ const title = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(5, 6, 13, 0.78);
 }
 .overlay-card {
-  min-width: 280px;
-  padding: 24px 32px;
-  color: #ffffff;
+  box-sizing: border-box;
+  width: min(420px, 92vw);
+  padding: 24px;
+  color: var(--snake-text);
   text-align: center;
-  background: #2b2b36;
-  border-radius: 4px;
+  background: var(--snake-surface);
+  border: 3px solid var(--snake-line);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.55);
 }
 .overlay-title {
-  margin: 0 0 12px;
+  margin: 0 0 16px;
+  font-family: var(--snake-pixel-font);
+  font-size: 1rem;
+  line-height: 1.5;
 }
 .overlay-text {
   margin: 0 0 16px;
 }
 .overlay-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: 8px;
+  gap: 12px;
 }
 </style>

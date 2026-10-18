@@ -4,20 +4,50 @@
 <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VueJsSnake</title>
-    <link rel="stylesheet" type="text/css" href="/loader.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0d17" />
+    <title>Snake</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" />
+    <!-- First paint: dark page and a little pixel snake crawling, until the app replaces #app. -->
+    <style>
+      html, body { margin: 0; background: #0b0d17; }
+      .boot {
+        position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 28px; color: #e6e9f5;
+        background-color: #0b0d17;
+        background-image: linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+        background-size: 24px 24px;
+      }
+      .boot-snake { display: flex; gap: 4px; align-items: flex-end; height: 40px; }
+      .boot-snake i {
+        display: block; width: 16px; height: 16px; background: #4ade80; image-rendering: pixelated;
+        animation: boot-crawl 1.1s steps(2, jump-none) infinite;
+        animation-delay: calc(var(--i) * 90ms);
+      }
+      .boot-snake i:nth-child(n+5) { background: #22a45a; }
+      .boot-snake i:last-child { background: #166534; }
+      .boot-snake i:first-child { position: relative; background: #86efac; }
+      .boot-snake i:first-child::after { content: ""; position: absolute; right: 3px; top: 3px; width: 4px; height: 4px; background: #0b0d17; }
+      @keyframes boot-crawl { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+      .boot-text { font-family: "Press Start 2P", ui-monospace, monospace; font-size: 12px; letter-spacing: .08em; color: #8b93b8; }
+      .boot-text::after { content: ""; animation: boot-dots 1.2s steps(1, end) infinite; }
+      @keyframes boot-dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+      @media (prefers-reduced-motion: reduce) { .boot-snake i, .boot-text::after { animation: none; } }
+    </style>
 </head>
 
 <body>
     <div id="app">
-        <div class="loading-wrapper">
-          <div class="loading-inner">
-          </div>
-          <div class="loading-content">
-          </div>
+      <div class="boot" role="status" aria-live="polite">
+        <div class="boot-snake" aria-hidden="true">
+          <i style="--i:0"></i><i style="--i:1"></i><i style="--i:2"></i><i style="--i:3"></i>
+          <i style="--i:4"></i><i style="--i:5"></i><i style="--i:6"></i><i style="--i:7"></i>
         </div>
+        <div class="boot-text">LOADING</div>
       </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
 </body>
 

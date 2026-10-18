@@ -133,6 +133,6 @@ onBeforeUnmount(() => void session.stop());
 .snake-view {
   width: 100%;
   min-height: 100vh;
-  background: #16161d;
+  background: var(--snake-bg);
 }
 </style>

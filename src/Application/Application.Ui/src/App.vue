@@ -1,5 +1,5 @@
 <template>
-  <VApp v-background-color:#222222>
+  <VApp>
     <VMain class="pa-0">
       <RouterView />
     </VMain>

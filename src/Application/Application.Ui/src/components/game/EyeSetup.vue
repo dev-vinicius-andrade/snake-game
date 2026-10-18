@@ -74,6 +74,18 @@ watch([eye.phase, eye.mode], () => {
   color: #ffffff;
   font-family: monospace;
   font-size: 12px;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--snake-surface);
+  border: 2px solid var(--snake-line);
+}
+
+@media (max-width: 600px) {
+  .setup-hint {
+    position: static;
+    width: 100%;
+    max-width: 440px;
+    box-sizing: border-box;
+    margin: 0 auto;
+    transform: none;
+  }
 }
 </style>

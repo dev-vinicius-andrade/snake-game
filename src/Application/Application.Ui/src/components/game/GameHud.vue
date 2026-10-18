@@ -61,7 +61,8 @@ const controls = computed(() => [
   color: #ffffff;
   font-family: monospace;
   font-size: 14px;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(11, 13, 23, 0.78);
+  border: 2px solid var(--snake-line);
   pointer-events: none;
 }
 .hud-player {
@@ -84,9 +85,8 @@ const controls = computed(() => [
   padding: 2px 8px;
   color: inherit;
   font: inherit;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 2px;
+  background: var(--snake-surface-2);
+  border: 2px solid var(--snake-line);
   cursor: pointer;
   pointer-events: auto;
 }
@@ -108,6 +108,21 @@ const controls = computed(() => [
 }
 .hud-notice {
   margin-top: 4px;
-  color: #ffcc00;
+  color: var(--snake-amber);
+}
+
+@media (max-width: 600px) {
+  .hud-panel {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  .hud-ranking {
+    min-width: 0;
+    max-width: 44vw;
+  }
+  /* A phone has no keyboard to read the keys for. */
+  .hud-controls div {
+    display: none;
+  }
 }
 </style>

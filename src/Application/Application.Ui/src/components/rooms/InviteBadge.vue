@@ -38,7 +38,8 @@ async function copy() {
   color: #ffffff;
   font-family: monospace;
   font-size: 14px;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(11, 13, 23, 0.78);
+  border: 2px solid var(--snake-line);
 }
 .invite-copy {
   margin-top: 6px;
@@ -46,9 +47,8 @@ async function copy() {
   color: inherit;
   font: inherit;
   font-size: 12px;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 2px;
+  background: var(--snake-surface-2);
+  border: 2px solid var(--snake-line);
   cursor: pointer;
 }
 </style>

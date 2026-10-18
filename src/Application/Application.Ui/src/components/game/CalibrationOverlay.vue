@@ -54,10 +54,9 @@ const message = computed(() => {
   width: 28px;
   height: 28px;
   margin: -14px 0 0 -14px;
-  background: #ffcc00;
+  background: var(--snake-amber);
   border: 3px solid #ffffff;
-  border-radius: 50%;
-  box-shadow: 0 0 18px rgba(255, 204, 0, 0.9);
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.6);
 }
 .calibration-box {
   position: absolute;
@@ -65,17 +64,17 @@ const message = computed(() => {
   left: 50%;
   width: min(420px, 90vw);
   padding: 12px 16px;
-  color: #ffffff;
+  color: var(--snake-text);
   text-align: center;
-  background: #2b2b36;
-  border-radius: 4px;
+  background: var(--snake-surface);
+  border: 3px solid var(--snake-line);
   transform: translateX(-50%);
 }
 .calibration-message {
   margin-bottom: 8px;
 }
 .calibration-warning {
-  color: #ffcc00;
+  color: var(--snake-amber);
 }
 .calibration-bar {
   height: 6px;
@@ -84,15 +83,14 @@ const message = computed(() => {
 }
 .calibration-fill {
   height: 100%;
-  background: #4caf50;
+  background: var(--snake-green);
 }
 .calibration-cancel {
   padding: 2px 10px;
   color: inherit;
   font: inherit;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 2px;
+  border: 2px solid var(--snake-line);
   cursor: pointer;
 }
 </style>

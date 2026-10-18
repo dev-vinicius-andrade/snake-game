@@ -1,80 +1,75 @@
-<template>
-  <VRow no-gutters justify="center" align="center">
-    <VContainer fluid>
-      <VRow no-gutters justify="center" align="center">
-        <VIcon v-color:[logoColors.vue]>mdi-vuejs</VIcon>
-        <VIcon v-color:[logoColors.js]>mdi-language-javascript</VIcon>
-        <VIcon v-color:[logoColors.csharp]>mdi-language-csharp</VIcon>
-      </VRow>
-      <VRow no-gutters justify="center" align="center">
-        <span class="text-h2">
-          <span v-color:[logoColors.vue]>Vue</span>.<span
-            v-color:[logoColors.js]
-            >JS</span
-          ><span v-color:[logoColors.csharp]>nake</span>
-        </span>
-      </VRow>
-      <VRow no-gutters justify="center" align="center">
-        <VCol cols="3">
-          <VTextField
-            v-model="reactivePlayerNickname"
-            :label="getText({ key: 'variations.nickname.Text' })"
-            variant="solo"
-            clearable
-          ></VTextField>
-        </VCol>
-      </VRow>
-      <VRow no-gutters justify="center" align="center">
-        <VCol cols="auto" align-self="center">
-          <VBtn
-            @click="joinSnake2dRandomRoom()"
-            :disabled="!isPlayerNameValid"
-            >{{ getText({ key: "buttons.joinRandomRoom" }) }}</VBtn
-          >
-        </VCol>
-      </VRow>
-    </VContainer>
-  </VRow>
-  <RoomActions :disabled="!isPlayerNameValid" />
-  <EyeSetup />
-</template>
 <script setup lang="ts">
+import { computed } from "vue";
+import { useRouter } from "vue-router";
+import SnakeLogo from "@/components/brand/SnakeLogo.vue";
 import RoomActions from "@/components/rooms/RoomActions.vue";
+import { getText } from "@/helpers";
+import { usePlayerStore } from "@/store/usePlayerStore";
 
-export interface IHomeComponentData {
-  nickname?: string;
-}
 const router = useRouter();
 const playerStore = usePlayerStore();
-const logoSize = "56px";
-const logoColors = ref({
-  vue: "#3fb27f",
-  js: "#f7df1e",
-  csharp: "#68217a",
-});
 
-const componentData = reactive<IHomeComponentData>({});
-
-const reactivePlayerNickname = computed({
+const nickname = computed({
   get: () => playerStore.data?.nickname ?? "",
-  set: (playerNickname) => {
-    playerStore.setNickname(playerNickname);
-  },
+  set: (value) => playerStore.setNickname(value),
 });
-const isPlayerNameValid = computed(() => {
-  return reactivePlayerNickname.value?.trim();
-});
-function joinSnake2dRandomRoom() {
-  router.push({
-    name: "/game/snake/2d",
-  });
+const isPlayerNameValid = computed(() => nickname.value.trim().length > 0);
+
+function playNow() {
+  if (!isPlayerNameValid.value) return;
+  return router.push({ name: "/game/snake/2d" });
 }
 </script>
-<style scoped lang="scss">
-// .v-text-field {
-//   input {
-//     color: #fff;
-//   }
-// }
-//
+
+<template>
+  <main class="home">
+    <SnakeLogo />
+    <p class="tagline">{{ getText({ key: "home.tagline" }) }}</p>
+
+    <section class="card pixel-card" aria-label="Play">
+      <VTextField
+        v-model="nickname"
+        :label="getText({ key: 'variations.nickname.Text' })"
+        maxlength="20"
+        autocomplete="nickname"
+        clearable
+        autofocus
+        @keyup.enter="playNow"
+      />
+      <VBtn block size="large" :disabled="!isPlayerNameValid" @click="playNow">
+        {{ getText({ key: "buttons.joinRandomRoom" }) }}
+      </VBtn>
+      <RoomActions :disabled="!isPlayerNameValid" />
+    </section>
+
+    <EyeSetup />
+  </main>
+</template>
+
+<style scoped>
+.home {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+.tagline {
+  margin: -4px 0 0;
+  color: var(--snake-muted);
+  font-size: 0.95rem;
+  text-align: center;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 440px;
+  padding: 20px;
+  box-sizing: border-box;
+}
 </style>

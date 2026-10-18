@@ -47,47 +47,94 @@ function close() {
 </script>
 
 <template>
-  <VRow no-gutters justify="center" align="center" class="mt-4">
-    <VCol cols="auto">
-      <VBtn :disabled="disabled" @click="dialog = true">{{ getText({ key: "rooms.create" }) }}</VBtn>
-    </VCol>
-  </VRow>
-  <VRow no-gutters justify="center" align="start" class="mt-4">
-    <VCol cols="auto" class="code-field">
+  <div class="actions">
+    <VBtn block color="secondary" :disabled="disabled" @click="dialog = true">
+      {{ getText({ key: "rooms.create" }) }}
+    </VBtn>
+
+    <div class="divider" role="separator">
+      <span>{{ getText({ key: "rooms.orCode" }) }}</span>
+    </div>
+
+    <div class="code-row">
       <VTextField
         v-model="codeInput"
-        :label="getText({ key: 'rooms.haveCode' })"
+        :label="getText({ key: 'rooms.code' })"
         :error-messages="codeError"
-        variant="solo"
-        density="compact"
+        maxlength="40"
+        autocomplete="off"
+        autocapitalize="characters"
         clearable
         @keyup.enter="canJoinWithCode && joinWithCode()"
       />
-    </VCol>
-    <VCol cols="auto" class="ml-2">
-      <VBtn :disabled="!canJoinWithCode" @click="joinWithCode">{{ getText({ key: "rooms.joinWithCode" }) }}</VBtn>
-    </VCol>
-  </VRow>
+      <VBtn :disabled="!canJoinWithCode" @click="joinWithCode">{{ getText({ key: "buttons.join" }) }}</VBtn>
+    </div>
+  </div>
 
-  <VDialog v-model="dialog" max-width="420" persistent>
+  <VDialog v-model="dialog" max-width="440" width="92vw" persistent>
     <VCard :title="getText({ key: 'rooms.createTitle' })">
-      <VCardText>
-        <VTextField v-model="roomName" :label="getText({ key: 'rooms.name' })" maxlength="32" variant="outlined" />
-        <VSelect v-model="maxPlayers" :items="playerChoices" :label="getText({ key: 'rooms.maxPlayers' })" variant="outlined" />
-        <div v-if="creating" role="status">{{ getText({ key: "rooms.creating" }) }}</div>
-        <div v-else-if="creation.error.value" class="text-error" role="alert">{{ creation.error.value }}</div>
+      <VCardText class="dialog-body">
+        <VTextField v-model="roomName" :label="getText({ key: 'rooms.name' })" maxlength="32" />
+        <VSelect v-model="maxPlayers" :items="playerChoices" :label="getText({ key: 'rooms.maxPlayers' })" />
+        <div v-if="creating" class="note" role="status">{{ getText({ key: "rooms.creating" }) }}</div>
+        <div v-else-if="creation.error.value" class="note error" role="alert">{{ creation.error.value }}</div>
       </VCardText>
-      <VCardActions>
+      <VCardActions class="dialog-actions">
+        <VBtn variant="text" color="default" @click="close">{{ getText({ key: "buttons.cancel" }) }}</VBtn>
         <VSpacer />
-        <VBtn @click="close">{{ getText({ key: "buttons.cancel" }) }}</VBtn>
-        <VBtn :disabled="creating" color="primary" @click="createRoom">{{ getText({ key: "rooms.create" }) }}</VBtn>
+        <VBtn :disabled="creating" @click="createRoom">{{ getText({ key: "rooms.createAction" }) }}</VBtn>
       </VCardActions>
     </VCard>
   </VDialog>
 </template>
 
 <style scoped>
-.code-field {
-  width: 260px;
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--snake-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 2px;
+  background: var(--snake-line);
+}
+.code-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.code-row .v-text-field {
+  flex: 1;
+  min-width: 0;
+}
+.code-row .v-btn {
+  margin-top: 1px;
+}
+.dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.note {
+  font-size: 0.9rem;
+  color: var(--snake-muted);
+}
+.note.error {
+  color: var(--snake-red);
+}
+.dialog-actions {
+  gap: 8px;
 }
 </style>
