@@ -12,7 +12,9 @@
 #   TUNNEL_IMAGE   cloudflared image. Default docker.io/cloudflare/cloudflared:2025.8.1.
 #   INGRESS        Default false. true also creates Ingresses on INGRESS_CLASS (default traefik-external) with a certificate
 #                  from CLUSTER_ISSUER (default letsencrypt-production-andradev-io-issuer; empty to skip), for a direct path.
-#   DOMAIN         Default andradev.io (public). One host, snake.$DOMAIN: / the site, /api the manager (and /api/admin),
+#   PUBLIC_HOST    The one public host. Default snake.$DOMAIN. A name two levels or deeper under the domain needs a Cloudflare
+#                  Advanced Certificate covering it (see README.md), e.g. PUBLIC_HOST=snake.web.games.andradev.io.
+#   DOMAIN         Default andradev.io (public). One host, PUBLIC_HOST: / the site, /api the manager (and /api/admin),
 #                  /game the game server. The site pod (nginx) routes /api and /game to the other Services.
 #   TAG            One tag for every image (all are rebuilt). Default: per-image source tags.
 #   FORCE_BUILD=1  Rebuild every image even when the registry already has its tag.
@@ -39,7 +41,7 @@ TUNNEL_IMAGE=${TUNNEL_IMAGE:-docker.io/cloudflare/cloudflared:2025.8.1}
 INGRESS=${INGRESS:-false}
 INGRESS_CLASS=${INGRESS_CLASS:-traefik-external}
 CLUSTER_ISSUER=${CLUSTER_ISSUER-letsencrypt-production-andradev-io-issuer}
-UI_HOST="snake.$DOMAIN"
+UI_HOST=${PUBLIC_HOST:-snake.$DOMAIN}
 MANAGER_URL="/api"
 MANAGER_INTERNAL_URL="http://snake-manager.$NS.svc.cluster.local:8080"
 GAME_INTERNAL_URL="http://snake-game.$NS.svc.cluster.local:8080"

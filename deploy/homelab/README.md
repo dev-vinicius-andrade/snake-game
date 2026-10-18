@@ -41,6 +41,16 @@ The browser never needs CORS, and the tunnel needs a single hostname. One host a
 covers it (it covers `andradev.io` and `*.andradev.io`, one level only, so names such as `snake.web.games.andradev.io` would
 need Cloudflare's paid Advanced Certificate Manager). The manager and the game server get no ingress of their own.
 
+### A deeper hostname (Advanced Certificate)
+
+To use a name such as `snake.web.games.andradev.io`, give the script `PUBLIC_HOST=snake.web.games.andradev.io` and:
+
+1. Cloudflare dashboard > the zone > SSL/TLS > Edge Certificates > **Order Advanced Certificate**. Hostnames:
+   `snake.web.games.andradev.io` and `*.web.games.andradev.io`; validation is automatic (TXT in Cloudflare DNS). Wait for
+   the certificate to be **Active**.
+2. On the tunnel's Public Hostname tab add `snake.web.games.andradev.io` > HTTP > `snake-ui.home-apps.svc.cluster.local:8080`.
+3. Deploy with `PUBLIC_HOST` set. The game server then reports `https://snake.web.games.andradev.io/game` to players.
+
 ## Cloudflare Tunnel
 
 The connector (`cloudflared`) opens outbound connections to Cloudflare. Cloudflare sends visitors' requests for the
