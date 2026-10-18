@@ -229,3 +229,98 @@ describe("SnapshotBuffer", () => {
     expect(headAt(buffer, 1000)).toBe(130);
   });
 });
+
+describe("SnapshotBuffer on a timeline that is evened out", () => {
+  const at = (x: number) => frame({ snakes: [snake([[x, 0]])] });
+  const SMOOTH = { delayMs: 70, jitterCorrection: 0.1 };
+
+  /** A snake moving 5 units per snapshot, snapshots arriving after the given gaps. */
+  function feed(buffer: SnapshotBuffer, gaps: number[], count: number, first = 1000) {
+    let now = first;
+    for (let i = 0; i < count; i++) {
+      buffer.push(at(i * 5), now);
+      now += gaps[i % gaps.length];
+    }
+    return now;
+  }
+
+  /** Speed (units per ms) of the snake's head as it is shown, sampled every 4 ms from `from` to `to`. */
+  function speeds(buffer: SnapshotBuffer, from: number, to: number) {
+    const out: number[] = [];
+    for (let t = from; t < to; t += 4) {
+      const a = buffer.sample(t)!.snakes[0].head.x;
+      const b = buffer.sample(t + 4)!.snakes[0].head.x;
+      out.push((b - a) / 4);
+    }
+    return out;
+  }
+
+  const spread = (values: number[]) => {
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    return Math.max(...values.map((v) => Math.abs(v - mean))) / mean;
+  };
+
+  it("shows steady speed even when snapshots arrive unevenly, short gap then long gap", () => {
+    const uneven = new SnapshotBuffer({ delayMs: 70 });
+    const evened = new SnapshotBuffer(SMOOTH);
+    const gaps = [25, 45];
+    const end = feed(uneven, gaps, 60);
+    feed(evened, gaps, 60);
+
+    const raw = spread(speeds(uneven, end - 800, end - 200));
+    const smooth = spread(speeds(evened, end - 800, end - 200));
+
+    // Without it the head speeds up and slows down by about 40%; with it, by a few percent.
+    expect(raw).toBeGreaterThan(0.3);
+    expect(smooth).toBeLessThan(0.12);
+  });
+
+  it("still keeps up with a server that is really slower or faster: it learns the real rate", () => {
+    const buffer = new SnapshotBuffer(SMOOTH);
+    const end = feed(buffer, [40], 120);
+
+    const rate = speeds(buffer, end - 800, end - 200);
+    const mean = rate.reduce((a, b) => a + b, 0) / rate.length;
+
+    // 5 units every 40 ms.
+    expect(mean).toBeCloseTo(0.125, 2);
+  });
+
+  it("does not fall behind real time when snapshots keep arriving at a different pace than assumed", () => {
+    const buffer = new SnapshotBuffer(SMOOTH);
+    const end = feed(buffer, [40], 150);
+
+    // The newest snapshot is on screen about `delay` after it arrived; the timeline must not have drifted away from the clock.
+    const newestHead = (150 - 1) * 5;
+    const shown = buffer.sample(end - 40 + 70)!.snakes[0].head.x;
+    expect(Math.abs(shown - newestHead)).toBeLessThan(6);
+  });
+
+  it("restarts the timeline after a long stall instead of replaying it in slow motion", () => {
+    const buffer = new SnapshotBuffer(SMOOTH);
+    feed(buffer, [33], 20, 1000);
+    buffer.push(at(5000), 2500);
+    buffer.push(at(5030), 2533);
+
+    expect(buffer.sample(2533 + 70)!.snakes[0].head.x).toBeCloseTo(5030, 0);
+  });
+
+  it("behaves as before when it is not asked to even things out", () => {
+    const buffer = new SnapshotBuffer({ delayMs: 50 });
+    buffer.push(at(100), 1000);
+    buffer.push(at(130), 1033);
+    buffer.push(at(160), 1066);
+
+    expect(buffer.sample(1066)!.snakes[0].head.x).toBeCloseTo(100 + (30 * 16) / 33, 5);
+  });
+
+  it("ignores a snapshot that arrives with an earlier time than the last one", () => {
+    const buffer = new SnapshotBuffer(SMOOTH);
+    buffer.push(at(100), 1000);
+    buffer.push(at(130), 1033);
+    buffer.push(at(999), 1020);
+
+    expect(buffer.size).toBe(2);
+  });
+});
+

@@ -5,6 +5,13 @@ export const DEFAULT_DELAY_MS = 70;
 /** Snapshots older than this (relative to the newest) are forgotten. */
 const DEFAULT_MAX_AGE_MS = 1000;
 
+/** A gap this long means the connection stalled: the timeline starts again from the arrival. */
+const RESTART_AFTER_MS = 250;
+/** An arrival this far from the expected time is not jitter but a real shift, and is believed at once. */
+const MAX_JITTER_MS = 100;
+/** How fast the estimate of the server's update interval follows the observed gaps. */
+const INTERVAL_GAIN = 0.05;
+
 const wrap = (value: number, size: number) => ((value % size) + size) % size;
 
 function shortestDelta(delta: number, size: number): number {
@@ -57,6 +64,11 @@ export function blendSnapshots(from: GameSnapshot, to: GameSnapshot, t: number):
 export interface SnapshotBufferOptions {
   delayMs?: number;
   maxAgeMs?: number;
+  /**
+   * How much of each snapshot's lateness or earliness is believed (0..1). Left out, snapshots keep the time they arrived.
+   * Set, snapshots are put on an even timeline at the server's real rate, which the arrival jitter does not shake.
+   */
+  jitterCorrection?: number;
 }
 
 interface Stamped {
@@ -72,11 +84,15 @@ interface Stamped {
 export class SnapshotBuffer {
   private readonly delayMs: number;
   private readonly maxAgeMs: number;
+  private readonly jitterCorrection: number | undefined;
   private stamped: Stamped[] = [];
+  private lastArrival = 0;
+  private intervalMs = 0;
 
   constructor(options: SnapshotBufferOptions = {}) {
     this.delayMs = options.delayMs ?? DEFAULT_DELAY_MS;
     this.maxAgeMs = options.maxAgeMs ?? DEFAULT_MAX_AGE_MS;
+    this.jitterCorrection = options.jitterCorrection;
   }
 
   get size() {
@@ -86,10 +102,25 @@ export class SnapshotBuffer {
   /** Adds a snapshot that arrived at `atMs`. One that arrives with an earlier time than the newest is ignored. */
   push(snapshot: GameSnapshot, atMs: number) {
     const newest = this.stamped[this.stamped.length - 1];
-    if (newest && atMs < newest.at) return;
-    if (newest && atMs === newest.at) this.stamped[this.stamped.length - 1] = { at: atMs, snapshot };
-    else this.stamped.push({ at: atMs, snapshot });
-    this.forgetOld(atMs);
+    if (newest && atMs < this.lastArrival) return;
+    const at = this.timelineTime(atMs, newest);
+    if (newest && at === newest.at) this.stamped[this.stamped.length - 1] = { at, snapshot };
+    else this.stamped.push({ at, snapshot });
+    this.lastArrival = atMs;
+    this.forgetOld(at);
+  }
+
+  /** Where on the shown timeline a snapshot that arrived at `atMs` goes: the expected next step, nudged toward its arrival. */
+  private timelineTime(atMs: number, newest: Stamped | undefined): number {
+    const gain = this.jitterCorrection;
+    if (gain === undefined || !newest) return atMs;
+    const gap = atMs - this.lastArrival;
+    if (gap > RESTART_AFTER_MS) return atMs;
+    this.intervalMs = this.intervalMs > 0 ? this.intervalMs + INTERVAL_GAIN * (gap - this.intervalMs) : gap;
+    const expected = newest.at + this.intervalMs;
+    const error = atMs - expected;
+    if (Math.abs(error) > MAX_JITTER_MS) return atMs;
+    return Math.max(expected + gain * error, newest.at + 1);
   }
 
   /** The world as it is shown at `nowMs`. Null before any snapshot. Never guesses ahead of the newest snapshot. */
@@ -109,6 +140,7 @@ export class SnapshotBuffer {
 
   clear() {
     this.stamped = [];
+    this.intervalMs = 0;
   }
 
   private forgetOld(newestAt: number) {

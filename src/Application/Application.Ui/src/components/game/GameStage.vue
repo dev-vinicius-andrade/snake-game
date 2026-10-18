@@ -31,7 +31,7 @@ function target(snapshot: GameSnapshot): GamePoint {
  * Server snapshots come in about 30 times a second; the screen is drawn faster. What is drawn is the world a moment in
  * the past, blended between the two snapshots around that time, so motion is smooth and a turn does not shake the screen.
  */
-const buffer = new SnapshotBuffer();
+const buffer = new SnapshotBuffer({ jitterCorrection: 0.1 });
 /** The camera follows the snake a little behind, so quickly turning left and right does not shake the screen. */
 const smoother = new CameraSmoother();
 watch(
