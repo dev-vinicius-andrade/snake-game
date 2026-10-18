@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useEyeControl } from "@/composables/useEyeControl";
 import { getText } from "@/helpers";
 import { HEAD_CALIBRATION_KEY, createCalibrationStorage } from "@/input/gaze/calibrationStorage";
@@ -25,6 +25,10 @@ const eye = useEyeControl({
   onIntent: () => undefined,
 });
 
+/** Folded away until asked for; opens by itself while the camera is in use or something went wrong. */
+const open = ref(false);
+const expanded = computed(() => open.value || eye.phase.value !== "off");
+
 const isCalibrated = () => (eye.mode.value === "head" ? headStorage : storage).load() !== null;
 const calibrated = ref(isCalibrated());
 watch([eye.phase, eye.mode], () => {
@@ -33,10 +37,14 @@ watch([eye.phase, eye.mode], () => {
 </script>
 
 <template>
-  <section class="setup-hint">
+  <button type="button" class="setup-toggle" :aria-expanded="expanded" @click="open = !open">
+    {{ getText({ key: "game.eye.setupToggle" }) }} {{ expanded ? "▴" : "▾" }}
+  </button>
+  <section v-if="expanded" class="setup-hint">
     <div>{{ getText({ key: calibrated ? "game.eye.calibrated" : "game.eye.setupHint" }) }}</div>
   </section>
   <EyeControlPanel
+    v-if="expanded"
     inline
     :phase="eye.phase.value"
     :mode="eye.mode.value"
@@ -63,30 +71,30 @@ watch([eye.phase, eye.mode], () => {
 </template>
 
 <style scoped>
+.setup-toggle {
+  padding: 6px 12px;
+  color: var(--snake-muted);
+  font: inherit;
+  font-size: 0.9rem;
+  background: transparent;
+  border: 2px solid var(--snake-line);
+  cursor: pointer;
+}
+.setup-toggle:hover,
+.setup-toggle:focus-visible {
+  color: var(--snake-green);
+  border-color: var(--snake-green);
+}
 .setup-hint {
-  position: fixed;
-  right: 8px;
-  bottom: 8px;
-  z-index: 9;
-  max-width: 260px;
+  width: 100%;
+  max-width: 440px;
+  box-sizing: border-box;
+  margin: 0 auto;
   padding: 8px 12px;
-  /* Sits above the eye panel, which grows with the camera list. */
-  transform: translateY(-190px);
   color: #ffffff;
   font-family: monospace;
   font-size: 12px;
   background: var(--snake-surface);
   border: 2px solid var(--snake-line);
-}
-
-@media (max-width: 600px) {
-  .setup-hint {
-    position: static;
-    width: 100%;
-    max-width: 440px;
-    box-sizing: border-box;
-    margin: 0 auto;
-    transform: none;
-  }
 }
 </style>

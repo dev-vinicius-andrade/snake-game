@@ -9,10 +9,13 @@ const props = defineProps<{
   leaderboard: LeaderboardEntry[];
   status: GameConnectionStatus;
   mouseAim: boolean;
+  /** Controls and settings are shown only when asked for, so the screen stays clear. */
+  details: boolean;
 }>();
 
 const emit = defineEmits<{
   (event: "toggle-mouse-aim"): void;
+  (event: "toggle-details"): void;
 }>();
 
 const connectionNotice = computed(() => {
@@ -45,7 +48,18 @@ const controls = computed(() => [
     </ol>
   </section>
 
-  <section class="hud-panel hud-controls">
+  <button
+    type="button"
+    class="hud-details-toggle"
+    :aria-pressed="details"
+    :aria-label="getText({ key: 'game.details' })"
+    :title="getText({ key: 'game.details' })"
+    @click="emit('toggle-details')"
+  >
+    ?
+  </button>
+
+  <section v-if="details" class="hud-panel hud-controls">
     <div v-for="line in controls" :key="line">{{ line }}</div>
     <button type="button" class="hud-toggle" :aria-pressed="mouseAim" @click="emit('toggle-mouse-aim')">
       {{ getText({ key: mouseAim ? "game.mouseAimOn" : "game.mouseAimOff" }) }}
@@ -74,8 +88,30 @@ const controls = computed(() => [
   right: 8px;
   min-width: 160px;
 }
-.hud-controls {
+.hud-details-toggle {
+  position: fixed;
+  z-index: 11;
   bottom: 8px;
+  left: 8px;
+  width: 32px;
+  height: 32px;
+  color: #ffffff;
+  font-family: monospace;
+  font-size: 16px;
+  font-weight: bold;
+  background: rgba(11, 13, 23, 0.78);
+  border: 2px solid var(--snake-line);
+  cursor: pointer;
+  opacity: 0.7;
+}
+.hud-details-toggle[aria-pressed="true"],
+.hud-details-toggle:hover,
+.hud-details-toggle:focus-visible {
+  opacity: 1;
+  border-color: var(--snake-green);
+}
+.hud-controls {
+  bottom: 48px;
   left: 8px;
   font-size: 12px;
   opacity: 0.8;

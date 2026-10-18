@@ -33,6 +33,8 @@ const stage = ref<InstanceType<typeof GameStage> | null>(null);
 const ownSnake = computed(() => game.snapshot.value?.snakes.find((snake) => snake.guid === game.self.value?.guid) ?? null);
 const compass = computed(() => (game.snapshot.value ? prizeCompass(game.snapshot.value, game.self.value?.guid) : null));
 const mouseAim = useStorage("snake.mouseAim", false);
+/** Controls, mouse aim and face control settings: out of the way until asked for. */
+const showDetails = useStorage("snake.hudDetails", false);
 
 /**
  * The camera follows the own snake, so what the aim sources see as "the room" is the part of the world on screen,
@@ -121,13 +123,16 @@ onBeforeUnmount(() => {
       :leaderboard="game.leaderboard.value"
       :status="game.status.value"
       :mouse-aim="mouseAim"
+      :details="showDetails"
       @toggle-mouse-aim="toggleMouseAim"
+      @toggle-details="showDetails = !showDetails"
     />
     <PerkList :perks="ownSnake?.perks ?? []" :foods-eaten="ownSnake?.foodsEaten ?? 0" />
     <PrizeHint :compass="compass" />
     <TouchControls v-if="session.phase.value === 'playing'" @intent="session.handleIntent" />
     <InviteBadge v-if="inviteCode" :code="inviteCode" />
     <EyeControlPanel
+      v-if="showDetails || eye.phase.value === 'error'"
       :phase="eye.phase.value"
       :mode="eye.mode.value"
       :tracking="eye.tracking.value"

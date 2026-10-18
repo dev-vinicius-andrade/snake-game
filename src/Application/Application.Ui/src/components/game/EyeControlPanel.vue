@@ -150,12 +150,13 @@ function toggle() {
     max-width: none;
     box-sizing: border-box;
   }
-  .eye-panel-inline {
-    position: static;
-    width: 100%;
-    max-width: 440px;
-    box-sizing: border-box;
-    margin: 0 auto;
-  }
+}
+/* On the start page the panel flows with the content instead of floating over it. */
+.eye-panel-inline {
+  position: static;
+  width: 100%;
+  max-width: 440px;
+  box-sizing: border-box;
+  margin: 0 auto;
 }
 </style>
