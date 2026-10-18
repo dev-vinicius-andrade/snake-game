@@ -16,7 +16,14 @@ import type {
 
 export interface UseGameConnectionOptions {
   createClient?: HubClientFactory;
+  /** How often the round trip to the server is timed. Zero (the default) does not measure it. */
+  pingIntervalMs?: number;
+  /** Clock in milliseconds. Defaults to `performance.now`. */
+  now?: () => number;
 }
+
+/** A new measurement counts this much against the earlier ones, so one slow answer does not make the number jump. */
+const PING_SMOOTHING = 0.3;
 
 type Handler = (...args: any[]) => void;
 
@@ -32,6 +39,8 @@ const messageOf = (failure: unknown) => (failure instanceof Error ? failure.mess
  */
 export function useGameConnection(options: UseGameConnectionOptions = {}) {
   const createClient: HubClientFactory = options.createClient ?? createHubClient;
+  const pingIntervalMs = options.pingIntervalMs ?? 0;
+  const now = options.now ?? (() => performance.now());
 
   const status = shallowRef<GameConnectionStatus>("idle");
   const error = shallowRef<string | null>(null);
@@ -43,6 +52,9 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
   /** An administrator closed the room this session was playing in. */
   const roomClosed = shallowRef(false);
   const connectionId = shallowRef<string | null>(null);
+  /** Round trip to the game server in milliseconds, smoothed; null until measured. */
+  const ping = shallowRef<number | null>(null);
+  let pingTimer: ReturnType<typeof setInterval> | null = null;
   /** Damage numbers still on their way up the screen, oldest first. */
   const damage = shallowRef<FloatingDamage[]>([]);
 
@@ -68,7 +80,7 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
       PlayerLefted: ignored,
       ConnectedPlayersUpdated: ignored,
       FoodGenerated: ignored,
-      GameStateUpdated: (raw: unknown) => {
+      Snapshot: (raw: unknown) => {
         const next = parseSnapshot(raw);
         if (!next) return;
         snapshot.value = next;
@@ -108,6 +120,7 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
     death.value = null;
     roomClosed.value = false;
     damage.value = [];
+    ping.value = null;
     error.value = null;
     connectionId.value = null;
     lastDirection = null;
@@ -125,12 +138,38 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
 
   async function detach() {
     cancelPendingSteer();
+    stopPing();
     const previous = client;
     if (!previous) return;
     client = null;
     Object.entries(handlers).forEach(([event, handler]) => previous.off(event, handler));
     handlers = {};
     await previous.stop().catch(() => undefined);
+  }
+
+  function stopPing() {
+    if (pingTimer !== null) clearInterval(pingTimer);
+    pingTimer = null;
+  }
+
+  /** Times an empty call to the server now and every interval, for as long as this client is the current one. */
+  function startPing(current: HubClient) {
+    stopPing();
+    if (pingIntervalMs <= 0) return;
+    const measure = async () => {
+      if (client !== current || current.state !== "connected") return;
+      const started = now();
+      try {
+        await current.invoke("Ping");
+      } catch {
+        return;
+      }
+      if (client !== current) return;
+      const sample = now() - started;
+      ping.value = ping.value === null ? Math.round(sample) : Math.round(ping.value * (1 - PING_SMOOTHING) + sample * PING_SMOOTHING);
+    };
+    void measure();
+    pingTimer = setInterval(measure, pingIntervalMs);
   }
 
   function watchLifecycle(current: HubClient) {
@@ -174,6 +213,7 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
       connectionId.value = current.connectionId;
       await current.invoke("JoinRoom", joinRequest());
       status.value = "connected";
+      startPing(current);
     } catch (failure) {
       status.value = "error";
       error.value = messageOf(failure);
@@ -261,6 +301,7 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
     score,
     death,
     damage,
+    ping,
     roomClosed,
     connectionId,
     self,

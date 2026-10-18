@@ -1,3 +1,4 @@
+using Application.Game.Server.Services;
 using Domain.Game.Simulation;
 using Library.Commons.Game.Domain.Interfaces.Services;
 using Library.Commons.Game.Server.Entities.Hub.Events;
@@ -54,7 +55,7 @@ namespace Application.Game.Server.Hubs
             await Groups.AddToGroupAsync(Context.ConnectionId, gameState.Room.Guid.ToString(), Context.ConnectionAborted);
             await Clients.Client(Context.ConnectionId)
                 .RoomDetailsUpdated(new() { Width = gameState.Room.Width, Height = gameState.Room.Height });
-            await Clients.Group(gameState.Room.Guid.ToString()).GameStateUpdated(gameState);
+            await Clients.Group(gameState.Room.Guid.ToString()).Snapshot(SnapshotBuilder.Build(gameState));
 
             await Clients.Group(gameState.Room.Guid.ToString()).ConnectedPlayersUpdated(new()
             {
@@ -78,7 +79,7 @@ namespace Application.Game.Server.Hubs
             {
                 Player = player,
             });
-            await Clients.Group(gameState.Room.Guid.ToString()).GameStateUpdated(gameState);
+            await Clients.Group(gameState.Room.Guid.ToString()).Snapshot(SnapshotBuilder.Build(gameState));
 
             await Clients.Group(gameState.Room.Guid.ToString()).ConnectedPlayersUpdated(new()
             {
@@ -129,6 +130,8 @@ namespace Application.Game.Server.Hubs
                 _roomInputQueue.Enqueue(room.Guid, new SetBoostCommand(Context.ConnectionId, request.Active));
             return Task.CompletedTask;
         }
+
+        public Task Ping() => Task.CompletedTask;
 
         public Task Shoot(ShootRequest request)
         {

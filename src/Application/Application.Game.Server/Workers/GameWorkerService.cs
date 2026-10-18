@@ -28,6 +28,9 @@ public class GameWorkerService : BackgroundService
     private readonly RoomSimulation _roomSimulation;
     private readonly IRoomInputQueue _roomInputQueue;
     private readonly ConcurrentDictionary<Guid, FixedTimestepClock> _clocks = new();
+    /// <summary>What each room last heard as its ranking, and what each player last heard as their score: said again only when it changes.</summary>
+    private readonly ConcurrentDictionary<Guid, string> _lastRanking = new();
+    private readonly ConcurrentDictionary<string, long> _lastScores = new();
 
     public GameWorkerService(
         Serilog.ILogger logger,
@@ -121,28 +124,47 @@ public class GameWorkerService : BackgroundService
     private async Task BroadcastSnapshotAsync(Guid roomId, IGameState gameState)
     {
         var group = _gameHub.Clients.Group(roomId.ToString());
-        await group.ScoreUpdated(await _gameStateService.GetScore(gameState));
+        await SendRankingAsync(roomId, gameState);
         await SendPlayerScoresAsync(gameState);
-        await group.GameStateUpdated(gameState);
+        await group.Snapshot(SnapshotBuilder.Build(gameState));
+    }
+
+    private async Task SendRankingAsync(Guid roomId, IGameState gameState)
+    {
+        var ranking = await _gameStateService.GetScore(gameState);
+        var signature = string.Join('|', ranking.Select(entry => $"{entry.Nickname}:{entry.CurrentScore}"));
+        if (_lastRanking.TryGetValue(roomId, out var last) && last == signature) return;
+        _lastRanking[roomId] = signature;
+        await _gameHub.Clients.Group(roomId.ToString()).ScoreUpdated(ranking);
     }
 
     private async Task SendPlayerScoresAsync(IGameState gameState)
     {
         foreach (var player in gameState.Players.Values.ToArray())
+        {
+            if (_lastScores.TryGetValue(player.Id, out var last) && last == player.Score) continue;
+            _lastScores[player.Id] = player.Score;
             await _gameHub.Clients.Client(player.Id).PlayerScoreUpdated(player.Score);
+        }
     }
 
     private async Task RemoveDiedAsync(IGameState gameState, IEnumerable<IPlayer> diedPlayers)
     {
         foreach (var player in diedPlayers)
+        {
+            _lastScores.TryRemove(player.Id, out _);
             await _gameStateService.DisconnectPlayer(gameState.Room, player);
+        }
     }
 
     private void DiscardClocksOfClosedRooms(IEnumerable<Guid> openRoomIds)
     {
         var open = openRoomIds.ToHashSet();
         foreach (var closedRoomId in _clocks.Keys.Where(id => !open.Contains(id)))
+        {
             _clocks.TryRemove(closedRoomId, out _);
+            _lastRanking.TryRemove(closedRoomId, out _);
+        }
     }
 
     private FixedTimestepClock CreateClock(Guid roomId)

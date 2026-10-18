@@ -207,4 +207,12 @@ public sealed class GameHubTests
 
         Assert.Empty(_enqueued);
     }
+
+    [Fact]
+    public async Task Ping_AnswersAtOnceWithoutTouchingTheGame()
+    {
+        await _hub.Ping();
+
+        _queue.DidNotReceiveWithAnyArgs().Enqueue(default, default!);
+    }
 }

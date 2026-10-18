@@ -147,6 +147,7 @@ export const messages = {
     },
     touch: { shoot: "SHOOT", boost: "BOOST" },
     details: "Controls and settings",
+    ping: "Ping",
     perks: "Perks",
     prize: "Prize",
     mouseAimOn: "Mouse aim: on",

@@ -26,7 +26,7 @@ import { usePlayerStore } from "@/store/usePlayerStore";
 const router = useRouter();
 const route = useRoute();
 const playerStore = usePlayerStore();
-const game = useGameConnection();
+const game = useGameConnection({ pingIntervalMs: 2000 });
 /** Own snake, read from the latest snapshot; the session asks whether the auto fire perk is on. */
 const ownAutoFire = () => !!game.snapshot.value?.snakes.find((snake) => snake.guid === game.self.value?.guid)?.autoFire;
 const session = useSnakeSession({ joiner: useManagerJoin(), game, autoFire: ownAutoFire });
@@ -122,6 +122,7 @@ onBeforeUnmount(() => {
     <GameHud
       :nickname="nickname"
       :score="game.score.value"
+      :ping="game.ping.value"
       :leaderboard="game.leaderboard.value"
       :status="game.status.value"
       :mouse-aim="mouseAim"

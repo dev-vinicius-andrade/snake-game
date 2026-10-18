@@ -7,7 +7,8 @@ namespace Library.Commons.Game.Server.Interfaces;
 
 public interface IGameHubSendEvents
 {
-    Task GameStateUpdated(IGameState gameState);
+    /// <summary>The state of the room as the players draw it; see SnapshotBuilder.</summary>
+    Task Snapshot(SnapshotEvent snapshot);
     Task PlayerJoined(PlayerJoinedEvent eventArgs);
     
     Task PlayerLefted(PlayerLeftedEvent eventArgs);

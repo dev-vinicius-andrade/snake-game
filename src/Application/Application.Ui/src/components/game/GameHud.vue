@@ -6,6 +6,8 @@ import type { GameConnectionStatus, LeaderboardEntry } from "@/types/game";
 const props = defineProps<{
   nickname: string;
   score: number;
+  /** Round trip to the game server in ms, or null before it is known. */
+  ping: number | null;
   leaderboard: LeaderboardEntry[];
   status: GameConnectionStatus;
   mouseAim: boolean;
@@ -24,6 +26,13 @@ const connectionNotice = computed(() => {
   return "";
 });
 
+/** Green while it feels instant, amber while it is noticeable, red when it hurts. */
+const pingClass = computed(() => {
+  if (props.ping === null) return "";
+  if (props.ping < 80) return "ping-good";
+  return props.ping < 150 ? "ping-fair" : "ping-bad";
+});
+
 const controls = computed(() => [
   getText({ key: "game.controls.move" }),
   getText({ key: "game.controls.shoot" }),
@@ -35,6 +44,7 @@ const controls = computed(() => [
   <section class="hud-panel hud-player">
     <div class="hud-name">{{ nickname }}</div>
     <div class="hud-score">{{ getText({ key: "game.score" }) }}: {{ score }}</div>
+    <div v-if="ping !== null" class="hud-ping" :class="pingClass">{{ getText({ key: "game.ping" }) }} {{ ping }} ms</div>
     <div v-if="connectionNotice" class="hud-notice">{{ connectionNotice }}</div>
   </section>
 
@@ -141,6 +151,19 @@ const controls = computed(() => [
   display: flex;
   justify-content: space-between;
   gap: 12px;
+}
+.hud-ping {
+  margin-top: 2px;
+  font-size: 12px;
+}
+.ping-good {
+  color: var(--snake-green);
+}
+.ping-fair {
+  color: var(--snake-amber);
+}
+.ping-bad {
+  color: #ff5a5a;
 }
 .hud-notice {
   margin-top: 4px;

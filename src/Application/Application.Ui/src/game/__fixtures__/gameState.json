@@ -1,43 +1,18 @@
 {
-  "room": { "width": 1920, "height": 1080, "guid": "11111111-1111-1111-1111-111111111111" },
-  "players": {
-    "22222222-2222-2222-2222-222222222222": {
-      "name": "ana",
-      "currentPosition": { "x": 500, "y": 500, "z": 0 },
-      "currentDirection": "right",
-      "direction": { "direction": "right", "axis": { "x": 1, "y": 0, "z": 0 } },
-      "backgroundColor": { "fillColor": "#ff0000", "border": "#aa0000" },
-      "path": [
-        { "x": 485, "y": 500, "z": 0 },
-        { "x": 500, "y": 500, "z": 0 }
-      ],
-      "isAlive": true,
-      "score": 7,
-      "segmentHealth": [0.5, 1],
-      "isBoosting": true,
-      "boostTicks": 0,
+  "room": { "guid": "11111111-1111-1111-1111-111111111111", "width": 1920, "height": 1080 },
+  "snakes": [
+    {
       "guid": "22222222-2222-2222-2222-222222222222",
-      "id": "connection-1"
+      "id": "connection-1",
+      "name": "ana",
+      "boost": true,
+      "score": 7,
+      "color": "#ff0000",
+      "direction": "right",
+      "path": [485, 500, 500, 500],
+      "health": [50, 100]
     }
-  },
-  "colors": {},
-  "foods": {
-    "33333333-3333-3333-3333-333333333333": {
-      "position": { "x": 10, "y": 20, "z": 0 },
-      "color": { "fillColor": "#00ff00", "border": "#00aa00" },
-      "value": 3,
-      "guid": "33333333-3333-3333-3333-333333333333"
-    }
-  },
-  "obstacles": {
-    "44444444-4444-4444-4444-444444444444": {
-      "initialPosition": { "x": 1, "y": 1, "z": 0 },
-      "currentPosition": { "x": 30, "y": 40, "z": 0 },
-      "endPosition": { "x": 1920, "y": 0, "z": 0 },
-      "direction": { "direction": "right", "axis": { "x": 1, "y": 0, "z": 0 } },
-      "size": 15,
-      "createdyBy": { "guid": "22222222-2222-2222-2222-222222222222" },
-      "guid": "44444444-4444-4444-4444-444444444444"
-    }
-  }
+  ],
+  "foods": [{ "x": 10, "y": 20, "v": 3, "c": "#00ff00" }],
+  "shots": [{ "guid": "44444444-4444-4444-4444-444444444444", "x": 30, "y": 40, "size": 15, "owner": "22222222-2222-2222-2222-222222222222" }]
 }

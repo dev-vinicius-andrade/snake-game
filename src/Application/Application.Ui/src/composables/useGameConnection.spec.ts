@@ -35,7 +35,7 @@ describe("useGameConnection.connect", () => {
     const start = client.log.indexOf("start");
 
     for (const event of [
-      "GameStateUpdated",
+      "Snapshot",
       "RoomDetailsUpdated",
       "ScoreUpdated",
       "PlayerScoreUpdated",
@@ -108,10 +108,10 @@ describe("useGameConnection room closed", () => {
 });
 
 describe("useGameConnection server events", () => {
-  it("parses GameStateUpdated into the snapshot", async () => {
+  it("parses Snapshot into the snapshot", async () => {
     const { client, connection } = await connected();
 
-    client.emit("GameStateUpdated", fixture);
+    client.emit("Snapshot", fixture);
 
     expect(connection.snapshot.value?.snakes[0].name).toBe("ana");
     expect(connection.room.value).toEqual({
@@ -123,20 +123,20 @@ describe("useGameConnection server events", () => {
 
   it("keeps the previous snapshot when a new one is unusable", async () => {
     const { client, connection } = await connected();
-    client.emit("GameStateUpdated", fixture);
+    client.emit("Snapshot", fixture);
     const before = connection.snapshot.value;
 
-    client.emit("GameStateUpdated", { garbage: true });
+    client.emit("Snapshot", { garbage: true });
 
     expect(connection.snapshot.value).toBe(before);
   });
 
   it("replaces the snapshot reference on every update", async () => {
     const { client, connection } = await connected();
-    client.emit("GameStateUpdated", fixture);
+    client.emit("Snapshot", fixture);
     const first = connection.snapshot.value;
 
-    client.emit("GameStateUpdated", fixture);
+    client.emit("Snapshot", fixture);
 
     expect(connection.snapshot.value).not.toBe(first);
   });
@@ -144,7 +144,7 @@ describe("useGameConnection server events", () => {
   it("finds the own snake by connection id", async () => {
     const { client, connection } = await connected();
 
-    client.emit("GameStateUpdated", fixture);
+    client.emit("Snapshot", fixture);
 
     expect(connection.self.value?.guid).toBe("22222222-2222-2222-2222-222222222222");
   });
@@ -154,7 +154,7 @@ describe("useGameConnection server events", () => {
     client.nextConnectionId = "someone-else";
     await connection.connect(assignment);
 
-    client.emit("GameStateUpdated", fixture);
+    client.emit("Snapshot", fixture);
 
     expect(connection.self.value).toBeNull();
   });
@@ -219,7 +219,7 @@ describe("useGameConnection server events", () => {
     const { client, connection } = await connected();
     await connection.dispose();
 
-    client.emit("GameStateUpdated", fixture);
+    client.emit("Snapshot", fixture);
 
     expect(connection.snapshot.value).toBeNull();
   });
@@ -302,7 +302,7 @@ describe("useGameConnection lifecycle", () => {
   let context: Awaited<ReturnType<typeof connected>>;
   beforeEach(async () => {
     context = await connected();
-    context.client.emit("GameStateUpdated", fixture);
+    context.client.emit("Snapshot", fixture);
   });
 
   it("marks the connection reconnecting and then connected again", () => {
@@ -350,7 +350,7 @@ describe("useGameConnection lifecycle", () => {
   it("dispose removes handlers and stops", async () => {
     await context.connection.dispose();
 
-    expect(context.client.handlerCount("GameStateUpdated")).toBe(0);
+    expect(context.client.handlerCount("Snapshot")).toBe(0);
     expect(context.client.log).toContain("stop");
   });
 
@@ -503,5 +503,102 @@ describe("useGameConnection steering", () => {
     await vi.advanceTimersByTimeAsync(200);
 
     expect(angles(client)).toEqual([1]);
+  });
+});
+
+describe("useGameConnection ping", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** A clock that moves by `step` ms every time it is read, so a call that is timed lasts exactly `step`. */
+  function pinged(step: number) {
+    const client = new FakeHubClient("game");
+    let clock = 0;
+    const connection = useGameConnection({
+      createClient: () => client,
+      pingIntervalMs: 2000,
+      now: () => (clock += step),
+    });
+    return { client, connection };
+  }
+
+  it("is not measured unless asked for", async () => {
+    const { client, connection } = await connected();
+
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(client.invocationsOf("Ping")).toHaveLength(0);
+    expect(connection.ping.value).toBeNull();
+  });
+
+  it("is unknown until the first answer", () => {
+    const { connection } = pinged(40);
+
+    expect(connection.ping.value).toBeNull();
+  });
+
+  it("measures how long the server takes to answer, as soon as connected", async () => {
+    const { client, connection } = pinged(40);
+
+    await connection.connect(assignment);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(client.invocationsOf("Ping")).toHaveLength(1);
+    expect(connection.ping.value).toBe(40);
+  });
+
+  it("measures again every interval", async () => {
+    const { client, connection } = pinged(40);
+    await connection.connect(assignment);
+
+    await vi.advanceTimersByTimeAsync(6000);
+
+    expect(client.invocationsOf("Ping").length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("smooths a single slow answer instead of jumping to it", async () => {
+    const client = new FakeHubClient("game");
+    const steps = [50, 50, 250];
+    let clock = 0;
+    let calls = 0;
+    const connection = useGameConnection({
+      createClient: () => client,
+      pingIntervalMs: 2000,
+      now: () => (clock += calls++ % 2 === 0 ? 0 : steps[Math.floor(calls / 2) - 1] ?? 50),
+    });
+
+    await connection.connect(assignment);
+    await vi.advanceTimersByTimeAsync(4000);
+
+    expect(connection.ping.value).not.toBeNull();
+    expect(connection.ping.value!).toBeGreaterThan(50);
+    expect(connection.ping.value!).toBeLessThan(250);
+  });
+
+  it("keeps the last value when an answer fails", async () => {
+    const { client, connection } = pinged(40);
+    await connection.connect(assignment);
+    await vi.advanceTimersByTimeAsync(0);
+
+    client.invokeError = new Error("lost");
+    await vi.advanceTimersByTimeAsync(4000);
+
+    expect(connection.ping.value).toBe(40);
+  });
+
+  it("stops measuring when the session ends and forgets the value on the next one", async () => {
+    const { client, connection } = pinged(40);
+    await connection.connect(assignment);
+    await vi.advanceTimersByTimeAsync(0);
+
+    await connection.leave();
+    const before = client.invocationsOf("Ping").length;
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(client.invocationsOf("Ping")).toHaveLength(before);
   });
 });
