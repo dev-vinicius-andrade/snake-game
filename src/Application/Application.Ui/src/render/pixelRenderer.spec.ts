@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { FoodSnapshot, GameSnapshot, ShotSnapshot, SnakeSnapshot } from "@/types/game";
 import { drawFrame, logicalSize, type PixelContext } from "./pixelRenderer";
-import { headColor, segmentColor } from "./segmentColor";
+import { contrastColor, headColor, segmentColor, shadeColor } from "./segmentColor";
 
 class RecordingContext implements PixelContext {
   fillStyle = "";
@@ -79,7 +79,7 @@ describe("drawFrame", () => {
   it("draws every segment as a 3x3 pixel block snapped to the pixel grid", () => {
     drawFrame(ctx, snapshot({ snakes: [snake()] }));
 
-    const blocks = ctx.calls.slice(1).map(({ x, y, w, h }) => ({ x, y, w, h }));
+    const blocks = ctx.calls.slice(1).filter((call) => call.w === 3).map(({ x, y, w, h }) => ({ x, y, w, h }));
     expect(blocks).toEqual([
       { x: 0, y: 0, w: 3, h: 3 },
       { x: 3, y: 0, w: 3, h: 3 },
@@ -96,21 +96,23 @@ describe("drawFrame", () => {
   it("colours body segments by their health and the head in its own colour", () => {
     drawFrame(ctx, snapshot({ snakes: [snake({ segmentHealth: [0.2, 1, 1] })] }));
 
-    const styles = ctx.calls.slice(1).map((call) => call.style);
-    expect(styles).toEqual([segmentColor("#00ff00", 0.2), "#00ff00", headColor("#00ff00")]);
+    const styles = ctx.calls.slice(1).filter((call) => call.w === 3).map((call) => call.style);
+    // Every other segment, counting from the head, is a little darker so the body shows its segments.
+    expect(styles).toEqual([segmentColor("#00ff00", 0.2), shadeColor("#00ff00", 0.82), headColor("#00ff00")]);
   });
 
   it("makes the head differ from the body even when the server sends the same fill and border", () => {
     drawFrame(ctx, snapshot({ snakes: [snake({ color: { fillColor: "#3366ff", border: "#3366ff" } })] }));
 
-    const [body, , head] = ctx.calls.slice(1).map((call) => call.style);
+    const [body, , head] = ctx.calls.slice(1).filter((call) => call.w === 3).map((call) => call.style);
     expect(head).not.toBe(body);
   });
 
   it("draws the head last so it stays on top", () => {
     drawFrame(ctx, snapshot({ snakes: [snake()] }));
 
-    expect(ctx.calls[ctx.calls.length - 1]).toMatchObject({ x: 6, style: headColor("#00ff00") });
+    const blocks = ctx.calls.filter((call) => call.w === 3);
+    expect(blocks[blocks.length - 1]).toMatchObject({ x: 6, style: headColor("#00ff00") });
   });
 
   it("does not draw dead snakes", () => {
@@ -147,7 +149,8 @@ describe("drawFrame", () => {
 
     drawFrame(ctx, snapshot({ snakes: [mine, other] }), { selfGuid: "me" });
 
-    expect(ctx.calls[ctx.calls.length - 1].style).toBe(headColor("#0000ff"));
+    const blocks = ctx.calls.filter((call) => call.w === 3);
+    expect(blocks[blocks.length - 1].style).toBe(headColor("#0000ff"));
   });
 
   it("does not mutate the snapshot", () => {
@@ -249,5 +252,81 @@ describe("drawFrame with a camera", () => {
 
     expect(ctx.calls).toHaveLength(2);
     expect(ctx.calls[0]).toMatchObject({ x: 0, y: 0, w: 384, h: 216 });
+  });
+});
+
+describe("how a snake looks", () => {
+  let ctx: RecordingContext;
+  beforeEach(() => {
+    ctx = new RecordingContext();
+  });
+
+  const eyes = () => ctx.calls.filter((call) => call.w === 1 && call.h === 1);
+  const along = (head: { x: number; y: number }, step: { x: number; y: number }) =>
+    snake({ path: [{ x: head.x - 2 * step.x, y: head.y - 2 * step.y }, { x: head.x - step.x, y: head.y - step.y }, head] });
+
+  it("alternates the shade of the body segments, counting from the head, so a straight snake does not look like a bar", () => {
+    drawFrame(ctx, snapshot({ snakes: [snake({ path: [0, 15, 30, 45, 60].map((x) => ({ x, y: 0 })), segmentHealth: [1, 1, 1, 1, 1] })] }));
+
+    const styles = ctx.calls.slice(1).filter((call) => call.w === 3).map((call) => call.style);
+    expect(styles[3]).toBe(shadeColor("#00ff00", 0.82));
+    expect(styles[2]).toBe("#00ff00");
+    expect(styles[1]).toBe(shadeColor("#00ff00", 0.82));
+    expect(styles[0]).toBe("#00ff00");
+  });
+
+  it("puts two eyes on the front of the head when it moves right", () => {
+    drawFrame(ctx, snapshot({ snakes: [along({ x: 100, y: 100 }, { x: 15, y: 0 })] }));
+
+    expect(eyes().map(({ x, y }) => ({ x, y }))).toEqual([
+      { x: 22, y: 20 },
+      { x: 22, y: 22 },
+    ]);
+  });
+
+  it("puts them on the left when it moves left", () => {
+    drawFrame(ctx, snapshot({ snakes: [along({ x: 100, y: 100 }, { x: -15, y: 0 })] }));
+
+    expect(eyes().map(({ x, y }) => ({ x, y }))).toEqual([
+      { x: 20, y: 20 },
+      { x: 20, y: 22 },
+    ]);
+  });
+
+  it("puts them at the top when it moves up and at the bottom when it moves down", () => {
+    drawFrame(ctx, snapshot({ snakes: [along({ x: 100, y: 100 }, { x: 0, y: -15 })] }));
+    expect(eyes().map(({ x, y }) => ({ x, y }))).toEqual([
+      { x: 20, y: 20 },
+      { x: 22, y: 20 },
+    ]);
+
+    ctx.calls.length = 0;
+    drawFrame(ctx, snapshot({ snakes: [along({ x: 100, y: 100 }, { x: 0, y: 15 })] }));
+    expect(eyes().map(({ x, y }) => ({ x, y }))).toEqual([
+      { x: 20, y: 22 },
+      { x: 22, y: 22 },
+    ]);
+  });
+
+  it("draws the eyes on top of the head, in a colour that shows against it", () => {
+    drawFrame(ctx, snapshot({ snakes: [along({ x: 100, y: 100 }, { x: 15, y: 0 })] }));
+
+    const calls = ctx.calls;
+    const head = calls.findIndex((call) => call.w === 3 && call.x === 20);
+    expect(calls.slice(head + 1).every((call) => call.w === 1)).toBe(true);
+    expect(calls[calls.length - 1].style).toBe(contrastColor(headColor("#00ff00")));
+  });
+
+  it("knows which way the snake faces when it has just crossed the edge of the world", () => {
+    // The head wrapped from the right edge to the left: it still moves right.
+    drawFrame(ctx, snapshot({ snakes: [snake({ path: [{ x: 1890, y: 100 }, { x: 1905, y: 100 }, { x: 0, y: 100 }] })] }));
+
+    expect(eyes()[0].x).toBe(2);
+  });
+
+  it("draws no eyes on a snake that has nothing to tell its direction by", () => {
+    drawFrame(ctx, snapshot({ snakes: [snake({ path: [{ x: 100, y: 100 }] })] }));
+
+    expect(eyes()).toHaveLength(0);
   });
 });

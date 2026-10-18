@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DAMAGE_COLOR, headColor, segmentColor } from "./segmentColor";
+import { DAMAGE_COLOR, contrastColor, headColor, segmentColor, shadeColor } from "./segmentColor";
 
 describe("segmentColor", () => {
   it("returns the base colour at full health", () => {
@@ -77,5 +77,43 @@ describe("headColor", () => {
 
   it.each(["red", "", "#12"])("returns an unparsable colour %j unchanged", (base) => {
     expect(headColor(base)).toBe(base);
+  });
+});
+
+describe("shadeColor", () => {
+  it("darkens by the factor", () => {
+    expect(shadeColor("#80c0ff", 0.5)).toBe("#4060 80".replace(" ", ""));
+  });
+
+  it("leaves a colour alone at factor 1", () => {
+    expect(shadeColor("#80c0ff", 1)).toBe("#80c0ff");
+  });
+
+  it("clamps the factor into 0..1", () => {
+    expect(shadeColor("#80c0ff", 3)).toBe("#80c0ff");
+    expect(shadeColor("#80c0ff", -1)).toBe("#000000");
+  });
+
+  it("accepts the short form", () => {
+    expect(shadeColor("#fff", 0.5)).toBe("#808080");
+  });
+
+  it.each(["red", "", "#12"])("returns an unparsable colour %j unchanged", (base) => {
+    expect(shadeColor(base, 0.5)).toBe(base);
+  });
+});
+
+describe("contrastColor", () => {
+  it("is dark on a light colour and light on a dark colour", () => {
+    expect(contrastColor("#f0f0f0")).toBe("#0b0d17");
+    expect(contrastColor("#101010")).toBe("#ffffff");
+  });
+
+  it("treats a bright green as light", () => {
+    expect(contrastColor("#00ff00")).toBe("#0b0d17");
+  });
+
+  it("falls back to dark for an unparsable colour", () => {
+    expect(contrastColor("nope")).toBe("#0b0d17");
   });
 });

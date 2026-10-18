@@ -45,3 +45,21 @@ export function headColor(base: string): string {
   const mixed = from.map((channel) => Math.round(channel + (target - channel) * HEAD_SHIFT));
   return `#${mixed.map(toHex).join("")}`;
 }
+
+/** The colour multiplied by `factor` (0..1) in every channel: darker. Colours that are not `#rgb` / `#rrggbb` are returned unchanged. */
+export function shadeColor(base: string, factor: number): string {
+  const from = parseHex(base);
+  if (!from) return base;
+  const clamped = Number.isNaN(factor) ? 1 : Math.min(1, Math.max(0, factor));
+  return `#${from.map((channel) => toHex(Math.round(channel * clamped))).join("")}`;
+}
+
+const DARK = "#0b0d17";
+const LIGHT = "#ffffff";
+
+/** A colour that can be read on top of `base`: dark on light colours, white on dark ones. */
+export function contrastColor(base: string): string {
+  const from = parseHex(base);
+  return from && luminanceOf(from) < 0.5 ? LIGHT : DARK;
+}
+

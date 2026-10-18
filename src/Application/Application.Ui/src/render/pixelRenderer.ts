@@ -1,5 +1,5 @@
 import type { FoodSnapshot, GamePoint, GameSnapshot, RoomDimensions, ShotSnapshot, SnakeSnapshot } from "@/types/game";
-import { DAMAGE_COLOR, headColor, segmentColor } from "./segmentColor";
+import { DAMAGE_COLOR, contrastColor, headColor, segmentColor, shadeColor } from "./segmentColor";
 
 /** The 2D canvas methods the renderer needs, so it can be tested without a browser. */
 export interface PixelContext {
@@ -48,6 +48,8 @@ export function logicalSize(dimensions: RoomDimensions, pixelSize: number = DEFA
 
 interface Painter {
   block(color: string, world: GamePoint, pixels: number): void;
+  /** One pixel inside the block at `world`, `dx` and `dy` pixels from its top-left corner. */
+  pixel(color: string, world: GamePoint, pixels: number, dx: number, dy: number): void;
 }
 
 /** Where blocks of a camera view go: which part of the wrapping world is on the canvas. */
@@ -67,19 +69,23 @@ function copies(position: number, period: number, size: number, extent: number):
 }
 
 function createPainter(ctx: PixelContext, pixelSize: number, origin: GamePoint, tiling?: Tiling): Painter {
+  /** Fills a `width` x `height` rectangle that starts `dx`, `dy` pixels inside the block of `pixels` at `world`. */
+  function fill(color: string, world: GamePoint, pixels: number, dx: number, dy: number, width: number, height: number) {
+    ctx.fillStyle = color;
+    const left = (world.x - origin.x) / pixelSize;
+    const top = (world.y - origin.y) / pixelSize;
+    if (!tiling) {
+      ctx.fillRect(Math.floor(left) + dx, Math.floor(top) + dy, width, height);
+      return;
+    }
+    // The world wraps, so what leaves the canvas on one side of an edge is what enters on the other.
+    for (const x of copies(left, tiling.period.width, pixels, tiling.view.width))
+      for (const y of copies(top, tiling.period.height, pixels, tiling.view.height)) ctx.fillRect(x + dx, y + dy, width, height);
+  }
+
   return {
-    block(color, world, pixels) {
-      ctx.fillStyle = color;
-      const left = (world.x - origin.x) / pixelSize;
-      const top = (world.y - origin.y) / pixelSize;
-      if (!tiling) {
-        ctx.fillRect(Math.floor(left), Math.floor(top), pixels, pixels);
-        return;
-      }
-      // The world wraps, so what leaves the canvas on one side of an edge is what enters on the other.
-      for (const x of copies(left, tiling.period.width, pixels, tiling.view.width))
-        for (const y of copies(top, tiling.period.height, pixels, tiling.view.height)) ctx.fillRect(x, y, pixels, pixels);
-    },
+    block: (color, world, pixels) => fill(color, world, pixels, 0, 0, pixels, pixels),
+    pixel: (color, world, pixels, dx, dy) => fill(color, world, pixels, dx, dy, 1, 1),
   };
 }
 
@@ -101,15 +107,55 @@ function drawShot(painter: Painter, shot: ShotSnapshot) {
   painter.block(SHOT_COLOR, shot.position, SHOT_PIXELS);
 }
 
-function drawSnake(painter: Painter, snake: SnakeSnapshot, segmentPixels: number, damageColor: string) {
+type Facing = "right" | "left" | "up" | "down";
+
+/** Which way the head moves, from its last step. The short way round the world, so crossing an edge does not flip it. */
+function facingOf(path: readonly GamePoint[], dimensions: RoomDimensions): Facing | null {
+  if (path.length < 2) return null;
+  const head = path[path.length - 1];
+  const neck = path[path.length - 2];
+  const shortest = (delta: number, size: number) => (delta > size / 2 ? delta - size : delta < -size / 2 ? delta + size : delta);
+  const dx = shortest(head.x - neck.x, dimensions.width);
+  const dy = shortest(head.y - neck.y, dimensions.height);
+  if (dx === 0 && dy === 0) return null;
+  if (Math.abs(dx) >= Math.abs(dy)) return dx > 0 ? "right" : "left";
+  return dy > 0 ? "down" : "up";
+}
+
+/** The two eyes, as pixel offsets inside the head block, on the side it faces. */
+function eyeOffsets(facing: Facing, pixels: number): Array<[number, number]> {
+  const far = pixels - 1;
+  switch (facing) {
+    case "right":
+      return [[far, 0], [far, far]];
+    case "left":
+      return [[0, 0], [0, far]];
+    case "up":
+      return [[0, 0], [far, 0]];
+    default:
+      return [[0, far], [far, far]];
+  }
+}
+
+/** Every other segment, counting from the head, is a little darker: a straight snake shows its segments instead of looking like a bar. */
+const ALTERNATE_SHADE = 0.82;
+
+function drawSnake(painter: Painter, snake: SnakeSnapshot, segmentPixels: number, damageColor: string, dimensions: RoomDimensions) {
   const headIndex = snake.path.length - 1;
   snake.path.forEach((point, index) => {
-    const color =
-      index === headIndex
-        ? headColor(snake.color.fillColor)
-        : segmentColor(snake.color.fillColor, snake.segmentHealth[index] ?? 1, damageColor);
-    painter.block(color, point, segmentPixels);
+    if (index === headIndex) return;
+    const health = segmentColor(snake.color.fillColor, snake.segmentHealth[index] ?? 1, damageColor);
+    painter.block((headIndex - index) % 2 === 1 ? shadeColor(health, ALTERNATE_SHADE) : health, point, segmentPixels);
   });
+  if (headIndex < 0) return;
+
+  const head = snake.path[headIndex];
+  const headColorValue = headColor(snake.color.fillColor);
+  painter.block(headColorValue, head, segmentPixels);
+  const facing = facingOf(snake.path, dimensions);
+  if (!facing) return;
+  const eye = contrastColor(headColorValue);
+  eyeOffsets(facing, segmentPixels).forEach(([dx, dy]) => painter.pixel(eye, head, segmentPixels, dx, dy));
 }
 
 /** Draws one frame: background, food, shots, other snakes, then the own snake on top. */
@@ -134,5 +180,5 @@ export function drawFrame(ctx: PixelContext, snapshot: GameSnapshot, options: Re
   const living = snapshot.snakes.filter((snake) => snake.isAlive);
   const others = living.filter((snake) => snake.guid !== options.selfGuid);
   const own = living.filter((snake) => snake.guid === options.selfGuid);
-  [...others, ...own].forEach((snake) => drawSnake(painter, snake, segmentPixels, damageColor));
+  [...others, ...own].forEach((snake) => drawSnake(painter, snake, segmentPixels, damageColor, snapshot.room));
 }
