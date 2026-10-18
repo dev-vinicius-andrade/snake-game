@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
+import LanguageSwitcher from "@/components/brand/LanguageSwitcher.vue";
 import SiteFooter from "@/components/brand/SiteFooter.vue";
 import SnakeLogo from "@/components/brand/SnakeLogo.vue";
 import RoomActions from "@/components/rooms/RoomActions.vue";
@@ -43,6 +44,7 @@ function playNow() {
       <RoomActions :disabled="!isPlayerNameValid" />
     </section>
 
+    <LanguageSwitcher />
     <EyeSetup />
     <SiteFooter />
   </main>

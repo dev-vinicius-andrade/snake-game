@@ -1,22 +1,13 @@
-
-import { getFileName } from '@/helpers';
 import { createI18n } from 'vue-i18n';
-import _merge from "lodash/merge";
-import _set from "lodash/set";
+import { DEFAULT_LOCALE } from '@/locales/locale';
+import en from '@/locales/messages/en';
+import pt from '@/locales/messages/pt';
 
-const localeFiles= import.meta.glob<{ default: unknown }>('@locales/messages/**/*.ts', { eager: true });
-
-let messages = {};
-Object.entries(localeFiles).forEach(([key, value]) =>{
-  const localeFromFileName = getFileName(key);
-  messages = _merge(messages, _set({},localeFromFileName , value.default ));
-})
-console.log(messages);
-const i18n =createI18n({
+const i18n = createI18n({
   legacy: false,
-  locale: 'en',
-  fallbackLocale: 'en',
-  messages,
+  locale: DEFAULT_LOCALE,
+  fallbackLocale: DEFAULT_LOCALE,
+  messages: { en, pt },
   fallbackWarn: process.env.NODE_ENV === 'production'? false:true,
   missingWarn:  process.env.NODE_ENV === 'production'? false:true,
 });

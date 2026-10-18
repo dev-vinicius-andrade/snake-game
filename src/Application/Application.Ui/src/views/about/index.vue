@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterLink } from "vue-router";
 import SnakeLogo from "@/components/brand/SnakeLogo.vue";
+import LanguageSwitcher from "@/components/brand/LanguageSwitcher.vue";
 import SiteFooter from "@/components/brand/SiteFooter.vue";
 import { REPOSITORY_URL } from "@/config/links";
 import { getText } from "@/helpers";
@@ -16,6 +17,7 @@ const RULES = ["r1", "r2", "r3", "r4"] as const;
 
 <template>
   <main class="about">
+    <LanguageSwitcher />
     <RouterLink :to="{ name: 'home' }" class="back">&larr; {{ t("back") }}</RouterLink>
     <SnakeLogo class="logo" />
     <p class="lead">{{ t("lead") }}</p>

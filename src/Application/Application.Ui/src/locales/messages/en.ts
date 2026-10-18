@@ -28,6 +28,7 @@ export const messages = {
   footer: {
     about: "About and architecture",
     source: "Source on GitHub",
+    language: "Language",
   },
   about: {
     back: "Back to the game",
