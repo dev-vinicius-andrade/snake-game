@@ -1,0 +1,33 @@
+<div class="flex justify-center items-center w-full h-full">
+  <div class="flex flex-col h-2/4 w-9/11 text-balance items-center text-start">
+    <div class="flex justify-center mt-5 w-full">
+      <ul class="list-none space-y-1">
+        <li>
+          In order to use the camera movement controls you
+          <span class="font-bold underline"
+            >must Allow the application to use the camera</span
+          >.
+        </li>
+        <li>You will be prompted to do this on the next screen.</li>
+        <li>
+          If you do not wish to allow use of your camera, you cannot participate
+          in this experiment.
+        </li>
+        <li>
+          It may take up to <span class="font-bold">30 seconds</span> for the
+          camera to initialize after you give permission.
+        </li>
+      </ul>
+    </div>
+    <div class="w-full flex justify-center mt-5">
+      <div>
+        <p-button
+          label="Got it!"
+          (onClick)="onOkClicked()"
+          [outlined]="true"
+          styleClass="p-5 rounded-md p-5 w-96"
+        ></p-button>
+      </div>
+    </div>
+  </div>
+</div>

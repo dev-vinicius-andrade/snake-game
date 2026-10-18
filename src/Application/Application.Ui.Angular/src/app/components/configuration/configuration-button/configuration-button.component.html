@@ -1,0 +1,36 @@
+<button
+  mat-button
+  pButton
+  outlined="true"
+  icon="pi pi-cog"
+  [matMenuTriggerFor]="configurationMenu"
+></button>
+<mat-menu #configurationMenu="matMenu" class="pa-5">
+  <div mat-menu-item (click)="$event.stopPropagation()">
+    <span class="text-xs">{{ eyeTrackerControlLabel }}</span>
+    <mat-slide-toggle
+      [checked]="eyeTrackerControlEnabled"
+      (toggleChange)="toogleEyeTrackerControl()"
+      [color]="color"
+      class="ml-2"
+    >
+      <div class="flex justify-center items-center w-full h-full">
+        <mat-icon>{{
+          eyeTrackerControlEnabled ? "visibility" : "visibility_off"
+        }}</mat-icon>
+      </div>
+    </mat-slide-toggle>
+  </div>
+  @if (eyeTrackerControlEnabled){
+  <div mat-menu-item (click)="navigateToEyeControlCalibrationPage($event)">
+    <div class="grid grid-cols-12">
+      <div class="col-span-8">
+        <span class="text-xs"> Calibrate </span>
+      </div>
+      <div class="col-span-2">
+        <mat-icon> compass_calibration </mat-icon>
+      </div>
+    </div>
+  </div>
+  }
+</mat-menu>

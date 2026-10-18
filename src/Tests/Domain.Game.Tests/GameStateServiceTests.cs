@@ -36,6 +36,9 @@ public sealed class GameStateServiceTests
         ]
     });
     private readonly GameStateService _service;
+    private readonly ConcurrentDictionary<Guid, IGameState> _states;
+    private readonly ITickRateService _tickRate = Substitute.For<ITickRateService>();
+    private readonly SnakeRulesOptions _rules = new();
     private readonly IGameState _state;
     private readonly IRoom _room = Substitute.For<IRoom>();
 
@@ -45,10 +48,8 @@ public sealed class GameStateServiceTests
         _room.Width = 1920;
         _room.Height = 1080;
         _state = new GameState(_room);
-        var states = new ConcurrentDictionary<Guid, IGameState> { [_room.Guid] = _state };
-        var tickRate = Substitute.For<ITickRateService>();
-        tickRate.TickRate.Returns(TimeSpan.FromMilliseconds(1000 / 60.0));
-        var rules = new SnakeRulesOptions();
+        _states = new ConcurrentDictionary<Guid, IGameState> { [_room.Guid] = _state };
+        _tickRate.TickRate.Returns(TimeSpan.FromMilliseconds(1000 / 60.0));
         _playerService.CreateDirection(default, default!).ReturnsForAnyArgs(call =>
             new MovementDirection(call.ArgAt<Direction>(0), call.ArgAt<IPointAxis>(1)));
         _obstacleService.Create(default!, default!, default!, default!, default, default!).ReturnsForAnyArgs(call =>
@@ -59,7 +60,15 @@ public sealed class GameStateServiceTests
                 EndPosition = _axes.Create(5000, 5000),
                 Direction = call.ArgAt<IMovementDirection>(3)
             });
-        _service = new GameStateService(
+        _service = Build(_perks);
+    }
+
+    private GameStateService Build(PerkRules perks)
+    {
+        var rules = _rules;
+        var states = _states;
+        var tickRate = _tickRate;
+        return new GameStateService(
             Options.Create(new ServerConfiguration()),
             Options.Create(new SnakeConfiguration { Speed = 15, HeadSize = HeadSize, InitialSnakeSize = InitialLength - 1 }),
             _playerService,
@@ -82,7 +91,7 @@ public sealed class GameStateServiceTests
             rules,
             new ShotCooldownRules(rules),
             new HeadingRules(rules),
-            _perks);
+            perks);
     }
 
     private IPointAxis At(double x, double y)
@@ -704,5 +713,231 @@ public sealed class GameStateServiceTests
         var plainDistance = plain.CurrentPosition.X - 500;
         var swiftDistance = swift.CurrentPosition.X - 500;
         Assert.Equal(plainDistance * (1.8 + 0.8) / 1.8, swiftDistance, 3);
+    }
+
+    private static PerkRules Only(PerkEffect effect, double amount, int burstIntervalMilliseconds = 80)
+        => new(new PerkOptions
+        {
+            BurstIntervalMilliseconds = burstIntervalMilliseconds,
+            Perks = [new() { Id = "p", Name = "P", FoodsRequired = 1, Effect = effect, Amount = amount }]
+        });
+
+    private GameStateService With(PerkEffect effect, double amount) => Build(Only(effect, amount));
+
+    [Fact]
+    public async Task Shoot_WithBurst_FiresTheFirstShotNowAndTheRestOnTime()
+    {
+        var service = With(PerkEffect.BurstShot, 2);
+        var player = AddPlayer("a", 500, 500, score: 5);
+        player.FoodsEaten = 1;
+
+        await service.Shoot(_state, _room, player);
+        Assert.Single(_state.Obstacles);
+        Assert.Equal(4, player.Score);
+
+        for (var tick = 0; tick < 4; tick++) await service.MovePlayer(_state, player);
+        Assert.Single(_state.Obstacles);
+
+        await service.MovePlayer(_state, player);
+        Assert.Equal(2, _state.Obstacles.Count);
+
+        for (var tick = 0; tick < 5; tick++) await service.MovePlayer(_state, player);
+        Assert.Equal(3, _state.Obstacles.Count);
+        Assert.Equal(0, player.BurstRemaining);
+        Assert.Equal(4, player.Score);
+    }
+
+    [Fact]
+    public async Task Shoot_WithBurst_TheCooldownCoversTheWholeBurst()
+    {
+        var service = With(PerkEffect.BurstShot, 2);
+        var player = AddPlayer("a", 500, 500, score: 5);
+        player.FoodsEaten = 1;
+
+        await service.Shoot(_state, _room, player);
+
+        Assert.Equal(15 + 2 * 5, player.ShotCooldownTicks);
+    }
+
+    [Fact]
+    public async Task Shoot_BurstStopsWhenTheSnakeDies()
+    {
+        var service = With(PerkEffect.BurstShot, 2);
+        var player = AddPlayer("a", 500, 500, score: 5);
+        player.FoodsEaten = 1;
+        await service.Shoot(_state, _room, player);
+
+        player.IsAlive = false;
+        for (var tick = 0; tick < 12; tick++) await service.MovePlayer(_state, player);
+
+        Assert.Single(_state.Obstacles);
+    }
+
+    [Fact]
+    public async Task Shoot_WithQuickShot_TheShotIsFaster()
+    {
+        var service = With(PerkEffect.ShotSpeed, 1.0);
+        var player = AddPlayer("a", 500, 500, score: 5);
+        player.FoodsEaten = 1;
+
+        await service.Shoot(_state, _room, player);
+
+        Assert.Equal(2.0, Assert.Single(_state.Obstacles.Values).SpeedFactor);
+    }
+
+    [Fact]
+    public async Task MoveObstacles_AFasterShotFliesFurther()
+    {
+        var plain = AddShot(AddPlayer("a", 1500, 100), 100, 700);
+        var quick = AddShot(AddPlayer("b", 1500, 300), 100, 800);
+        quick.SpeedFactor = 2.0;
+
+        await _service.MoveObstacles(_state);
+
+        Assert.Equal((plain.CurrentPosition.X - 100) * 2, quick.CurrentPosition.X - 100, 6);
+    }
+
+    [Fact]
+    public async Task Shoot_WithPiercing_TheShotPierces()
+    {
+        var service = With(PerkEffect.PiercingShot, 1);
+        var player = AddPlayer("a", 500, 500, score: 5);
+        player.FoodsEaten = 1;
+
+        await service.Shoot(_state, _room, player);
+
+        Assert.True(Assert.Single(_state.Obstacles.Values).Piercing);
+    }
+
+    [Fact]
+    public async Task CheckObstacleCollision_PiercingShot_KeepsFlyingAndHitsASnakeOnce()
+    {
+        var target = AddPlayer("target", 500, 500);
+        var shooter = AddPlayer("shooter", 1500, 100);
+        var shot = AddShot(shooter, target.Path[2].X - 0.1, 500);
+        shot.Piercing = true;
+
+        await _service.CheckObstacleCollision(_state, target);
+        var afterFirst = target.SegmentHealth[2];
+        await _service.CheckObstacleCollision(_state, target);
+
+        Assert.True(afterFirst < 1);
+        Assert.Equal(afterFirst, target.SegmentHealth[2], 9);
+        Assert.Contains(shot.Guid, _state.Obstacles.Keys);
+    }
+
+    [Fact]
+    public async Task CheckObstacleCollision_PiercingShot_StillKillsOnTheHead()
+    {
+        var target = AddPlayer("target", 500, 500);
+        var shooter = AddPlayer("shooter", 1500, 100);
+        var shot = AddShot(shooter, target.CurrentPosition.X, 500);
+        shot.Piercing = true;
+
+        await _service.CheckObstacleCollision(_state, target);
+
+        Assert.False(target.IsAlive);
+        Assert.Contains(shot.Guid, _state.Obstacles.Keys);
+    }
+
+    [Fact]
+    public async Task CheckObstacleCollision_Armor_TakesLessDamage()
+    {
+        var service = With(PerkEffect.Armor, 0.5);
+        var plain = AddPlayer("plain", 500, 500);
+        var armored = AddPlayer("armored", 500, 800);
+        armored.FoodsEaten = 1;
+        var shooter = AddPlayer("shooter", 1500, 100);
+        AddShot(shooter, plain.Path[2].X - 0.1, 500);
+        AddShot(shooter, armored.Path[2].X - 0.1, 800);
+
+        await service.CheckObstacleCollision(_state, plain);
+        await service.CheckObstacleCollision(_state, armored);
+
+        Assert.Equal((1 - plain.SegmentHealth[2]) / 2, 1 - armored.SegmentHealth[2], 6);
+    }
+
+    [Fact]
+    public async Task MovePlayer_WithRegeneration_HealsTheMostDamagedSegment()
+    {
+        var service = With(PerkEffect.Regeneration, 30);
+        var player = AddPlayer("a", 500, 500);
+        player.FoodsEaten = 1;
+        player.SegmentHealth[1] = 0.5;
+
+        for (var tick = 0; tick < 60; tick++) await service.MovePlayer(_state, player);
+
+        var healedHp = 30 * 60 * _tickRate.TickRate.TotalSeconds;
+        Assert.Equal(0.5 + healedHp / _damage.MaxSegmentHp(player.Path.Count), player.SegmentHealth[1], 3);
+    }
+
+    [Fact]
+    public async Task MovePlayer_WithoutRegeneration_NothingHeals()
+    {
+        var player = AddPlayer("a", 500, 500);
+        player.SegmentHealth[1] = 0.5;
+
+        for (var tick = 0; tick < 60; tick++) await _service.MovePlayer(_state, player);
+
+        Assert.Equal(0.5, player.SegmentHealth[1], 6);
+    }
+
+    [Fact]
+    public async Task CheckFoodCollision_Magnet_PullsNearbyFoodTowardTheHead()
+    {
+        var service = With(PerkEffect.Magnet, 100);
+        var player = AddPlayer("a", 500, 500);
+        player.FoodsEaten = 1;
+        AddFood(560, 500, 1);
+        AddFood(900, 500, 1);
+
+        await service.CheckFoodCollision(_state, player);
+
+        var xs = _state.Foods.Values.Select(food => food.Position.X).OrderBy(x => x).ToArray();
+        Assert.True(xs[0] < 560);
+        Assert.True(xs[0] > 500);
+        Assert.Equal(900, xs[1]);
+    }
+
+    [Fact]
+    public async Task CheckFoodCollision_Magnet_LeavesThePrizeWhereItIs()
+    {
+        var service = With(PerkEffect.Magnet, 100);
+        var player = AddPlayer("a", 500, 500);
+        player.FoodsEaten = 1;
+        AddFood(560, 500, 20, FoodKind.Prize, 8);
+
+        await service.CheckFoodCollision(_state, player);
+
+        Assert.Equal(560, Assert.Single(_state.Foods.Values).Position.X);
+    }
+
+    [Fact]
+    public async Task CheckFoodCollision_Magnet_EventuallyDeliversTheFood()
+    {
+        var service = With(PerkEffect.Magnet, 100);
+        var player = AddPlayer("a", 500, 500);
+        player.FoodsEaten = 1;
+        AddFood(560, 500, 1);
+
+        for (var tick = 0; tick < 30; tick++) await service.CheckFoodCollision(_state, player);
+
+        Assert.Empty(_state.Foods);
+    }
+
+    [Fact]
+    public async Task CheckFoodCollision_EarningAutoFire_TurnsItOn()
+    {
+        var service = Build(new PerkRules(new PerkOptions
+        {
+            Perks = [new() { Id = "a", Name = "A", FoodsRequired = 2, Effect = PerkEffect.AutoFire, Amount = 1 }]
+        }));
+        var player = AddPlayer("a", 500, 500);
+        player.FoodsEaten = 1;
+        AddFood(500, 500, 1);
+
+        await service.CheckFoodCollision(_state, player);
+
+        Assert.True(player.AutoFire);
     }
 }

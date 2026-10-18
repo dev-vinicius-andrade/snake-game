@@ -1,0 +1,47 @@
+<app-webgazer
+  [showVideo]="false"
+  (onInitialized)="onWebgazerInitialized($event)"
+/>
+@if(!started){
+<div class="flex flex-col justify-center items-center h-screen">
+  <div class="flex justify-center mt-5 w-full">
+    <ul class="list-none space-y-1">
+      <li>
+        Now you'll calibrate the eye tracking, so that the software can use the
+        image of your eyes to predict where you are looking.
+      </li>
+      <li>
+        You'll see a series of dots appear on the screen. Look at each dot and
+        click on it.
+      </li>
+    </ul>
+  </div>
+  <div class="w-full flex justify-center mt-5">
+    <p-button
+      label="Got it!"
+      (onClick)="onStartClicked()"
+      [outlined]="true"
+      styleClass="p-5 rounded-md w-96"
+    ></p-button>
+  </div>
+</div>
+
+}@else { @if (finished) {
+<div class="text-center">
+  <h2>Calibration finished</h2>
+  <span>Your acuracy {{ acuracyPercentage }}</span>
+  <p>Click on the button below to continue</p>
+  <button class="btn btn-primary">Continue</button>
+</div>
+} @else {
+<div class="fixed top-0 left-0 bg-app-background w-screen h-screen border">
+  <button
+    class="absolute flex bg-blue-500 hover:bg-blue-700 rounded-full exploding-button"
+    (click)="onCurrentPointButtonClicked($event)"
+    [style.left.px]="leftPosition"
+    [style.top.px]="topPosition"
+    [style.width.px]="pointSize"
+    [style.height.px]="pointSize"
+  ></button>
+</div>
+} }

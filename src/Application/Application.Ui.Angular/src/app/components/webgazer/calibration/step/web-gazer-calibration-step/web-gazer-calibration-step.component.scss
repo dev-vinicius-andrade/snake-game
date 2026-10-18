@@ -1,0 +1,15 @@
+@keyframes explode {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(3); // Adjust scale as needed for desired effect
+    background-color: rgba(var(--color-red-500)); // Ends red but fully transparent
+  }
+}
+
+.exploding-button {
+  transition: background-color 0.1s ease; // Smooth transition for color change
+}

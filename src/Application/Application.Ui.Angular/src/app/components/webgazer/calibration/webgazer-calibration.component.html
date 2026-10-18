@@ -1,0 +1,29 @@
+<div
+  class="fixed h-screen w-screen top-0 left-0 flex items-center justify-center bg-app-background"
+>
+  @if (isStep(WebGazerCalibrationStep.Start)) {
+  <app-web-gazer-calibration-step-start
+    (onNext)="setStep(WebGazerCalibrationStep.Camera)"
+  ></app-web-gazer-calibration-step-start>
+  } @else if (isStep(WebGazerCalibrationStep.Camera)) {
+  <app-webgazer-calibration-step-camera
+    (onNext)="setStep(WebGazerCalibrationStep.CalibrationInstructions)"
+  />
+  } @else if (isStep(WebGazerCalibrationStep.CalibrationInstructions)) {
+  <app-web-gazer-calibration-instructions-step
+    (onNext)="setStep(WebGazerCalibrationStep.Calibration)"
+  />
+  } @else if (isStep(WebGazerCalibrationStep.Calibration)){
+  <app-web-gazer-calibration-step
+    [points]="9"
+    [clicksPerPoint]="3"
+    (onNext)="setStep(WebGazerCalibrationStep.Validation)"
+  />
+  } @else if (isStep(WebGazerCalibrationStep.Validation)){
+  <app-web-gazer-calibration-accuracy-step
+    (onNext)="setStep(WebGazerCalibrationStep.Complete)"
+    [points]="9"
+    [clicksPerPoint]="3"
+  />
+  }
+</div>

@@ -26,6 +26,14 @@ public interface IPlayer : IId, ITrackableId
     int FoodsEaten { get; set; }
     /// <summary>Ids of the perks the snake has, in the order they were earned.</summary>
     IList<string> Perks { get; set; }
+    /// <summary>True when a perk lets the snake keep shooting while the shoot control is held.</summary>
+    bool AutoFire { get; set; }
+    /// <summary>Shots of a burst still to fire.</summary>
+    [JsonIgnore]
+    int BurstRemaining { get; set; }
+    /// <summary>Ticks until the next shot of the burst.</summary>
+    [JsonIgnore]
+    int BurstTicks { get; set; }
     bool IsBoosting { get; set; }
     /// <summary>Boosted ticks since the last mass was spent.</summary>
     int BoostTicks { get; set; }

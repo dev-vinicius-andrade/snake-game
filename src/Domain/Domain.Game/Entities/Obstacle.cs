@@ -16,6 +16,10 @@ public record Obstacle(Guid Guid, long Size, IRoom Room, ITrackableId CreatedyBy
     public IPointAxis EndPosition { get; init; } = null!;
     public IMovementDirection Direction { get; init; } = null!;
     public long Size { get; } = Size;
+    public double SpeedFactor { get; set; } = 1.0;
+    public bool Piercing { get; set; }
+    [JsonIgnore]
+    public ISet<Guid> HitPlayers { get; } = new HashSet<Guid>();
 
 
 }

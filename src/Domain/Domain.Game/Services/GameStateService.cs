@@ -15,6 +15,9 @@ namespace Domain.Game.Services;
 
 public class GameStateService : IGameStateService
 {
+    /// <summary>World units a magnet pulls food closer to the head each tick.</summary>
+    private const double MagnetPullPerTick = 6;
+
     private readonly IPlayerService _playerService;
     private readonly IPlayerRoomService _playerRoomService;
     private readonly IRoomsService _roomsService;
@@ -175,6 +178,8 @@ public class GameStateService : IGameStateService
 
         player.CurrentPosition = newCurrentPosition;
         MoveBody(gameState, player, newCurrentPosition);
+        RegenerateBody(player, perks);
+        ContinueBurst(gameState, player, perks);
 
         _playerService.Save(player);
     }
@@ -234,12 +239,14 @@ public class GameStateService : IGameStateService
     {
         if (!player.IsAlive) return;
 
+        PullFoodToward(gameState, player);
         var food = gameState.Foods.Values.FirstOrDefault(f => PlayerCurrentPositionCollideWithFood(f, player));
         if (food is null) return;
         gameState.Foods.Remove(food.Guid);
         player.Score += food.Value;
         player.FoodsEaten += food.FoodsCredit;
         player.Perks = _perkRules.UnlockedIds(player.FoodsEaten).ToList();
+        player.AutoFire = _perkRules.EffectsFor(player.FoodsEaten).AutoFire;
         HealBody(player, food.Value);
 
     }
@@ -271,24 +278,81 @@ public class GameStateService : IGameStateService
     {
         if (!player.IsAlive || player.Score <= 0 || !_shotCooldownRules.CanShoot(player.ShotCooldownTicks)) return;
         var perks = _perkRules.EffectsFor(player.FoodsEaten);
-        foreach (var direction in VolleyDirections(player, 1 + perks.ExtraShots))
-            FireShot(gameState, room, player, direction);
+        FireVolley(gameState, room, player, perks);
 
         player.Score = Math.Max(0, player.Score - 1);
-        player.ShotCooldownTicks = ReloadTicks(perks);
+        player.BurstRemaining = perks.BurstExtraShots;
+        player.BurstTicks = BurstIntervalTicks;
+        player.ShotCooldownTicks = ReloadTicks(perks) + perks.BurstExtraShots * BurstIntervalTicks;
         UpdatePlayer(player);
 
+    }
+
+    private int BurstIntervalTicks
+        => Math.Max(1, (int)Math.Ceiling(_perkRules.BurstIntervalMilliseconds / _tickRateService.TickRate.TotalMilliseconds - 0.01));
+
+    private void FireVolley(IGameState gameState, IRoom room, IPlayer player, PerkEffects perks)
+    {
+        foreach (var direction in VolleyDirections(player, 1 + perks.ExtraShots))
+            FireShot(gameState, room, player, direction, perks);
+    }
+
+    /// <summary>The rest of a burst: one volley each time the burst timer runs out, for free.</summary>
+    private void ContinueBurst(IGameState gameState, IPlayer player, PerkEffects perks)
+    {
+        if (player.BurstRemaining <= 0) return;
+        if (!player.IsAlive)
+        {
+            player.BurstRemaining = 0;
+            return;
+        }
+        player.BurstTicks--;
+        if (player.BurstTicks > 0) return;
+        FireVolley(gameState, gameState.Room, player, perks);
+        player.BurstRemaining--;
+        player.BurstTicks = BurstIntervalTicks;
+    }
+
+    private void RegenerateBody(IPlayer player, PerkEffects perks)
+    {
+        if (perks.RegenPerSecond <= 0 || player.SegmentHealth.All(ratio => ratio >= 1)) return;
+        var maxHp = _damageCalculator.MaxSegmentHp(Math.Max(player.Path.Count, 1));
+        var amount = perks.RegenPerSecond * _tickRateService.TickRate.TotalSeconds;
+        player.SegmentHealth = _bodyHealthRules.Heal(player.SegmentHealth.ToArray(), maxHp, amount).ToList();
+    }
+
+    /// <summary>Food close to a snake with a magnet drifts toward its head. The prize is left alone: it is to be fought for.</summary>
+    private void PullFoodToward(IGameState gameState, IPlayer player)
+    {
+        var radius = _perkRules.EffectsFor(player.FoodsEaten).MagnetRadius;
+        if (radius <= 0) return;
+        foreach (var food in gameState.Foods.Values.Where(food => food.Kind != FoodKind.Prize))
+            PullToward(food, player.CurrentPosition, radius);
+    }
+
+    private void PullToward(IFood food, IPointAxis head, double radius)
+    {
+        var dx = head.X - food.Position.X;
+        var dy = head.Y - food.Position.Y;
+        var distance = Math.Sqrt(dx * dx + dy * dy);
+        if (distance > radius || distance < 1e-9) return;
+        var step = Math.Min(MagnetPullPerTick, distance);
+        food.Position = _pointAxisServices.Create(
+            (int)Math.Round(food.Position.X + dx / distance * step),
+            (int)Math.Round(food.Position.Y + dy / distance * step));
     }
 
     private int ReloadTicks(PerkEffects perks)
         => Math.Max(1, (int)Math.Ceiling(_shotCooldownRules.CooldownTicks(_tickRateService.TickRate) * perks.ReloadFactor));
 
-    private void FireShot(IGameState gameState, IRoom room, IPlayer player, IMovementDirection direction)
+    private void FireShot(IGameState gameState, IRoom room, IPlayer player, IMovementDirection direction, PerkEffects perks)
     {
         var id = _trackableIdGeneratorService.Generate(Guid.NewGuid());
         while (gameState.Obstacles.ContainsKey(id.Guid))
             id = _trackableIdGeneratorService.Generate(Guid.NewGuid());
         var obstacle = _obstacleService.Create(id, room, player.CurrentPosition, direction, _snakeConfiguration.Value.HeadSize, player);
+        obstacle.SpeedFactor = perks.ShotSpeedFactor;
+        obstacle.Piercing = perks.Piercing;
         gameState.Obstacles.Add(obstacle.Guid, obstacle);
     }
 
@@ -313,7 +377,8 @@ public class GameStateService : IGameStateService
         if (!player.IsAlive) return;
         var impact = FindShotImpact(gameState, player);
         if (impact is null) return;
-        gameState.Obstacles.Remove(impact.Shot.Guid);
+        if (impact.Shot.Piercing) impact.Shot.HitPlayers.Add(player.Guid);
+        else gameState.Obstacles.Remove(impact.Shot.Guid);
         if (impact.Hit.IsHead)
             KillPlayer(gameState, player);
         else
@@ -339,7 +404,7 @@ public class GameStateService : IGameStateService
         var segments = ToPoints(player.Path);
         var headSize = _snakeConfiguration.Value.HeadSize;
         return gameState.Obstacles.Values
-            .Where(shot => !IsOwnShot(shot, player))
+            .Where(shot => !IsOwnShot(shot, player) && !shot.HitPlayers.Contains(player.Guid))
             .Select(shot => new { Shot = shot, Hit = _bodyShotRules.FindHit(segments, ToPoint(shot.CurrentPosition), headSize) })
             .Where(candidate => candidate.Hit.HasValue)
             .Select(candidate => new ShotImpact(candidate.Shot, candidate.Hit!.Value))
@@ -350,7 +415,7 @@ public class GameStateService : IGameStateService
     {
         var targetLength = player.Path.Count;
         var shooterLength = GetPlayer(gameState, impact.Shot.CreatedyBy)?.Path.Count ?? InitialLength;
-        var damage = _damageCalculator.ShotDamage(shooterLength, targetLength);
+        var damage = _damageCalculator.ShotDamage(shooterLength, targetLength) * _perkRules.EffectsFor(player.FoodsEaten).DamageFactor;
         var outcome = _bodyShotRules.ApplyDamage(ToBodyState(player), impact.Hit.SegmentIndex, damage,
             _damageCalculator.MaxSegmentHp(targetLength), canBreak: targetLength > InitialLength);
         ApplyBody(player, outcome.Body);
@@ -450,7 +515,7 @@ public class GameStateService : IGameStateService
             var obstacle = obstacleRecord.Value;
 
             var tickRateMilliseconds = _tickRateService.TickRate.TotalMilliseconds;
-            var speedFactor = _snakeConfiguration.Value.Speed * 2;
+            var speedFactor = _snakeConfiguration.Value.Speed * 2 * obstacle.SpeedFactor;
             var movementPerTickX = obstacle.Direction.Axis.X * speedFactor / (1000 / tickRateMilliseconds);
             var movementPerTickY = obstacle.Direction.Axis.Y * speedFactor / (1000 / tickRateMilliseconds);
 

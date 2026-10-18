@@ -159,4 +159,82 @@ public sealed class PerkRulesTests
         Assert.Equal(-offsets[1], offsets[0], 9);
         Assert.NotEqual(0, offsets[0]);
     }
+
+    [Fact]
+    public void EffectsFor_BurstShot_AddsShotsToTheBurst()
+    {
+        var rules = Rules(Perk("b", 1, PerkEffect.BurstShot, 2), Perk("c", 2, PerkEffect.BurstShot, 1));
+
+        Assert.Equal(2, rules.EffectsFor(1).BurstExtraShots);
+        Assert.Equal(3, rules.EffectsFor(2).BurstExtraShots);
+    }
+
+    [Fact]
+    public void EffectsFor_ShotSpeed_MakesShotsFaster()
+    {
+        var effects = Rules(Perk("q", 1, PerkEffect.ShotSpeed, 0.5)).EffectsFor(1);
+
+        Assert.Equal(1.5, effects.ShotSpeedFactor, 6);
+    }
+
+    [Fact]
+    public void EffectsFor_AutoFireAndPiercing_AreSwitchesThatStayOn()
+    {
+        var rules = Rules(Perk("a", 1, PerkEffect.AutoFire, 1), Perk("p", 2, PerkEffect.PiercingShot, 1));
+
+        Assert.True(rules.EffectsFor(1).AutoFire);
+        Assert.False(rules.EffectsFor(1).Piercing);
+        Assert.True(rules.EffectsFor(2).Piercing);
+        Assert.False(PerkEffects.None.AutoFire);
+    }
+
+    [Fact]
+    public void EffectsFor_Armor_CutsDamageAndNeverBelowAFifth()
+    {
+        var rules = Rules(Perk("a", 1, PerkEffect.Armor, 0.25), Perk("b", 2, PerkEffect.Armor, 0.9));
+
+        Assert.Equal(0.75, rules.EffectsFor(1).DamageFactor, 6);
+        Assert.Equal(0.2, rules.EffectsFor(2).DamageFactor, 6);
+    }
+
+    [Fact]
+    public void EffectsFor_RegenerationAndMagnet_AddUp()
+    {
+        var rules = Rules(
+            Perk("r1", 1, PerkEffect.Regeneration, 2),
+            Perk("r2", 2, PerkEffect.Regeneration, 3),
+            Perk("m1", 1, PerkEffect.Magnet, 50),
+            Perk("m2", 2, PerkEffect.Magnet, 30));
+
+        var effects = rules.EffectsFor(2);
+
+        Assert.Equal(5, effects.RegenPerSecond, 6);
+        Assert.Equal(80, effects.MagnetRadius, 6);
+    }
+
+    [Fact]
+    public void Constructor_ArmorIsARatioBelowOne()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => Rules(Perk("x", 1, PerkEffect.Armor, 1.0)));
+    }
+
+    [Fact]
+    public void BurstIntervalMilliseconds_ComesFromTheOptions()
+    {
+        Assert.Equal(120, new PerkRules(new PerkOptions { BurstIntervalMilliseconds = 120 }).BurstIntervalMilliseconds);
+    }
+
+    [Fact]
+    public void Constructor_BurstIntervalMustBePositive()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new PerkRules(new PerkOptions { BurstIntervalMilliseconds = 0 }));
+    }
+
+    [Fact]
+    public void BuiltInSet_UsesEveryEffect()
+    {
+        var effects = PerkOptions.BuiltIn.Select(perk => perk.Effect).ToHashSet();
+
+        Assert.Equal(Enum.GetValues<PerkEffect>().ToHashSet(), effects);
+    }
 }

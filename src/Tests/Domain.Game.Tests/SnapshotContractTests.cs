@@ -50,6 +50,8 @@ public sealed class SnapshotContractTests(ITestOutputHelper output)
             SegmentHealth = new List<double> { 0.5, 1.0 },
             Score = 7,
             FoodsEaten = 9,
+            AutoFire = true,
+            BurstRemaining = 2,
             Perks = new List<string> { "swift" },
             IsBoosting = true,
             Heading = 0.5,
@@ -110,6 +112,8 @@ public sealed class SnapshotContractTests(ITestOutputHelper output)
         Assert.Equal(0.5, player.GetProperty("heading").GetDouble());
         Assert.Equal(1.0, player.GetProperty("targetHeading").GetDouble());
         Assert.Equal(9, player.GetProperty("foodsEaten").GetInt32());
+        Assert.True(player.GetProperty("autoFire").GetBoolean());
+        Assert.False(player.TryGetProperty("burstRemaining", out _));
         Assert.Equal("swift", player.GetProperty("perks")[0].GetString());
     }
 
