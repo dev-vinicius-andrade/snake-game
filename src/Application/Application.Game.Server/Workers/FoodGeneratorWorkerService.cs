@@ -1,5 +1,6 @@
 using Application.Game.Server.Entities.Configurations;
 using Application.Game.Server.Hubs;
+using Domain.Game.Services;
 using Library.Commons.Game.Domain.Exceptions;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 using Library.Commons.Game.Domain.Interfaces.Services;
@@ -17,8 +18,10 @@ public class FoodGeneratorWorkerService : BackgroundService
     private readonly IPlayerRoomService _playerRoomService;
     private readonly IGameStateService _gameStateService;
     private readonly ITrackableIdGeneratorService _trackableIdGeneratorService;
-    public FoodGeneratorWorkerService(Serilog.ILogger logger, IOptions<AppSettings> appSettings, IHubContext<GameHub, IGameHubSendEvents> gameHub, IPlayerRoomService playerRoomService, IRoomsService roomsService, IPlayerService playerService, IGameStateService gameStateService, ITrackableIdGeneratorService trackableIdGeneratorService)
+    private readonly PrizeSpawner _prizeSpawner;
+    public FoodGeneratorWorkerService(Serilog.ILogger logger, IOptions<AppSettings> appSettings, IHubContext<GameHub, IGameHubSendEvents> gameHub, IPlayerRoomService playerRoomService, IRoomsService roomsService, IPlayerService playerService, IGameStateService gameStateService, ITrackableIdGeneratorService trackableIdGeneratorService, PrizeSpawner prizeSpawner)
     {
+        _prizeSpawner = prizeSpawner;
         _logger = logger;
         _appSettings = appSettings;
         _gameHub = gameHub;
@@ -58,6 +61,7 @@ public class FoodGeneratorWorkerService : BackgroundService
     {
         var gameState = _gameStateService.GetGameState(_trackableIdGeneratorService.Generate(room.Key));
         if (gameState is null) return;
+        _prizeSpawner.Update(gameState);
         if (gameState.Players.Count == 0)
         {
             gameState.Foods.Clear();

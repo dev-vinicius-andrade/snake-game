@@ -86,4 +86,31 @@ public sealed class BoostRulesTests
     public void Constructor_InvalidOptions_Throws(double multiplier, int ticksPerMass)
         => Assert.Throws<ArgumentOutOfRangeException>(() => new BoostRules(
             new SnakeRulesOptions { BoostSpeedMultiplier = multiplier, BoostTicksPerMass = ticksPerMass }));
+
+    [Fact]
+    public void Step_WithSpeedBonus_BoostsFaster()
+    {
+        var result = _rules.Step(true, 0, 10, speedBonus: 0.5);
+
+        Assert.Equal(2.5, result.SpeedMultiplier);
+    }
+
+    [Fact]
+    public void Step_SpeedBonus_DoesNothingWhenNotBoosting()
+    {
+        var result = _rules.Step(false, 0, 10, speedBonus: 0.5);
+
+        Assert.Equal(1.0, result.SpeedMultiplier);
+    }
+
+    [Fact]
+    public void Step_LongerBoostPerMass_SpendsMassLessOften()
+    {
+        var first = _rules.Step(true, 2, 10, boostLengthFactor: 2.0);
+        var later = _rules.Step(true, 5, 10, boostLengthFactor: 2.0);
+
+        Assert.Equal(0, first.MassSpent);
+        Assert.Equal(1, later.MassSpent);
+        Assert.Equal(0, later.BoostTicks);
+    }
 }

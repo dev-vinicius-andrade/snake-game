@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using Domain.Game.Entities;
 using Domain.Game.Rules;
 using Domain.Game.Services;
@@ -25,6 +25,16 @@ public sealed class GameStateServiceTests
     private readonly IPlayerRoomService _playerRooms = Substitute.For<IPlayerRoomService>();
     private readonly IRoomsService _roomsService = Substitute.For<IRoomsService>();
     private readonly DamageCalculator _damage = new(new DamageModelOptions());
+    private readonly PerkRules _perks = new(new PerkOptions
+    {
+        ShotSpreadDegrees = 10,
+        Perks =
+        [
+            new() { Id = "twin", Name = "Twin", FoodsRequired = 2, Effect = PerkEffect.ExtraShots, Amount = 1 },
+            new() { Id = "reload", Name = "Reload", FoodsRequired = 3, Effect = PerkEffect.FasterReload, Amount = 0.5 },
+            new() { Id = "swift", Name = "Swift", FoodsRequired = 4, Effect = PerkEffect.BoostSpeed, Amount = 0.8 }
+        ]
+    });
     private readonly GameStateService _service;
     private readonly IGameState _state;
     private readonly IRoom _room = Substitute.For<IRoom>();
@@ -71,7 +81,8 @@ public sealed class GameStateServiceTests
             _damage,
             rules,
             new ShotCooldownRules(rules),
-            new HeadingRules(rules));
+            new HeadingRules(rules),
+            _perks);
     }
 
     private IPointAxis At(double x, double y)
@@ -112,9 +123,12 @@ public sealed class GameStateServiceTests
         return shot;
     }
 
-    private void AddFood(double x, double y, long value)
+    private void AddFood(double x, double y, long value, FoodKind kind = FoodKind.Normal, int credit = 1)
     {
-        var food = new Food(Guid.NewGuid()) { Position = At(x, y), Color = new Color("#00ff00", "#00ff00"), Value = value };
+        var food = new Food(Guid.NewGuid())
+        {
+            Position = At(x, y), Color = new Color("#00ff00", "#00ff00"), Value = value, Kind = kind, FoodsCredit = credit
+        };
         _state.Foods.Add(food.Guid, food);
     }
 
@@ -612,4 +626,83 @@ public sealed class GameStateServiceTests
     [Fact]
     public void SetBoostByPlayerId_UnknownPlayer_ReturnsFalse()
         => Assert.False(_service.SetBoostByPlayerId("nobody", true));
+
+    [Fact]
+    public async Task CheckFoodCollision_NormalFood_CountsTowardPerks()
+    {
+        var player = AddPlayer("a", 500, 500);
+        player.FoodsEaten = 1;
+        AddFood(500, 500, 1);
+
+        await _service.CheckFoodCollision(_state, player);
+
+        Assert.Equal(2, player.FoodsEaten);
+        Assert.Equal(new[] { "twin" }, player.Perks);
+    }
+
+    [Fact]
+    public async Task CheckFoodCollision_Prize_GivesItsMassAndCountsForSeveralFoods()
+    {
+        var player = AddPlayer("a", 500, 500);
+        AddFood(500, 500, value: 20, kind: FoodKind.Prize, credit: 3);
+
+        await _service.CheckFoodCollision(_state, player);
+
+        Assert.Equal(20, player.Score);
+        Assert.Equal(3, player.FoodsEaten);
+        Assert.Equal(new[] { "twin", "reload" }, player.Perks);
+    }
+
+    [Fact]
+    public async Task Shoot_WithAnExtraShotPerk_FiresAFanForTheCostOfOne()
+    {
+        var player = AddPlayer("a", 500, 500, score: 5);
+        player.FoodsEaten = 2;
+
+        await _service.Shoot(_state, _room, player);
+
+        var shots = _state.Obstacles.Values.OrderBy(shot => shot.Direction.Axis.Y).ToArray();
+        Assert.Equal(2, shots.Length);
+        Assert.Equal(4, player.Score);
+        Assert.True(shots[0].Direction.Axis.Y < 0);
+        Assert.True(shots[1].Direction.Axis.Y > 0);
+        Assert.Equal(-shots[0].Direction.Axis.Y, shots[1].Direction.Axis.Y, 6);
+    }
+
+    [Fact]
+    public async Task Shoot_WithoutPerks_FiresOneShotStraight()
+    {
+        var player = AddPlayer("a", 500, 500, score: 5);
+
+        await _service.Shoot(_state, _room, player);
+
+        Assert.Same(player.Direction, Assert.Single(_state.Obstacles.Values).Direction);
+    }
+
+    [Fact]
+    public async Task Shoot_WithAReloadPerk_CoolsDownFaster()
+    {
+        var player = AddPlayer("a", 500, 500, score: 5);
+        player.FoodsEaten = 3;
+
+        await _service.Shoot(_state, _room, player);
+
+        Assert.Equal(8, player.ShotCooldownTicks);
+    }
+
+    [Fact]
+    public async Task MovePlayer_BoostingWithASpeedPerk_MovesFurther()
+    {
+        var plain = AddPlayer("plain", 500, 500, score: 5);
+        var swift = AddPlayer("swift", 500, 700, score: 5);
+        swift.FoodsEaten = 4;
+        plain.IsBoosting = swift.IsBoosting = true;
+
+        await _service.MovePlayer(_state, plain);
+        await _service.MovePlayer(_state, swift);
+
+        var plainDistance = plain.CurrentPosition.X - 500;
+        var swiftDistance = swift.CurrentPosition.X - 500;
+        Assert.Equal(plainDistance * (1.8 + 0.8) / 1.8, swiftDistance, 3);
+    }
 }

@@ -22,6 +22,10 @@ public interface IPlayer : IId, ITrackableId
     /// <summary>HP ratio (0..1) of each body segment, aligned with <see cref="Path"/> (tail to head).</summary>
     IList<double> SegmentHealth { get; set; }
     /// <summary>True while the player holds the boost control.</summary>
+    /// <summary>Foods eaten in this life. Perks are earned from it.</summary>
+    int FoodsEaten { get; set; }
+    /// <summary>Ids of the perks the snake has, in the order they were earned.</summary>
+    IList<string> Perks { get; set; }
     bool IsBoosting { get; set; }
     /// <summary>Boosted ticks since the last mass was spent.</summary>
     int BoostTicks { get; set; }

@@ -37,6 +37,7 @@ public class GameStateService : IGameStateService
     private readonly SnakeRulesOptions _rulesOptions;
     private readonly ShotCooldownRules _shotCooldownRules;
     private readonly HeadingRules _headingRules;
+    private readonly PerkRules _perkRules;
 
     public GameStateService(
         IOptions<ServerConfiguration> serverConfiguration,
@@ -52,8 +53,9 @@ public class GameStateService : IGameStateService
         SnakeSizeRules snakeSizeRules, SnakeCollisionRules snakeCollisionRules, DeathDropRules deathDropRules,
         SnakeBodyRules snakeBodyRules, BodyShotRules bodyShotRules, BodyHealthRules bodyHealthRules,
         BoostRules boostRules, DamageCalculator damageCalculator, SnakeRulesOptions rulesOptions,
-        ShotCooldownRules shotCooldownRules, HeadingRules headingRules)
+        ShotCooldownRules shotCooldownRules, HeadingRules headingRules, PerkRules perkRules)
     {
+        _perkRules = perkRules;
         _shotCooldownRules = shotCooldownRules;
         _headingRules = headingRules;
         _snakeBodyRules = snakeBodyRules;
@@ -150,7 +152,8 @@ public class GameStateService : IGameStateService
     public async Task MovePlayer(IGameState gameState, IPlayer player)
     {
         TurnTowardsTarget(player);
-        var boost = _boostRules.Step(player.IsBoosting, player.BoostTicks, player.Score);
+        var perks = _perkRules.EffectsFor(player.FoodsEaten);
+        var boost = _boostRules.Step(player.IsBoosting, player.BoostTicks, player.Score, perks.BoostSpeedBonus, perks.BoostLengthFactor);
         player.BoostTicks = boost.BoostTicks;
         player.Score -= boost.MassSpent;
         player.ShotCooldownTicks = _shotCooldownRules.Tick(player.ShotCooldownTicks);
@@ -235,6 +238,8 @@ public class GameStateService : IGameStateService
         if (food is null) return;
         gameState.Foods.Remove(food.Guid);
         player.Score += food.Value;
+        player.FoodsEaten += food.FoodsCredit;
+        player.Perks = _perkRules.UnlockedIds(player.FoodsEaten).ToList();
         HealBody(player, food.Value);
 
     }
@@ -265,18 +270,42 @@ public class GameStateService : IGameStateService
     public async Task Shoot(IGameState gameState, IRoom room, IPlayer player)
     {
         if (!player.IsAlive || player.Score <= 0 || !_shotCooldownRules.CanShoot(player.ShotCooldownTicks)) return;
+        var perks = _perkRules.EffectsFor(player.FoodsEaten);
+        foreach (var direction in VolleyDirections(player, 1 + perks.ExtraShots))
+            FireShot(gameState, room, player, direction);
+
+        player.Score = Math.Max(0, player.Score - 1);
+        player.ShotCooldownTicks = ReloadTicks(perks);
+        UpdatePlayer(player);
+
+    }
+
+    private int ReloadTicks(PerkEffects perks)
+        => Math.Max(1, (int)Math.Ceiling(_shotCooldownRules.CooldownTicks(_tickRateService.TickRate) * perks.ReloadFactor));
+
+    private void FireShot(IGameState gameState, IRoom room, IPlayer player, IMovementDirection direction)
+    {
         var id = _trackableIdGeneratorService.Generate(Guid.NewGuid());
         while (gameState.Obstacles.ContainsKey(id.Guid))
             id = _trackableIdGeneratorService.Generate(Guid.NewGuid());
-        var obstacle = _obstacleService.Create(id, room, player.CurrentPosition, player.Direction, _snakeConfiguration.Value.HeadSize, player);
+        var obstacle = _obstacleService.Create(id, room, player.CurrentPosition, direction, _snakeConfiguration.Value.HeadSize, player);
         gameState.Obstacles.Add(obstacle.Guid, obstacle);
+    }
 
-        var newScore = player.Score - 1;
-        if (newScore < 0) newScore = 0;
-        player.Score = newScore;
-        player.ShotCooldownTicks = _shotCooldownRules.CooldownTicks(_tickRateService.TickRate);
-        UpdatePlayer(player);
+    /// <summary>The way each shot of a volley goes: one straight along the snake, more fanned out around it.</summary>
+    private IEnumerable<IMovementDirection> VolleyDirections(IPlayer player, int shots)
+    {
+        if (shots == 1) return [player.Direction];
+        var aim = _headingRules.AngleOf(player.Direction.Axis.X, player.Direction.Axis.Y);
+        return _perkRules.ShotOffsets(shots).Select(offset => DirectionAt(player, aim + offset)).ToArray();
+    }
 
+    private IMovementDirection DirectionAt(IPlayer player, double angle)
+    {
+        var axis = ToAxis(player.CurrentPosition, _headingRules.AxisOf(_headingRules.Normalize(angle)));
+        axis.Z = 0;
+        axis.Angle = angle;
+        return _playerService.CreateDirection(Direction.Angular, axis);
     }
 
     public async Task CheckObstacleCollision(IGameState gameState, IPlayer player)

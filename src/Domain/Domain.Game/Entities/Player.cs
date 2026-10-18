@@ -18,6 +18,8 @@ internal record Player(Guid Guid, string Name) : IPlayer
     public bool IsAlive { get; set; } = true;
     public long Score { get; set; }
     public IList<double> SegmentHealth { get; set; } = new List<double>();
+    public int FoodsEaten { get; set; }
+    public IList<string> Perks { get; set; } = new List<string>();
     public bool IsBoosting { get; set; }
     public int BoostTicks { get; set; }
     public int ShotCooldownTicks { get; set; }

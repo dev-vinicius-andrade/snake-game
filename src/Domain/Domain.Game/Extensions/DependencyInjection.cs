@@ -16,7 +16,8 @@ public static class DependencyInjection
         services.AddSingleton<ITrackableIdGeneratorService, TrackableIdGeneratorService>();
         return services;
     }
-    public static IServiceCollection AddGameServices(this IServiceCollection services, IEnumerable<KeyValuePair<Direction, IPointAxis>>? directions = null)
+    public static IServiceCollection AddGameServices(this IServiceCollection services, IEnumerable<KeyValuePair<Direction, IPointAxis>>? directions = null,
+        PerkOptions? perkOptions = null, PrizeOptions? prizeOptions = null)
     {
         if (directions is not null)
             services.AddKnowDirections(directions);
@@ -34,6 +35,11 @@ public static class DependencyInjection
         services.AddSingleton<IObstacleService, ObstacleService>();
         services.AddSingleton(new SnakeRulesOptions());
         services.AddSingleton(new DamageModelOptions());
+        services.AddSingleton(perkOptions ?? new PerkOptions());
+        services.AddSingleton(prizeOptions ?? new PrizeOptions());
+        services.AddSingleton<PerkRules>();
+        services.AddSingleton<PrizeRules>();
+        services.AddSingleton<PrizeSpawner>();
         services.AddSingleton<DamageCalculator>();
         services.AddSingleton<BodyHealer>();
         services.AddSingleton<BodyHealthRules>();

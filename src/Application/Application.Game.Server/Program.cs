@@ -7,6 +7,7 @@ using Application.Game.Server.Hubs;
 using Application.Game.Server.Services;
 using Application.Game.Server.Workers;
 using Domain.Game.Extensions;
+using Domain.Game.Rules;
 using Library.Commons.Api.Contants;
 using Library.Commons.Api.Entities;
 using Library.Commons.Api.Extensions;
@@ -83,7 +84,9 @@ namespace Application.Game.Server
 
         private static void AddGameServices(IServiceCollection services, IConfiguration configuration)
         {
-            services.AddGameServices();
+            services.AddGameServices(
+                perkOptions: configuration.GetSection(PerkOptions.SectionName).Get<PerkOptions>(),
+                prizeOptions: configuration.GetSection(PrizeOptions.SectionName).Get<PrizeOptions>());
             services.AddGameState();
             services.AddRooms();
             services.AddPlayers();

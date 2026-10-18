@@ -49,6 +49,8 @@ public sealed class SnapshotContractTests(ITestOutputHelper output)
             Trail = new List<IPointAxis> { Point(470, 500), Point(485, 500), Point(500, 500) },
             SegmentHealth = new List<double> { 0.5, 1.0 },
             Score = 7,
+            FoodsEaten = 9,
+            Perks = new List<string> { "swift" },
             IsBoosting = true,
             Heading = 0.5,
             TargetHeading = 1.0
@@ -58,7 +60,9 @@ public sealed class SnapshotContractTests(ITestOutputHelper output)
         {
             Position = Point(10, 20),
             Color = new Color("#00ff00", "#00aa00"),
-            Value = 3
+            Value = 3,
+            Kind = FoodKind.Prize,
+            FoodsCredit = 8
         };
         state.Foods.Add(food.Guid, food);
         var shot = new Obstacle(Guid.Parse("44444444-4444-4444-4444-444444444444"), 15, room, player)
@@ -105,6 +109,8 @@ public sealed class SnapshotContractTests(ITestOutputHelper output)
         Assert.Equal("right", player.GetProperty("currentDirection").GetString());
         Assert.Equal(0.5, player.GetProperty("heading").GetDouble());
         Assert.Equal(1.0, player.GetProperty("targetHeading").GetDouble());
+        Assert.Equal(9, player.GetProperty("foodsEaten").GetInt32());
+        Assert.Equal("swift", player.GetProperty("perks")[0].GetString());
     }
 
     [Fact]
@@ -123,6 +129,7 @@ public sealed class SnapshotContractTests(ITestOutputHelper output)
         Assert.Equal(10, food.GetProperty("position").GetProperty("x").GetDouble());
         Assert.Equal("#00ff00", food.GetProperty("color").GetProperty("fillColor").GetString());
         Assert.Equal(3, food.GetProperty("value").GetInt64());
+        Assert.Equal("prize", food.GetProperty("kind").GetString());
     }
 
     [Fact]
