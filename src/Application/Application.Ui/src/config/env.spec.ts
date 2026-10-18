@@ -9,6 +9,10 @@ import {
 } from "./env";
 
 describe("resolveManagerUrl", () => {
+  it("accepts a path on the same host, as in production behind one front door", () => {
+    expect(resolveManagerUrl({ VITE_MANAGER_URL: "/api/" })).toBe("/api");
+  });
+
   it("uses VITE_MANAGER_URL when set", () => {
     expect(resolveManagerUrl({ VITE_MANAGER_URL: "https://manager.example.com" })).toBe(
       "https://manager.example.com"

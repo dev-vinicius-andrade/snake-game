@@ -1,6 +1,6 @@
 # Cloudflare Tunnel connector. It keeps an outbound connection to Cloudflare, so nothing has to be open on the router.
 # The tunnel is "remotely managed": its token is the Secret cloudflared-token (key: token), and its public hostnames
-# (snake, snake-api, snake-game -> the Services below) are set in the Cloudflare dashboard. See README.md.
+# (snake.andradev.io -> the site Service, which passes /api and /game on) is set in the Cloudflare dashboard. See README.md.
 # ${TUNNEL_IMAGE} is filled in by deploy.sh.
 apiVersion: apps/v1
 kind: Deployment

@@ -7,12 +7,13 @@
 #
 # Options (environment):
 #   REGISTRY       Required. Registry and project the images are pushed to and pulled from.
-#   TUNNEL         Default true. The three hosts reach the cluster through a Cloudflare Tunnel (nothing open on the router):
+#   TUNNEL         Default true. The host reaches the cluster through a Cloudflare Tunnel (nothing open on the router):
 #                  deploys cloudflared, which needs the Secret cloudflared-token (see README.md) or CLOUDFLARE_TUNNEL_TOKEN.
 #   TUNNEL_IMAGE   cloudflared image. Default docker.io/cloudflare/cloudflared:2025.8.1.
 #   INGRESS        Default false. true also creates Ingresses on INGRESS_CLASS (default traefik-external) with a certificate
 #                  from CLUSTER_ISSUER (default letsencrypt-production-andradev-io-issuer; empty to skip), for a direct path.
-#   DOMAIN         Default andradev.io (public). Hosts: snake.$DOMAIN (site), snake-api.$DOMAIN (manager), snake-game.$DOMAIN (game).
+#   DOMAIN         Default andradev.io (public). One host, snake.$DOMAIN: / the site, /api the manager (and /api/admin),
+#                  /game the game server. The site pod (nginx) routes /api and /game to the other Services.
 #   TAG            One tag for every image (all are rebuilt). Default: per-image source tags.
 #   FORCE_BUILD=1  Rebuild every image even when the registry already has its tag.
 #   SKIP_BUILD=1   Build nothing; the images must already be in the registry under their tags.
@@ -39,9 +40,7 @@ INGRESS=${INGRESS:-false}
 INGRESS_CLASS=${INGRESS_CLASS:-traefik-external}
 CLUSTER_ISSUER=${CLUSTER_ISSUER-letsencrypt-production-andradev-io-issuer}
 UI_HOST="snake.$DOMAIN"
-API_HOST="snake-api.$DOMAIN"
-GAME_HOST="snake-game.$DOMAIN"
-MANAGER_URL="https://$API_HOST"
+MANAGER_URL="/api"
 MANAGER_INTERNAL_URL="http://snake-manager.$NS.svc.cluster.local:8080"
 GAME_INTERNAL_URL="http://snake-game.$NS.svc.cluster.local:8080"
 
@@ -176,9 +175,10 @@ install() { # release name values-file tag host [extra helm args...]
     --set-string "image.repository=$REGISTRY/$image" --set-string "image.tag=$tag" --set-string "ingress.host=$host" --set "ingress.enabled=$INGRESS" \
     --set-string "ingress.className=$INGRESS_CLASS" --set-string "ingress.clusterIssuer=$CLUSTER_ISSUER" "$@"
 }
-install snake-manager snake-manager manager "$MANAGER_TAG" "$API_HOST"
-install snake-game snake-game-server game-server "$GAME_TAG" "$GAME_HOST" \
-  --set-string "env.ServerConfiguration__Domain=$GAME_HOST" \
+# Only the site is reached from outside; it passes /api and /game on, so the other two get no ingress of their own.
+install snake-manager snake-manager manager "$MANAGER_TAG" "" --set "ingress.enabled=false"
+install snake-game snake-game-server game-server "$GAME_TAG" "" --set "ingress.enabled=false" \
+  --set-string "env.ServerConfiguration__Domain=$UI_HOST" \
   --set-string "env.ServerConfiguration__InternalUrl=$GAME_INTERNAL_URL" \
   --set-string "env.AppSettings__ManagementApiConfiguration__BaseUrl=$MANAGER_INTERNAL_URL"
 install snake-ui snake-ui ui "$UI_TAG" "$UI_HOST"
@@ -196,4 +196,4 @@ echo
 echo "Site   https://$UI_HOST"
 echo "Admin  https://$UI_HOST/admin"
 echo "Admin key:  kubectl --context $CONTEXT -n $NS get secret snake-secrets -o go-template='{{index .data \"admin-key\"}}' | base64 -d"
-echo "Manager https://$API_HOST   Game server https://$GAME_HOST"
+echo "Manager https://$UI_HOST/api   Game server https://$UI_HOST/game"

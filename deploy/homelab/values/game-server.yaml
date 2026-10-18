@@ -1,4 +1,4 @@
-# Game server: rooms and the game hub. Players connect to it directly from the browser (wss), so it has its own host.
+# Game server: rooms and the game hub. Players connect to it from the browser (wss) through the site host at /game.
 # One replica: rooms live in memory, and the browser reaches a pod through the ingress, not through the room.
 # Set by deploy.sh: image, ingress.host, ServerConfiguration__Domain, AppSettings__ManagementApiConfiguration__BaseUrl.
 replicaCount: 1

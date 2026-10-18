@@ -1,7 +1,7 @@
 # Home lab deployment
 
 Runs the snake game in the home lab cluster. Same shape as the Empower.Documents home lab deploy: a script builds and
-pushes the images, then Helm installs the workloads. The public hosts reach the cluster through a **Cloudflare Tunnel**,
+pushes the images, then Helm installs the workloads. The public host reaches the cluster through a **Cloudflare Tunnel**,
 so nothing has to be open on the router.
 
 - **Kube context:** `home-lab-main` (the script always passes it).
@@ -12,9 +12,9 @@ so nothing has to be open on the router.
 
 | Workload | Image | Where | Address |
 | --- | --- | --- | --- |
-| Site (Vue, nginx) | `snake-ui` | `home-apps`, release `snake-ui` | https://snake.andradev.io |
-| Manager api + manager hub + `/admin` api | `snake-manager` | `home-apps`, release `snake-manager` | https://snake-api.andradev.io |
-| Game server (game hub, rooms in memory) | `snake-game-server` | `home-apps`, release `snake-game`, **1 replica** | https://snake-game.andradev.io |
+| Site (Vue, nginx) and the front door | `snake-ui` | `home-apps`, release `snake-ui` | https://snake.andradev.io |
+| Manager api + manager hub + admin api | `snake-manager` | `home-apps`, release `snake-manager` | https://snake.andradev.io/api (admin api: `/api/admin`) |
+| Game server (game hub, rooms in memory) | `snake-game-server` | `home-apps`, release `snake-game`, **1 replica** | https://snake.andradev.io/game |
 | Cloudflare Tunnel connector (2 replicas) | `cloudflare/cloudflared` | `home-apps`, Deployment `cloudflared` | — |
 | RabbitMQ 3.13 (2 Gi volume) | `rabbitmq:3.13-management-alpine` | `infrastructure`, StatefulSet `rabbitmq` | `rabbitmq.infrastructure.svc.cluster.local:5672` |
 | Redis 7 (cache, no persistence) | `redis:7-alpine` | `infrastructure`, Deployment `redis` | `redis.infrastructure.svc.cluster.local:6379` |
@@ -26,10 +26,25 @@ name exists yet in `infrastructure`, so an existing broker or cache is never rep
 **Redis is not needed to play.** The manager api has a Redis cache wired in but nothing reads it. It is deployed because
 it was asked for; delete `redis.yaml` and the two Redis lines in `values/manager.yaml` and `deploy.sh` to drop it.
 
+## One host
+
+Everything is served from one host, `snake.andradev.io`. The site pod (nginx, [nginx.conf](../../src/Application/Application.Ui/nginx.conf))
+is the front door and passes requests on inside the cluster:
+
+| Path | Goes to |
+| --- | --- |
+| `/` | the site (static files; `/admin` is the admin page) |
+| `/api/...` | the manager, with `/api` removed: `/api/manager` is its hub, `/api/admin/rooms` the admin api |
+| `/game` | the game server hub (negotiate and websocket) |
+
+The browser never needs CORS, and the tunnel needs a single hostname. One host also means the free Cloudflare certificate
+covers it (it covers `andradev.io` and `*.andradev.io`, one level only, so names such as `snake.web.games.andradev.io` would
+need Cloudflare's paid Advanced Certificate Manager). The manager and the game server get no ingress of their own.
+
 ## Cloudflare Tunnel
 
-The connector (`cloudflared`) opens outbound connections to Cloudflare. Cloudflare sends visitors' requests for the three
-hosts down those connections to the in-cluster Services. Nothing reaches your router or pfSense (no port forward, no
+The connector (`cloudflared`) opens outbound connections to Cloudflare. Cloudflare sends visitors' requests for the
+host down those connections to the site Service, which passes `/api` and `/game` on. Nothing reaches your router or pfSense (no port forward, no
 HAProxy, no origin certificate), which also works when the ISP blocks inbound 80 and 443. WebSockets (the game hub and the
 manager hub) work through the tunnel.
 
@@ -37,16 +52,14 @@ manager hub) work through the tunnel.
 
 1. Zero Trust > Networks > Tunnels > **Create a tunnel** > type **Cloudflared**, name it `home-lab-snake`.
 2. Copy the **token** (the long string after `--token` in the install command). Don't install anything on a machine.
-3. On the tunnel's **Public Hostname** tab add three hostnames. Cloudflare creates the DNS records for you:
+3. On the tunnel's **Public Hostname** tab add one hostname. Cloudflare creates the DNS record for you:
 
    | Public hostname | Service type | URL |
    | --- | --- | --- |
    | `snake.andradev.io` | HTTP | `snake-ui.home-apps.svc.cluster.local:8080` |
-   | `snake-api.andradev.io` | HTTP | `snake-manager.home-apps.svc.cluster.local:8080` |
-   | `snake-game.andradev.io` | HTTP | `snake-game.home-apps.svc.cluster.local:8080` |
 
-   If a record with one of those names already exists, delete it first. The wildcard `*.andradev.io` can stay: the specific
-   records win.
+   If a record with that name already exists, delete it first. The wildcard `*.andradev.io` can stay: the specific record
+   wins. The old `snake-api` and `snake-game` hostnames are no longer used: delete their public hostname rows and DNS records.
 4. Store the token in the cluster, or pass it to the script once:
 
    ```bash
@@ -112,7 +125,7 @@ What the script does:
 - Rotate a key by deleting that key from `snake-secrets` and re-running the script (or edit the Secret and restart the pods).
 - **Public exposure:** anyone can reach the site, create rooms and join. `/admin` is protected only by the admin key, and
   nothing rate-limits the endpoints. Cloudflare can help without touching the cluster: a WAF rate-limiting rule, or a
-  Zero Trust Access policy on `snake-api.andradev.io/admin*` (and on `snake.andradev.io/admin`) limiting it to your email.
+  Zero Trust Access policy on `snake.andradev.io/api/admin*` (and on `snake.andradev.io/admin`) limiting it to your email.
 
 ## Design notes and limits
 
