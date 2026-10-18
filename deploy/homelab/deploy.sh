@@ -23,14 +23,35 @@
 # Only what changed is built: each image is tagged src-<hash> of the files it is built from (working tree included).
 # An image whose tag is already in the registry is not rebuilt and its pods are not restarted.
 #
+# Settings can live in deploy/homelab/.env (copy .env.example; not committed) as KEY=value lines, or in the file named by
+# ENV_FILE. A variable already set in the environment wins over the file.
+#
 # Before the first run (see README.md): `podman login` to the registry, and the Secret cr-homel4b (image pulls) in home-apps.
 set -euo pipefail
+
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
+# Reads KEY=value lines (no code is run) and exports each key that is not already set. Quotes around a value are removed.
+load_env_file() { # file
+  local line key value
+  [ -f "$1" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
+    case "$line" in ''|'#'*) continue ;; esac
+    line=${line#export }
+    key=${line%%=*}
+    value=${line#*=}
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    value=${value#\"}; value=${value%\"}; value=${value#\'}; value=${value%\'}
+    [ -n "${!key+x}" ] || export "$key=$value"
+  done < "$1"
+}
+load_env_file "${ENV_FILE:-$HERE/.env}"
 
 # Kube context to deploy to. Override with KUBE_CONTEXT=<name> (see `kubectl config get-contexts`).
 CONTEXT="${KUBE_CONTEXT:-home-lab-main}"
 NS=home-apps
 INFRA_NS=infrastructure
-HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO=$(cd "$HERE/../.." && pwd)
 SRC="$REPO/src"
 CHART="$HERE/charts/snake-app"

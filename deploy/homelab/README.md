@@ -104,6 +104,10 @@ path needs inbound 443 to reach the cluster, so it is off by default. With `TUNN
 
 ## Deploy
 
+Settings can sit in `deploy/homelab/.env` instead of the command line: copy [.env.example](.env.example) to `.env` and fill
+it in (`REGISTRY`, `KUBE_CONTEXT`, `PUBLIC_HOST`, ...). The file is not committed, and a variable set in the shell wins
+over it. Then just run `./deploy/homelab/deploy.sh`.
+
 ```bash
 REGISTRY=cr.homel4b.dev/<project> ./deploy/homelab/deploy.sh
 ```
