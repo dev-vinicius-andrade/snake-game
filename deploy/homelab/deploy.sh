@@ -83,8 +83,10 @@ kubectl config get-contexts "$CONTEXT" >/dev/null 2>&1 || {
   exit 1
 }
 kubectl --context "$CONTEXT" cluster-info >/dev/null
+# Credentials are stored under the key given to `podman login`: the host, or host/project (robot accounts).
 podman login --get-login "${REGISTRY%%/*}" >/dev/null 2>&1 \
-  || { echo "Not logged in to ${REGISTRY%%/*}: run podman login ${REGISTRY%%/*}"; exit 1; }
+  || podman login --get-login "$REGISTRY" >/dev/null 2>&1 \
+  || { echo "Not logged in to ${REGISTRY%%/*} or $REGISTRY: run podman login $REGISTRY"; exit 1; }
 kubectl --context "$CONTEXT" apply -f "$HERE/manifests/namespaces.yaml" >/dev/null
 kube get secret cr-homel4b >/dev/null 2>&1 \
   || { echo "Missing Secret cr-homel4b in $NS: see deploy/homelab/README.md"; exit 1; }
