@@ -12,22 +12,26 @@ defineProps<{ perks: string[]; foodsEaten: number }>();
 </template>
 
 <style scoped>
+/* Bottom centre: the top corners already hold the name, the room code and the ranking. */
 .perk-list {
   position: fixed;
   z-index: 10;
-  top: 64px;
-  left: 8px;
+  bottom: 8px;
+  left: 50%;
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 4px;
-  max-width: 46vw;
+  width: max-content;
+  max-width: min(60vw, 520px);
+  transform: translateX(-50%);
   pointer-events: none;
 }
 .perk {
-  padding: 2px 6px;
+  padding: 1px 5px;
   color: #1b1405;
   font-family: monospace;
-  font-size: 12px;
+  font-size: 11px;
   background: #ffd23f;
   border: 2px solid #b8860b;
 }
