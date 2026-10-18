@@ -26,7 +26,7 @@ export const messages = {
     joinRandomRoom: "Play now",
   },
   home: {
-    tagline: "Eat, grow, shoot. Or play with just your face.",
+    tagline: "Multiplayer pixel snake. Eat, grow, shoot, or play with just your face.",
   },
   rooms: {
     orCode: "or join friends",

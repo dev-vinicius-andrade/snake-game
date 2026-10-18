@@ -74,7 +74,8 @@ body {
   font-weight: 400;
   white-space: normal; // a long label wraps instead of running out of the button
   letter-spacing: 0.02em;
-  line-height: 1.4;
+  line-height: 1.7;
+  padding-block: 8px;
   text-transform: none;
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.55);
   transition: transform 0.05s, box-shadow 0.05s;
@@ -102,6 +103,12 @@ body {
 
 .v-overlay__scrim {
   background: #05060d !important;
+}
+
+// Vuetify keeps button text on one line; in pixel type a long label has to be allowed to wrap.
+.v-btn .v-btn__content {
+  white-space: normal;
+  text-align: center;
 }
 
 // People who ask for less motion get none.
