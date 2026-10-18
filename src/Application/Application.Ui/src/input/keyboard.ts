@@ -70,6 +70,23 @@ export function reduceKey(state: KeyboardState, input: KeyInput): KeyResult {
   return { state, intents: [], handled: false };
 }
 
+export interface MouseInput {
+  button: number;
+  pressed: boolean;
+}
+
+const MOUSE_SHOOT = 0;
+const MOUSE_BOOST = 2;
+
+/** Left click shoots, holding the right button boosts. */
+export function reduceMouse(state: KeyboardState, input: MouseInput): KeyResult {
+  if (input.button === MOUSE_SHOOT) {
+    return { state, intents: input.pressed ? [{ type: "shoot" }] : [], handled: true };
+  }
+  if (input.button === MOUSE_BOOST) return reduceBoostKey(state, { code: "", pressed: input.pressed });
+  return { state, intents: [], handled: false };
+}
+
 /** Window lost focus: key-up events will never arrive, so forget everything that is held. */
 export function releaseAll(state: KeyboardState): KeyResult {
   const intents: ControlIntent[] = state.boosting ? [{ type: "boost", active: false }] : [];

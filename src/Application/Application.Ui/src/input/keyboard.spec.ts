@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { directionForKey, initialKeyboardState, reduceKey, releaseAll, type KeyboardState } from "./keyboard";
+import { directionForKey, initialKeyboardState, reduceKey, reduceMouse, releaseAll, type KeyboardState } from "./keyboard";
 
 function press(state: KeyboardState, ...codes: string[]) {
   return codes.reduce(
@@ -163,3 +163,32 @@ describe("releaseAll", () => {
     expect(releaseAll(initialKeyboardState).intents).toEqual([]);
   });
 });
+
+describe("reduceMouse", () => {
+  it("shoots on a left button press", () => {
+    const result = reduceMouse(initialKeyboardState, { button: 0, pressed: true });
+
+    expect(result.intents).toEqual([{ type: "shoot" }]);
+    expect(result.handled).toBe(true);
+  });
+
+  it("does not shoot when the left button is released", () => {
+    expect(reduceMouse(initialKeyboardState, { button: 0, pressed: false }).intents).toEqual([]);
+  });
+
+  it("boosts while the right button is held", () => {
+    const down = reduceMouse(initialKeyboardState, { button: 2, pressed: true });
+    const up = reduceMouse(down.state, { button: 2, pressed: false });
+
+    expect(down.intents).toEqual([{ type: "boost", active: true }]);
+    expect(up.intents).toEqual([{ type: "boost", active: false }]);
+  });
+
+  it("leaves other buttons alone", () => {
+    const result = reduceMouse(initialKeyboardState, { button: 1, pressed: true });
+
+    expect(result.intents).toEqual([]);
+    expect(result.handled).toBe(false);
+  });
+});
+

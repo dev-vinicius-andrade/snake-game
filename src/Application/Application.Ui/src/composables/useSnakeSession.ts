@@ -2,6 +2,7 @@ import { shallowRef, watch } from "vue";
 import { InputArbiter } from "@/input/arbiter";
 import type { ControlIntent } from "@/input/intents";
 import type { useGameConnection } from "./useGameConnection";
+import { useGamepadControls } from "./useGamepadControls";
 import { useKeyboardControls, type KeyEventTarget } from "./useKeyboardControls";
 import type { JoinTarget, useManagerJoin } from "./useManagerJoin";
 
@@ -56,6 +57,15 @@ export function useSnakeSession({ joiner, game, keyboardTarget, now = Date.now }
     enabled: () => phase.value === "playing",
   });
 
+  const gamepad = useGamepadControls({
+    onIntent: (intent) => {
+      if (intent.type === "steer" && !arbiter.allowsGazeSteer(now())) return;
+      arbiter.noteKeyboard(intent, now());
+      handleIntent(intent);
+    },
+    enabled: () => phase.value === "playing",
+  });
+
   watch(
     game.death,
     (death) => {
@@ -72,6 +82,7 @@ export function useSnakeSession({ joiner, game, keyboardTarget, now = Date.now }
       if (!closed || phase.value !== "playing") return;
       if (boosting) handlers.boost({ type: "boost", active: false });
       keyboard.detach();
+      gamepad.detach();
       phase.value = "error";
       error.value = "The room was closed by an administrator";
     },
@@ -84,6 +95,7 @@ export function useSnakeSession({ joiner, game, keyboardTarget, now = Date.now }
     error.value = null;
     phase.value = "joining";
     keyboard.detach();
+    gamepad.detach();
     try {
       const assignment = await joiner.join(nickname.trim(), target);
       if (stopped) return;
@@ -91,6 +103,7 @@ export function useSnakeSession({ joiner, game, keyboardTarget, now = Date.now }
       if (stopped) return;
       phase.value = "playing";
       keyboard.attach();
+      gamepad.attach();
     } catch (failure) {
       if (stopped) return;
       phase.value = "error";
@@ -101,6 +114,7 @@ export function useSnakeSession({ joiner, game, keyboardTarget, now = Date.now }
   async function stop() {
     stopped = true;
     keyboard.detach();
+    gamepad.detach();
     phase.value = "idle";
     await joiner.cancel();
     await game.leave();

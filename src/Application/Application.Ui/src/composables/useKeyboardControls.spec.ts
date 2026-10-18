@@ -25,6 +25,18 @@ class FakeTarget implements KeyEventTarget {
     return event;
   }
 
+  mouse(type: "mousedown" | "mouseup", button: number, element: unknown = { closest: () => null }) {
+    const event = { button, target: element, preventDefault: vi.fn() };
+    this.listeners.get(type)?.forEach((listener) => listener(event));
+    return event;
+  }
+
+  contextMenu() {
+    const event = { preventDefault: vi.fn() };
+    this.listeners.get("contextmenu")?.forEach((listener) => listener(event));
+    return event;
+  }
+
   blur() {
     this.listeners.get("blur")?.forEach((listener) => listener({}));
   }
@@ -145,5 +157,53 @@ describe("useKeyboardControls", () => {
       { type: "direction", direction: "up" },
       { type: "direction", direction: "up" },
     ]);
+  });
+
+  describe("mouse", () => {
+    it("shoots on a left click and boosts while the right button is held", () => {
+      const { target, intents, controls } = setup();
+      controls.attach();
+
+      target.mouse("mousedown", 0);
+      target.mouse("mousedown", 2);
+      target.mouse("mouseup", 2);
+
+      expect(intents).toEqual([{ type: "shoot" }, { type: "boost", active: true }, { type: "boost", active: false }]);
+    });
+
+    it("leaves clicks on buttons and dialogs to the page", () => {
+      const { target, intents, controls } = setup();
+      controls.attach();
+
+      const event = target.mouse("mousedown", 0, { closest: () => ({}) });
+
+      expect(intents).toEqual([]);
+      expect(event.preventDefault).not.toHaveBeenCalled();
+    });
+
+    it("does nothing while disabled", () => {
+      const { target, intents, controls } = setup(() => false);
+      controls.attach();
+
+      target.mouse("mousedown", 0);
+
+      expect(intents).toEqual([]);
+    });
+
+    it("keeps the right click menu out of the way while playing", () => {
+      const { target, controls } = setup();
+      controls.attach();
+
+      expect(target.contextMenu().preventDefault).toHaveBeenCalled();
+    });
+
+    it("stops listening once detached", () => {
+      const { target, controls } = setup();
+      controls.attach();
+      controls.detach();
+
+      expect(target.listenerCount("mousedown")).toBe(0);
+      expect(target.listenerCount("contextmenu")).toBe(0);
+    });
   });
 });
