@@ -21,7 +21,7 @@ export function useCanvasRenderer(canvas: Ref<HTMLCanvasElement | null>, source:
     const context = element?.getContext("2d");
     if (!element || !context || !snapshot) return;
 
-    const size = logicalSize(snapshot.room, options.pixelSize);
+    const size = options.view ?? logicalSize(snapshot.room, options.pixelSize);
     if (element.width !== size.width) element.width = size.width;
     if (element.height !== size.height) element.height = size.height;
     context.imageSmoothingEnabled = false;

@@ -22,9 +22,18 @@ export interface RenderOptions {
   damageColor?: string;
   /** The player's own snake is drawn last so it is never hidden. */
   selfGuid?: string | null;
+  /**
+   * Camera: the size of the canvas in logical pixels, and the world position of its top-left corner. Without a view the
+   * whole room is drawn.
+   */
+  view?: { width: number; height: number };
+  origin?: GamePoint;
 }
 
 const BACKGROUND = "#16161d";
+/** Outside the arena, and the line along its edge. */
+const VOID = "#07080f";
+const EDGE = "#3a4670";
 const SHOT_COLOR = "#ffffff";
 const SMALL_FOOD_PIXELS = 2;
 const BIG_FOOD_PIXELS = 3;
@@ -40,13 +49,30 @@ interface Painter {
   block(color: string, world: GamePoint, pixels: number): void;
 }
 
-function createPainter(ctx: PixelContext, pixelSize: number): Painter {
+function createPainter(ctx: PixelContext, pixelSize: number, origin: GamePoint): Painter {
   return {
     block(color, world, pixels) {
       ctx.fillStyle = color;
-      ctx.fillRect(Math.floor(world.x / pixelSize), Math.floor(world.y / pixelSize), pixels, pixels);
+      ctx.fillRect(Math.floor((world.x - origin.x) / pixelSize), Math.floor((world.y - origin.y) / pixelSize), pixels, pixels);
     },
   };
+}
+
+/** The arena on the screen: the void everywhere, the arena where it is, and a thin line along its edge. */
+function drawArena(ctx: PixelContext, snapshot: GameSnapshot, view: { width: number; height: number }, origin: GamePoint, pixelSize: number, background: string) {
+  const arena = logicalSize(snapshot.room, pixelSize);
+  const left = Math.floor(-origin.x / pixelSize);
+  const top = Math.floor(-origin.y / pixelSize);
+
+  ctx.fillStyle = VOID;
+  ctx.fillRect(0, 0, view.width, view.height);
+  ctx.fillStyle = background;
+  ctx.fillRect(left, top, arena.width, arena.height);
+  ctx.fillStyle = EDGE;
+  ctx.fillRect(left - 1, top - 1, arena.width + 2, 1);
+  ctx.fillRect(left - 1, top + arena.height, arena.width + 2, 1);
+  ctx.fillRect(left - 1, top, 1, arena.height);
+  ctx.fillRect(left + arena.width, top, 1, arena.height);
 }
 
 function drawFood(painter: Painter, food: FoodSnapshot) {
@@ -73,11 +99,17 @@ export function drawFrame(ctx: PixelContext, snapshot: GameSnapshot, options: Re
   const pixelSize = options.pixelSize ?? DEFAULT_PIXEL_SIZE;
   const segmentPixels = Math.max(1, Math.round((options.headSize ?? DEFAULT_HEAD_SIZE) / pixelSize));
   const damageColor = options.damageColor ?? DAMAGE_COLOR;
-  const painter = createPainter(ctx, pixelSize);
+  const origin = options.origin ?? { x: 0, y: 0 };
+  const painter = createPainter(ctx, pixelSize, origin);
+  const background = options.backgroundColor ?? BACKGROUND;
 
-  const size = logicalSize(snapshot.room, pixelSize);
-  ctx.fillStyle = options.backgroundColor ?? BACKGROUND;
-  ctx.fillRect(0, 0, size.width, size.height);
+  if (options.view) {
+    drawArena(ctx, snapshot, options.view, origin, pixelSize, background);
+  } else {
+    const size = logicalSize(snapshot.room, pixelSize);
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, size.width, size.height);
+  }
 
   snapshot.foods.forEach((food) => drawFood(painter, food));
   snapshot.shots.forEach((shot) => drawShot(painter, shot));

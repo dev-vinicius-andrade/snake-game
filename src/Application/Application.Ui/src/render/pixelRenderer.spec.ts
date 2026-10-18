@@ -159,3 +159,60 @@ describe("drawFrame", () => {
     expect(JSON.stringify(frame)).toBe(before);
   });
 });
+
+describe("drawFrame with a camera", () => {
+  let ctx: RecordingContext;
+  beforeEach(() => {
+    ctx = new RecordingContext();
+  });
+
+  const view = { width: 100, height: 60 };
+
+  it("fills the whole view with the void colour first", () => {
+    drawFrame(ctx, snapshot(), { view, origin: { x: 0, y: 0 } });
+
+    expect(ctx.calls[0]).toMatchObject({ x: 0, y: 0, w: 100, h: 60 });
+  });
+
+  it("then fills the arena where it is in the view", () => {
+    drawFrame(ctx, snapshot(), { view, origin: { x: 100, y: 50 } });
+
+    // The world starts 100 / 5 = 20 pixels left of and 50 / 5 = 10 pixels above the view, and is 384 x 216 pixels.
+    expect(ctx.calls[1]).toMatchObject({ x: -20, y: -10, w: 384, h: 216 });
+  });
+
+  it("draws the arena in another colour than the void, with a border around it", () => {
+    drawFrame(ctx, snapshot(), { view, origin: { x: 0, y: 0 } });
+
+    const styles = ctx.calls.slice(0, 6).map((call) => call.style);
+    expect(styles[0]).not.toBe(styles[1]);
+    expect(new Set(styles.slice(2, 6)).size).toBe(1);
+    expect(styles[2]).not.toBe(styles[1]);
+  });
+
+  it("shifts everything by the camera origin", () => {
+    drawFrame(ctx, snapshot({ foods: [food(1, 600, 350)] }), { view, origin: { x: 500, y: 300 } });
+
+    const foodCall = ctx.calls[ctx.calls.length - 1];
+    expect(foodCall).toMatchObject({ x: 20, y: 10 });
+  });
+
+  it("draws the head where the snake is relative to the camera", () => {
+    drawFrame(ctx, snapshot({ snakes: [snake({ path: [{ x: 500, y: 300 }] })] }), { view, origin: { x: 450, y: 250 } });
+
+    expect(ctx.calls[ctx.calls.length - 1]).toMatchObject({ x: 10, y: 10 });
+  });
+
+  it("keeps drawing things that are partly outside the view: the canvas clips them", () => {
+    drawFrame(ctx, snapshot({ foods: [food(1, 0, 0)] }), { view, origin: { x: 50, y: 50 } });
+
+    expect(ctx.calls[ctx.calls.length - 1]).toMatchObject({ x: -10, y: -10 });
+  });
+
+  it("without a view it still clears the whole room with one fill", () => {
+    drawFrame(ctx, snapshot());
+
+    expect(ctx.calls).toHaveLength(1);
+    expect(ctx.calls[0]).toMatchObject({ x: 0, y: 0, w: 384, h: 216 });
+  });
+});

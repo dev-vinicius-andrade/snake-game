@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useStorage } from "@vueuse/core";
+import { useScrollLock, useStorage } from "@vueuse/core";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import InviteBadge from "@/components/rooms/InviteBadge.vue";
@@ -15,6 +15,7 @@ import { createFaceModePreference } from "@/input/gaze/faceModePreference";
 import { createCameraPreferenceStorage } from "@/input/gaze/cameraPreference";
 import { createMediaPipeGazeSource } from "@/input/gaze/mediapipeGazeSource";
 import { createPointerSource } from "@/input/gaze/pointerSource";
+import { toViewPoint } from "@/render/camera";
 import { usePlayerStore } from "@/store/usePlayerStore";
 
 const router = useRouter();
@@ -25,10 +26,22 @@ const session = useSnakeSession({ joiner: useManagerJoin(), game });
 
 const stage = ref<InstanceType<typeof GameStage> | null>(null);
 const mouseAim = useStorage("snake.mouseAim", false);
+
+/**
+ * The camera follows the own snake, so what the aim sources see as "the room" is the part of the world on screen,
+ * and the head is measured from the top-left of that part. Steering only depends on the difference between the two.
+ */
+const visibleRoom = () => stage.value?.getCamera()?.size ?? null;
+const headOnScreen = () => {
+  const head = game.self.value?.head;
+  const camera = stage.value?.getCamera();
+  if (!head || !camera) return null;
+  return toViewPoint(head, camera.origin);
+};
 const aim = useGazeControls({
   source: createPointerSource({ target: window, getRect: () => stage.value?.getRect() ?? null }),
-  getHead: () => game.self.value?.head ?? null,
-  getRoom: () => game.room.value,
+  getHead: headOnScreen,
+  getRoom: visibleRoom,
   onIntent: session.handleIntent,
   canSteer: session.allowsGazeSteer,
   enabled: () => mouseAim.value && session.phase.value === "playing",
@@ -42,8 +55,8 @@ const eye = useEyeControl({
   modeStorage: faceMode,
   mode: faceMode.load() ?? "head",
   cameraStorage: createCameraPreferenceStorage(),
-  getRoom: () => game.room.value,
-  getHead: () => game.self.value?.head ?? null,
+  getRoom: visibleRoom,
+  getHead: headOnScreen,
   onIntent: session.handleIntent,
   canSteer: session.allowsGazeSteer,
 });
@@ -77,11 +90,18 @@ async function leave() {
   await router.replace({ name: "home" });
 }
 
+// The game fills the screen: the page behind it must not scroll.
+const scrollLock = useScrollLock(document.body);
+
 onMounted(() => {
+  scrollLock.value = true;
   void aim.start();
   return nickname.value ? play() : router.replace({ name: "home" });
 });
-onBeforeUnmount(() => void session.stop());
+onBeforeUnmount(() => {
+  scrollLock.value = false;
+  void session.stop();
+});
 </script>
 
 <template>
@@ -131,8 +151,9 @@ onBeforeUnmount(() => void session.stop());
 
 <style scoped>
 .snake-view {
-  width: 100%;
-  min-height: 100vh;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
   background: var(--snake-bg);
 }
 </style>

@@ -8,6 +8,8 @@ import type { FaceMode } from "@/input/gaze/mediapipeGazeSource";
 import type { TrackingState } from "@/input/gaze/trackingMonitor";
 
 const props = defineProps<{
+  /** On the start page the panel flows with the content on a phone; in the game it always floats over the screen. */
+  inline?: boolean;
   phase: EyeControlPhase;
   mode: FaceMode;
   tracking: TrackingState;
@@ -58,7 +60,7 @@ function toggle() {
 </script>
 
 <template>
-  <section class="eye-panel">
+  <section class="eye-panel" :class="{ 'eye-panel-inline': inline }">
     <button type="button" class="eye-button" :aria-pressed="isOn" @click="toggle">
       {{ getText({ key: isOn ? "game.eye.on" : "game.eye.off" }) }}
     </button>
@@ -140,7 +142,15 @@ function toggle() {
 }
 
 @media (max-width: 600px) {
-  .eye-panel {
+  /* In the game on a phone: full width, above the row with the mouse aim button. */
+  .eye-panel:not(.eye-panel-inline) {
+    right: 8px;
+    bottom: 64px;
+    left: 8px;
+    max-width: none;
+    box-sizing: border-box;
+  }
+  .eye-panel-inline {
     position: static;
     width: 100%;
     max-width: 440px;

@@ -37,6 +37,7 @@ watch([eye.phase, eye.mode], () => {
     <div>{{ getText({ key: calibrated ? "game.eye.calibrated" : "game.eye.setupHint" }) }}</div>
   </section>
   <EyeControlPanel
+    inline
     :phase="eye.phase.value"
     :mode="eye.mode.value"
     :tracking="eye.tracking.value"
