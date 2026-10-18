@@ -25,3 +25,23 @@ export function segmentColor(base: string, healthRatio: number, damageColor: str
   const mixed = from.map((channel, index) => Math.round(channel + (to[index] - channel) * damage));
   return `#${mixed.map(toHex).join("")}`;
 }
+
+const HEAD_SHIFT = 0.45;
+/** Above this luminance a colour is too light to be made lighter, so the head goes darker instead. */
+const LIGHT_LIMIT = 0.8;
+
+const luminanceOf = ([r, g, b]: Rgb) => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+
+/**
+ * Colour of a snake's head: the body colour pushed toward white, or toward black when the body is already very light,
+ * so the head can always be told from the body. The server sends the same fill and border colour, so this cannot come
+ * from the border. Colours that are not `#rgb` / `#rrggbb` are returned unchanged.
+ */
+export function headColor(base: string): string {
+  const from = parseHex(base);
+  if (!from) return base;
+
+  const target = luminanceOf(from) < LIGHT_LIMIT ? 255 : 0;
+  const mixed = from.map((channel) => Math.round(channel + (target - channel) * HEAD_SHIFT));
+  return `#${mixed.map(toHex).join("")}`;
+}

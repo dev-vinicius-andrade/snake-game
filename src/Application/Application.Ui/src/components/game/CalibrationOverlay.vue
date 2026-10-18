@@ -51,6 +51,8 @@ const message = computed(() => {
 }
 .calibration-dot {
   position: absolute;
+  /* Above the message box, so a target is never hidden, even on a short window. */
+  z-index: 2;
   width: 28px;
   height: 28px;
   margin: -14px 0 0 -14px;
@@ -60,7 +62,9 @@ const message = computed(() => {
 }
 .calibration-box {
   position: absolute;
-  bottom: 10%;
+  /* Between the top dot (12%) and the centre dot (50%): none of the five targets is ever under the box. */
+  top: 26%;
+  z-index: 1;
   left: 50%;
   width: min(420px, 90vw);
   padding: 12px 16px;

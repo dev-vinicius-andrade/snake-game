@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { FoodSnapshot, GameSnapshot, ShotSnapshot, SnakeSnapshot } from "@/types/game";
 import { drawFrame, logicalSize, type PixelContext } from "./pixelRenderer";
-import { segmentColor } from "./segmentColor";
+import { headColor, segmentColor } from "./segmentColor";
 
 class RecordingContext implements PixelContext {
   fillStyle = "";
@@ -93,17 +93,24 @@ describe("drawFrame", () => {
     expect(ctx.calls[1]).toMatchObject({ x: 100, y: 19 });
   });
 
-  it("colours body segments by their health and the head with the border colour", () => {
+  it("colours body segments by their health and the head in its own colour", () => {
     drawFrame(ctx, snapshot({ snakes: [snake({ segmentHealth: [0.2, 1, 1] })] }));
 
     const styles = ctx.calls.slice(1).map((call) => call.style);
-    expect(styles).toEqual([segmentColor("#00ff00", 0.2), "#00ff00", "#007700"]);
+    expect(styles).toEqual([segmentColor("#00ff00", 0.2), "#00ff00", headColor("#00ff00")]);
+  });
+
+  it("makes the head differ from the body even when the server sends the same fill and border", () => {
+    drawFrame(ctx, snapshot({ snakes: [snake({ color: { fillColor: "#3366ff", border: "#3366ff" } })] }));
+
+    const [body, , head] = ctx.calls.slice(1).map((call) => call.style);
+    expect(head).not.toBe(body);
   });
 
   it("draws the head last so it stays on top", () => {
     drawFrame(ctx, snapshot({ snakes: [snake()] }));
 
-    expect(ctx.calls[ctx.calls.length - 1]).toMatchObject({ x: 6, style: "#007700" });
+    expect(ctx.calls[ctx.calls.length - 1]).toMatchObject({ x: 6, style: headColor("#00ff00") });
   });
 
   it("does not draw dead snakes", () => {
@@ -140,7 +147,7 @@ describe("drawFrame", () => {
 
     drawFrame(ctx, snapshot({ snakes: [mine, other] }), { selfGuid: "me" });
 
-    expect(ctx.calls[ctx.calls.length - 1].style).toBe("#000077");
+    expect(ctx.calls[ctx.calls.length - 1].style).toBe(headColor("#0000ff"));
   });
 
   it("does not mutate the snapshot", () => {

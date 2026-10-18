@@ -1,5 +1,5 @@
 import type { FoodSnapshot, GamePoint, GameSnapshot, RoomDimensions, ShotSnapshot, SnakeSnapshot } from "@/types/game";
-import { DAMAGE_COLOR, segmentColor } from "./segmentColor";
+import { DAMAGE_COLOR, headColor, segmentColor } from "./segmentColor";
 
 /** The 2D canvas methods the renderer needs, so it can be tested without a browser. */
 export interface PixelContext {
@@ -62,7 +62,7 @@ function drawSnake(painter: Painter, snake: SnakeSnapshot, segmentPixels: number
   snake.path.forEach((point, index) => {
     const color =
       index === headIndex
-        ? snake.color.border
+        ? headColor(snake.color.fillColor)
         : segmentColor(snake.color.fillColor, snake.segmentHealth[index] ?? 1, damageColor);
     painter.block(color, point, segmentPixels);
   });
