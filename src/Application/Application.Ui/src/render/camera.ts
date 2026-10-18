@@ -62,8 +62,10 @@ export function toViewPoint(point: GamePoint, origin: GamePoint): GamePoint {
 
 /** Everything the stage needs to draw one frame of the camera and to turn pointer positions into world positions. */
 export interface Camera {
-  /** What the camera follows, in the middle of the view. */
+  /** What the camera follows, in world coordinates. */
   target: GamePoint;
+  /** How far the target is from the middle of the view, in world units. Zero when the camera follows exactly. */
+  offset: GamePoint;
   /** World position of the top-left corner of the view. */
   origin: GamePoint;
   /** The part of the world in view, in world units. Aim sources use it as the size of their "room". */
@@ -72,13 +74,24 @@ export interface Camera {
   view: { width: number; height: number };
 }
 
-/** The camera for a screen, following `target`. */
-export function followCamera(layout: ViewLayout, target: GamePoint): Camera {
+const shortestDelta = (delta: number, size: number) => (delta > size / 2 ? delta - size : delta < -size / 2 ? delta + size : delta);
+
+/**
+ * The camera for a screen, centred on `center` (the target itself unless the camera is made to follow a little behind it).
+ * The world wraps, so the offset between the two is measured the short way round.
+ */
+export function followCamera(layout: ViewLayout, world: RoomDimensions, target: GamePoint, center: GamePoint = target): Camera {
   const size = { width: layout.worldWidth, height: layout.worldHeight };
   return {
     target,
-    origin: cameraOrigin(target, size),
+    offset: { x: shortestDelta(target.x - center.x, world.width), y: shortestDelta(target.y - center.y, world.height) },
+    origin: cameraOrigin(center, size),
     size,
     view: { width: layout.logicalWidth, height: layout.logicalHeight },
   };
+}
+
+/** Where the target is on the view, in world units from its top-left corner. */
+export function targetOnScreen(camera: Camera): GamePoint {
+  return { x: camera.size.width / 2 + camera.offset.x, y: camera.size.height / 2 + camera.offset.y };
 }

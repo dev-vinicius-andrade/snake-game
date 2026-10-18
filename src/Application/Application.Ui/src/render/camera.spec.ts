@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cameraOrigin, followCamera, toViewPoint, viewLayout } from "./camera";
+import { cameraOrigin, followCamera, targetOnScreen, toViewPoint, viewLayout } from "./camera";
 
 describe("viewLayout", () => {
   it("scales pixel art so the short side shows about 120 logical pixels, in whole numbers", () => {
@@ -113,33 +113,63 @@ describe("toViewPoint", () => {
 });
 
 describe("followCamera", () => {
+  const world = { width: 1920, height: 1080 };
   const layout = viewLayout(1920, 1080)!;
 
   it("gives the canvas size in logical pixels and the world size it shows", () => {
-    const camera = followCamera(layout, { x: 960, y: 540 });
+    const camera = followCamera(layout, world, { x: 960, y: 540 });
 
     expect(camera.view).toEqual({ width: 214, height: 120 });
     expect(camera.size).toEqual({ width: 1070, height: 600 });
   });
 
-  it("centres on the target", () => {
-    expect(followCamera(layout, { x: 960, y: 540 }).origin).toEqual({ x: 425, y: 240 });
-  });
-
-  it("keeps the target exactly where it was on screen however it moves, so the snake never wobbles", () => {
-    const on = (x: number, y: number) => {
-      const camera = followCamera(layout, { x, y });
-      return toViewPoint({ x, y }, camera.origin);
-    };
-
-    expect(on(100.3, 77.9)).toEqual(on(1800.1, 1000.6));
+  it("centres on the target when it is not told otherwise", () => {
+    expect(followCamera(layout, world, { x: 960, y: 540 }).origin).toEqual({ x: 425, y: 240 });
   });
 
   it("says what it follows, so aiming can use the same point as the screen", () => {
-    expect(followCamera(layout, { x: 960, y: 540 }).target).toEqual({ x: 960, y: 540 });
+    expect(followCamera(layout, world, { x: 960, y: 540 }).target).toEqual({ x: 960, y: 540 });
   });
 
   it("is not held back by the walls", () => {
-    expect(followCamera(layout, { x: 0, y: 0 }).origin).toEqual({ x: -535, y: -300 });
+    expect(followCamera(layout, world, { x: 0, y: 0 }).origin).toEqual({ x: -535, y: -300 });
+  });
+
+  it("centres on the point it is given, which can lag behind the target", () => {
+    const camera = followCamera(layout, world, { x: 1000, y: 540 }, { x: 980, y: 540 });
+
+    expect(camera.origin).toEqual({ x: 980 - 535, y: 240 });
+  });
+
+  it("says how far the target is from the middle of the screen, in world units", () => {
+    const camera = followCamera(layout, world, { x: 1000, y: 530 }, { x: 980, y: 540 });
+
+    expect(camera.offset).toEqual({ x: 20, y: -10 });
+  });
+
+  it("has the target in the middle when it is followed exactly", () => {
+    expect(followCamera(layout, world, { x: 300, y: 400 }).offset).toEqual({ x: 0, y: 0 });
+  });
+
+  it("measures the offset the short way round the world", () => {
+    // The camera lags behind a target that has just crossed the right edge.
+    const camera = followCamera(layout, world, { x: 5, y: 540 }, { x: 1915, y: 540 });
+
+    expect(camera.offset.x).toBe(10);
+  });
+});
+
+describe("targetOnScreen", () => {
+  const world = { width: 1920, height: 1080 };
+  const layout = viewLayout(1920, 1080)!;
+
+  it("is the middle of the view when the camera follows exactly", () => {
+    expect(targetOnScreen(followCamera(layout, world, { x: 700, y: 300 }))).toEqual({ x: 535, y: 300 });
+  });
+
+  it("moves away from the middle by how far the camera lags", () => {
+    const camera = followCamera(layout, world, { x: 700, y: 300 }, { x: 680, y: 300 });
+
+    expect(targetOnScreen(camera)).toEqual({ x: 555, y: 300 });
   });
 });

@@ -330,3 +330,31 @@ describe("how a snake looks", () => {
     expect(eyes()).toHaveLength(0);
   });
 });
+
+describe("positions that sit exactly on a pixel boundary", () => {
+  const view = { width: 100, height: 60 };
+  const body = snake({ path: [{ x: 600, y: 300 }, { x: 615, y: 300 }, { x: 630, y: 300 }] });
+
+  function draw(originX: number) {
+    const ctx = new RecordingContext();
+    drawFrame(ctx, snapshot({ snakes: [body], foods: [food(1, 700, 350)] }), { view, origin: { x: originX, y: 250 } });
+    return ctx.calls.map(({ x, y, w, h }) => ({ x, y, w, h }));
+  }
+
+  it("are drawn in the same place however tiny the rounding error of the camera is", () => {
+    const exact = draw(500);
+
+    expect(draw(500 + 1e-10)).toEqual(exact);
+    expect(draw(500 - 1e-10)).toEqual(exact);
+    expect(draw(500 + 1e-13)).toEqual(exact);
+    expect(draw(500 - 1e-13)).toEqual(exact);
+  });
+
+  it("are drawn at the pixel they are on", () => {
+    const calls = draw(500);
+
+    // (600 - 500) / 5 = 20, exactly.
+    expect(calls.find((call) => call.w === 3)).toMatchObject({ x: 20, y: 10 });
+  });
+});
+

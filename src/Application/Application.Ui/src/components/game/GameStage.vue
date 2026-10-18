@@ -4,6 +4,7 @@ import { computed, ref, watch } from "vue";
 import { useCanvasRenderer } from "@/composables/useCanvasRenderer";
 import { followCamera, viewLayout, type Camera } from "@/render/camera";
 import { DEFAULT_HEAD_SIZE } from "@/render/pixelRenderer";
+import { CameraSmoother } from "@/render/cameraSmoothing";
 import { SnapshotBuffer } from "@/render/snapshotBuffer";
 import { headCenter, type StageRect } from "@/render/stageGeometry";
 import type { GamePoint, GameSnapshot } from "@/types/game";
@@ -31,6 +32,8 @@ function target(snapshot: GameSnapshot): GamePoint {
  * the past, blended between the two snapshots around that time, so motion is smooth and a turn does not shake the screen.
  */
 const buffer = new SnapshotBuffer();
+/** The camera follows the snake a little behind, so quickly turning left and right does not shake the screen. */
+const smoother = new CameraSmoother();
 watch(
   () => props.snapshot,
   (snapshot) => (snapshot ? buffer.push(snapshot, performance.now()) : buffer.clear()),
@@ -46,7 +49,10 @@ interface Frame {
 function currentFrame(): Frame | null {
   const snapshot = buffer.sample(performance.now());
   if (!snapshot) return null;
-  return { snapshot, camera: layout.value ? followCamera(layout.value, target(snapshot)) : null };
+  if (!layout.value) return { snapshot, camera: null };
+  const focus = target(snapshot);
+  const center = smoother.step(focus, performance.now(), snapshot.room);
+  return { snapshot, camera: followCamera(layout.value, snapshot.room, focus, center) };
 }
 
 const currentCamera = (): Camera | null => currentFrame()?.camera ?? null;

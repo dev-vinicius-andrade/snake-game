@@ -60,6 +60,14 @@ interface Tiling {
   period: { width: number; height: number };
 }
 
+/**
+ * Positions are rounded down to a pixel. The camera keeps the head exactly in the middle of the screen, so on a canvas with an
+ * odd size the head and every body segment (a whole number of pixels apart) sit exactly on a pixel boundary, where a rounding
+ * error of 1e-13 decides which side of it they fall on, and they jitter by a pixel from frame to frame. This bias, far larger than
+ * any such error and far smaller than anything that can be seen, makes the decision the same every time.
+ */
+const PIXEL_BIAS = 1e-6;
+
 const mod = (value: number, period: number) => ((value % period) + period) % period;
 
 /** The places a block shows on one axis: where it is within one copy of the world, and one copy to the left of that. */
@@ -72,8 +80,8 @@ function createPainter(ctx: PixelContext, pixelSize: number, origin: GamePoint, 
   /** Fills a `width` x `height` rectangle that starts `dx`, `dy` pixels inside the block of `pixels` at `world`. */
   function fill(color: string, world: GamePoint, pixels: number, dx: number, dy: number, width: number, height: number) {
     ctx.fillStyle = color;
-    const left = (world.x - origin.x) / pixelSize;
-    const top = (world.y - origin.y) / pixelSize;
+    const left = (world.x - origin.x) / pixelSize + PIXEL_BIAS;
+    const top = (world.y - origin.y) / pixelSize + PIXEL_BIAS;
     if (!tiling) {
       ctx.fillRect(Math.floor(left) + dx, Math.floor(top) + dy, width, height);
       return;
@@ -96,7 +104,12 @@ function drawGrid(ctx: PixelContext, view: { width: number; height: number }, or
   ctx.fillStyle = GRID_COLOR;
   for (let column = first.x; column <= last.x; column++)
     for (let row = first.y; row <= last.y; row++)
-      ctx.fillRect(Math.floor((column * GRID_SPACING - origin.x) / pixelSize), Math.floor((row * GRID_SPACING - origin.y) / pixelSize), 1, 1);
+      ctx.fillRect(
+        Math.floor((column * GRID_SPACING - origin.x) / pixelSize + PIXEL_BIAS),
+        Math.floor((row * GRID_SPACING - origin.y) / pixelSize + PIXEL_BIAS),
+        1,
+        1
+      );
 }
 
 function drawFood(painter: Painter, food: FoodSnapshot) {
