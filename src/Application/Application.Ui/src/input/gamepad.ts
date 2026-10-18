@@ -13,6 +13,7 @@ export interface GamepadState {
   /** Angle last sent for the left stick; null while the stick rests. */
   readonly steerAngle: number | null;
   readonly boosting: boolean;
+  readonly shooting: boolean;
 }
 
 export interface GamepadResult {
@@ -20,7 +21,7 @@ export interface GamepadResult {
   intents: ControlIntent[];
 }
 
-export const initialGamepadState: GamepadState = { held: new Set(), steerAngle: null, boosting: false };
+export const initialGamepadState: GamepadState = { held: new Set(), steerAngle: null, boosting: false, shooting: false };
 
 /** Left stick distance from the middle below which it counts as resting. */
 const DEAD_ZONE = 0.35;
@@ -60,11 +61,13 @@ export function reduceGamepad(state: GamepadState, reading: GamepadReading): Gam
     type: "direction",
     direction: DPAD.get(button)!,
   }));
-  const shots = risen(held, state.held, SHOOT_BUTTONS).length > 0 ? [{ type: "shoot" } as ControlIntent] : [];
+  const shooting = SHOOT_BUTTONS.some((button) => held.has(button));
+  const shots: ControlIntent[] = risen(held, state.held, SHOOT_BUTTONS).length > 0 ? [{ type: "shoot" }] : [];
+  const release: ControlIntent[] = state.shooting && !shooting ? [{ type: "shootRelease" }] : [];
   const boosting = BOOST_BUTTONS.some((button) => held.has(button));
   const boost: ControlIntent[] = boosting !== state.boosting ? [{ type: "boost", active: boosting }] : [];
   return {
-    state: { held, steerAngle: steer.angle, boosting },
-    intents: [...steer.intents, ...directions, ...shots, ...boost],
+    state: { held, steerAngle: steer.angle, boosting, shooting },
+    intents: [...steer.intents, ...directions, ...shots, ...release, ...boost],
   };
 }

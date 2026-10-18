@@ -64,6 +64,20 @@ describe("reduceGamepad", () => {
     expect(held.intents).toEqual([]);
   });
 
+  it.each([0, 5, 7])("tells when button %i that shot is let go", (button) => {
+    const down = reduceGamepad(initialGamepadState, reading({ pressed: [button] }));
+    const up = reduceGamepad(down.state, reading());
+
+    expect(up.intents).toEqual([{ type: "shootRelease" }]);
+  });
+
+  it("keeps shooting while one of two shoot buttons is let go", () => {
+    const both = reduceGamepad(initialGamepadState, reading({ pressed: [0, 7] }));
+    const one = reduceGamepad(both.state, reading({ pressed: [7] }));
+
+    expect(one.intents).toEqual([]);
+  });
+
   it.each([1, 4, 6])("boosts while button %i is held", (button) => {
     const down = reduceGamepad(initialGamepadState, reading({ pressed: [button] }));
     const up = reduceGamepad(down.state, reading());

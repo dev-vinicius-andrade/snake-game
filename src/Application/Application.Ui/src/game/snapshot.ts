@@ -71,6 +71,7 @@ function parseSnake([key, player]: [string, Dictionary]): SnakeSnapshot | null {
     isAlive: typeof player.isAlive === "boolean" ? player.isAlive : true,
     isBoosting: player.isBoosting === true,
     perks: Array.isArray(player.perks) ? player.perks.filter((perk): perk is string => typeof perk === "string") : [],
+    autoFire: player.autoFire === true,
     foodsEaten: isFinite(player.foodsEaten) ? player.foodsEaten : 0,
     score: isFinite(player.score) ? player.score : 0,
     color: parseColor(player.backgroundColor),

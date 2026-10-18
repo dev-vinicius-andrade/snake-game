@@ -7,6 +7,8 @@ export interface KeyboardState {
   /** Direction key codes currently held, oldest first. The last one decides the direction. */
   readonly held: readonly string[];
   readonly boosting: boolean;
+  /** A shoot key or mouse button is held. */
+  readonly shooting: boolean;
 }
 
 export interface KeyInput {
@@ -22,7 +24,7 @@ export interface KeyResult {
   handled: boolean;
 }
 
-export const initialKeyboardState: KeyboardState = { held: [], boosting: false };
+export const initialKeyboardState: KeyboardState = { held: [], boosting: false, shooting: false };
 
 const DIRECTION_KEYS: ReadonlyMap<string, ControlDirection> = new Map([
   ["ArrowUp", "up"],
@@ -60,12 +62,22 @@ function reduceBoostKey(state: KeyboardState, { pressed }: KeyInput): KeyResult 
   return { state: { ...state, boosting: pressed }, intents: [{ type: "boost", active: pressed }], handled: true };
 }
 
+function reduceShoot(state: KeyboardState, pressed: boolean, repeat: boolean): KeyResult {
+  if (pressed) {
+    const fresh = !repeat && !state.shooting;
+    return {
+      state: fresh ? { ...state, shooting: true } : state,
+      intents: fresh ? [{ type: "shoot" }] : [],
+      handled: true,
+    };
+  }
+  if (!state.shooting) return { state, intents: [], handled: true };
+  return { state: { ...state, shooting: false }, intents: [{ type: "shootRelease" }], handled: true };
+}
+
 export function reduceKey(state: KeyboardState, input: KeyInput): KeyResult {
   if (DIRECTION_KEYS.has(input.code)) return reduceDirectionKey(state, input);
-  if (SHOOT_KEYS.has(input.code)) {
-    const fresh = input.pressed && !input.repeat;
-    return { state, intents: fresh ? [{ type: "shoot" }] : [], handled: true };
-  }
+  if (SHOOT_KEYS.has(input.code)) return reduceShoot(state, input.pressed, input.repeat === true);
   if (BOOST_KEYS.has(input.code)) return reduceBoostKey(state, input);
   return { state, intents: [], handled: false };
 }
@@ -80,15 +92,16 @@ const MOUSE_BOOST = 2;
 
 /** Left click shoots, holding the right button boosts. */
 export function reduceMouse(state: KeyboardState, input: MouseInput): KeyResult {
-  if (input.button === MOUSE_SHOOT) {
-    return { state, intents: input.pressed ? [{ type: "shoot" }] : [], handled: true };
-  }
+  if (input.button === MOUSE_SHOOT) return reduceShoot(state, input.pressed, false);
   if (input.button === MOUSE_BOOST) return reduceBoostKey(state, { code: "", pressed: input.pressed });
   return { state, intents: [], handled: false };
 }
 
 /** Window lost focus: key-up events will never arrive, so forget everything that is held. */
 export function releaseAll(state: KeyboardState): KeyResult {
-  const intents: ControlIntent[] = state.boosting ? [{ type: "boost", active: false }] : [];
+  const intents: ControlIntent[] = [
+    ...(state.boosting ? [{ type: "boost", active: false } as const] : []),
+    ...(state.shooting ? [{ type: "shootRelease" } as const] : []),
+  ];
   return { state: initialKeyboardState, intents, handled: true };
 }

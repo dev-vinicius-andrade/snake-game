@@ -5,4 +5,6 @@ export type ControlIntent =
   | { type: "direction"; direction: ControlDirection }
   | { type: "steer"; angle: number }
   | { type: "shoot" }
+  /** The shoot control that sent `shoot` was let go. With auto fire, shooting goes on until then. */
+  | { type: "shootRelease" }
   | { type: "boost"; active: boolean };

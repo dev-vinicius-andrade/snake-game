@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useMediaQuery } from "@vueuse/core";
-import { computed, onBeforeUnmount, ref } from "vue";
+import { computed, ref } from "vue";
 import { getText } from "@/helpers";
 import type { ControlIntent } from "@/input/intents";
 import { endStick, moveStick, startStick, type StickState } from "@/input/touchStick";
@@ -10,13 +10,9 @@ const emit = defineEmits<{ (event: "intent", intent: ControlIntent): void }>();
 /** Shown on phones and tablets; a mouse or keyboard has its own controls. */
 const isTouch = useMediaQuery("(pointer: coarse)");
 
-/** While held, shooting repeats at about the shot cooldown. */
-const REPEAT_MS = 260;
-
 const stick = ref<StickState>(endStick());
 const knob = ref({ x: 0, y: 0 });
 const stickPointer = ref<number | null>(null);
-let repeat: ReturnType<typeof setInterval> | null = null;
 
 const ringStyle = computed(() => ({
   left: `${stick.value.origin?.x ?? 0}px`,
@@ -47,22 +43,18 @@ function stickUp(event: PointerEvent) {
   knob.value = { x: 0, y: 0 };
 }
 
-function stopRepeat() {
-  if (repeat) clearInterval(repeat);
-  repeat = null;
-}
-
 function shootDown() {
   emit("intent", { type: "shoot" });
-  stopRepeat();
-  repeat = setInterval(() => emit("intent", { type: "shoot" }), REPEAT_MS);
+}
+
+function shootUp() {
+  emit("intent", { type: "shootRelease" });
 }
 
 function boosting(active: boolean) {
   emit("intent", { type: "boost", active });
 }
 
-onBeforeUnmount(stopRepeat);
 </script>
 
 <template>
@@ -82,9 +74,8 @@ onBeforeUnmount(stopRepeat);
         type="button"
         class="touch-button"
         @pointerdown.prevent="shootDown"
-        @pointerup.prevent="stopRepeat"
-        @pointercancel.prevent="stopRepeat"
-        @pointerleave="stopRepeat"
+        @pointerup.prevent="shootUp"
+        @pointercancel.prevent="shootUp"
         @contextmenu.prevent
       >
         {{ getText({ key: "game.touch.shoot" }) }}

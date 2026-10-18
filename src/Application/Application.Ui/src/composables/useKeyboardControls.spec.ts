@@ -64,12 +64,14 @@ describe("useKeyboardControls", () => {
 
     target.key("keydown", "ArrowUp");
     target.key("keydown", "Space");
+    target.key("keyup", "Space");
     target.key("keydown", "ShiftLeft");
     target.key("keyup", "ShiftLeft");
 
     expect(intents).toEqual([
       { type: "direction", direction: "up" },
       { type: "shoot" },
+      { type: "shootRelease" },
       { type: "boost", active: true },
       { type: "boost", active: false },
     ]);

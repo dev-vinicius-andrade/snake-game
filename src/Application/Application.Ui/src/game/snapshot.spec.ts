@@ -30,6 +30,7 @@ describe("parseSnapshot", () => {
       isAlive: true,
       isBoosting: true,
       perks: [],
+      autoFire: false,
       foodsEaten: 0,
       score: 7,
       color: { fillColor: "#ff0000", border: "#aa0000" },

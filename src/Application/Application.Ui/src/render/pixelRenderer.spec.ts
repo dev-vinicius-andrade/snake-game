@@ -29,6 +29,7 @@ function snake(overrides: Partial<SnakeSnapshot> = {}): SnakeSnapshot {
     isAlive: true,
     isBoosting: false,
     perks: [],
+    autoFire: false,
     foodsEaten: 0,
     score: 0,
     color: { fillColor: "#00ff00", border: "#007700" },

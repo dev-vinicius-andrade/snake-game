@@ -27,7 +27,9 @@ const router = useRouter();
 const route = useRoute();
 const playerStore = usePlayerStore();
 const game = useGameConnection();
-const session = useSnakeSession({ joiner: useManagerJoin(), game });
+/** Own snake, read from the latest snapshot; the session asks whether the auto fire perk is on. */
+const ownAutoFire = () => !!game.snapshot.value?.snakes.find((snake) => snake.guid === game.self.value?.guid)?.autoFire;
+const session = useSnakeSession({ joiner: useManagerJoin(), game, autoFire: ownAutoFire });
 
 const stage = ref<InstanceType<typeof GameStage> | null>(null);
 const ownSnake = computed(() => game.snapshot.value?.snakes.find((snake) => snake.guid === game.self.value?.guid) ?? null);

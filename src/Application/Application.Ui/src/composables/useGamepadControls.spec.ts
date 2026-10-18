@@ -40,7 +40,7 @@ describe("useGamepadControls", () => {
     tick();
     tick();
 
-    expect(intents).toEqual([{ type: "shoot" }, { type: "shoot" }]);
+    expect(intents).toEqual([{ type: "shoot" }, { type: "shootRelease" }, { type: "shoot" }]);
   });
 
   it("does nothing when no pad is connected", () => {

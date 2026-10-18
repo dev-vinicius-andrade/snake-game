@@ -24,7 +24,7 @@ class FakeTarget implements KeyEventTarget {
   }
 }
 
-function setup(options: { join?: () => Promise<JoinAssignment>; connect?: () => Promise<void> } = {}) {
+function setup(options: { join?: () => Promise<JoinAssignment>; connect?: () => Promise<void>; autoFire?: () => boolean } = {}) {
   const joiner = {
     join: vi.fn(options.join ?? (async () => assignment)),
     cancel: vi.fn(async () => undefined),
@@ -43,7 +43,7 @@ function setup(options: { join?: () => Promise<JoinAssignment>; connect?: () => 
   };
   const keyboardTarget = new FakeTarget();
   const clock = { now: 0 };
-  const session = useSnakeSession({ joiner, game, keyboardTarget, now: () => clock.now });
+  const session = useSnakeSession({ joiner, game, keyboardTarget, now: () => clock.now, autoFire: options.autoFire });
   return { joiner, game, death, roomClosed, keyboardTarget, session, clock };
 }
 
@@ -197,6 +197,60 @@ describe("useSnakeSession input", () => {
 
     expect(session.allowsGazeSteer(1500)).toBe(false);
     expect(session.allowsGazeSteer(2000)).toBe(true);
+  });
+
+  describe("auto fire", () => {
+    async function startedWith(autoFire: boolean) {
+      vi.useFakeTimers();
+      const { session, game, death } = setup({ autoFire: () => autoFire });
+      await session.start("ana");
+      return { session, game, death };
+    }
+
+    it("keeps shooting while the shoot control is held, when the perk is on", async () => {
+      const { session, game } = await startedWith(true);
+
+      session.handleIntent({ type: "shoot" });
+      vi.advanceTimersByTime(350);
+
+      expect(game.shoot.mock.calls.length).toBeGreaterThan(3);
+      vi.useRealTimers();
+    });
+
+    it("stops when the control is let go", async () => {
+      const { session, game } = await startedWith(true);
+      session.handleIntent({ type: "shoot" });
+      vi.advanceTimersByTime(250);
+
+      session.handleIntent({ type: "shootRelease" });
+      const before = game.shoot.mock.calls.length;
+      vi.advanceTimersByTime(500);
+
+      expect(game.shoot.mock.calls.length).toBe(before);
+      vi.useRealTimers();
+    });
+
+    it("shoots once per press without the perk", async () => {
+      const { session, game } = await startedWith(false);
+
+      session.handleIntent({ type: "shoot" });
+      vi.advanceTimersByTime(500);
+
+      expect(game.shoot).toHaveBeenCalledTimes(1);
+      vi.useRealTimers();
+    });
+
+    it("stops when the snake dies", async () => {
+      const { session, game, death } = await startedWith(true);
+      session.handleIntent({ type: "shoot" });
+      death.value = { score: 3 };
+
+      const before = game.shoot.mock.calls.length;
+      vi.advanceTimersByTime(500);
+
+      expect(game.shoot.mock.calls.length).toBe(before);
+      vi.useRealTimers();
+    });
   });
 
   it("does not let shooting hold gaze steering back", async () => {

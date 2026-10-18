@@ -16,6 +16,8 @@ export interface SnakeSessionDeps {
   >;
   /** Where key events come from. Defaults to `window`. */
   keyboardTarget?: KeyEventTarget;
+  /** True while the snake has the auto fire perk: holding the shoot control then keeps shooting. */
+  autoFire?: () => boolean;
   /** Clock for input arbitration, in milliseconds. Defaults to `Date.now`. */
   now?: () => number;
 }
@@ -26,17 +28,35 @@ type IntentHandlers = { [K in ControlIntent["type"]]: (intent: Extract<ControlIn
  * One play session from the player's point of view: ask the manager for a game server, connect,
  * route controls to the game, notice death. Views only call `start`, `stop` and read the state.
  */
-export function useSnakeSession({ joiner, game, keyboardTarget, now = Date.now }: SnakeSessionDeps) {
+/** How often a held shoot control shoots with auto fire. The server's cooldown decides how many shots actually go. */
+const AUTO_FIRE_MS = 90;
+
+export function useSnakeSession({ joiner, game, keyboardTarget, autoFire = () => false, now = Date.now }: SnakeSessionDeps) {
   const arbiter = new InputArbiter();
   const phase = shallowRef<SessionPhase>("idle");
   const error = shallowRef<string | null>(null);
   let stopped = false;
   let boosting = false;
+  let autoFireTimer: ReturnType<typeof setInterval> | null = null;
+
+  function stopAutoFire() {
+    if (autoFireTimer) clearInterval(autoFireTimer);
+    autoFireTimer = null;
+  }
+
+  function startAutoFire() {
+    stopAutoFire();
+    if (autoFire()) autoFireTimer = setInterval(() => game.shoot(), AUTO_FIRE_MS);
+  }
 
   const handlers: IntentHandlers = {
     direction: (intent) => game.changeDirection(intent.direction),
     steer: (intent) => game.steer(intent.angle),
-    shoot: () => game.shoot(),
+    shoot: () => {
+      game.shoot();
+      startAutoFire();
+    },
+    shootRelease: () => stopAutoFire(),
     boost: (intent) => {
       boosting = intent.active;
       game.boost(intent.active);
@@ -71,6 +91,7 @@ export function useSnakeSession({ joiner, game, keyboardTarget, now = Date.now }
     (death) => {
       if (!death || phase.value !== "playing") return;
       if (boosting) handlers.boost({ type: "boost", active: false });
+      stopAutoFire();
       phase.value = "dead";
     },
     { flush: "sync" }
@@ -83,6 +104,7 @@ export function useSnakeSession({ joiner, game, keyboardTarget, now = Date.now }
       if (boosting) handlers.boost({ type: "boost", active: false });
       keyboard.detach();
       gamepad.detach();
+      stopAutoFire();
       phase.value = "error";
       error.value = "The room was closed by an administrator";
     },
@@ -115,6 +137,7 @@ export function useSnakeSession({ joiner, game, keyboardTarget, now = Date.now }
     stopped = true;
     keyboard.detach();
     gamepad.detach();
+    stopAutoFire();
     phase.value = "idle";
     await joiner.cancel();
     await game.leave();

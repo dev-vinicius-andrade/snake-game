@@ -97,6 +97,31 @@ describe("reduceKey directions", () => {
   });
 });
 
+describe("reduceKey shoot release", () => {
+  it("tells when the space key that shot is let go", () => {
+    const down = reduceKey(initialKeyboardState, { code: "Space", pressed: true });
+    const up = reduceKey(down.state, { code: "Space", pressed: false });
+
+    expect(up.intents).toEqual([{ type: "shootRelease" }]);
+  });
+
+  it("says nothing about a release that never shot", () => {
+    expect(reduceKey(initialKeyboardState, { code: "Space", pressed: false }).intents).toEqual([]);
+  });
+
+  it("lets go of the shoot control when the window loses focus", () => {
+    const down = reduceKey(initialKeyboardState, { code: "Space", pressed: true });
+
+    expect(releaseAll(down.state).intents).toEqual([{ type: "shootRelease" }]);
+  });
+
+  it("tells when the left mouse button that shot is let go", () => {
+    const down = reduceMouse(initialKeyboardState, { button: 0, pressed: true });
+
+    expect(reduceMouse(down.state, { button: 0, pressed: false }).intents).toEqual([{ type: "shootRelease" }]);
+  });
+});
+
 describe("reduceKey shoot and boost", () => {
   it("shoots on a fresh space press", () => {
     expect(reduceKey(initialKeyboardState, { code: "Space", pressed: true }).intents).toEqual([{ type: "shoot" }]);
