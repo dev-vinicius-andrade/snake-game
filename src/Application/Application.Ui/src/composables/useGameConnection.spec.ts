@@ -177,6 +177,25 @@ describe("useGameConnection server events", () => {
     expect(connection.score.value).toBe(9);
   });
 
+  it("collects the damage shots do, to show it", async () => {
+    const { client, connection } = await connected();
+
+    client.emit("DamageDealt", { shooterGuid: "a", targetGuid: "b", x: 10, y: 20, damage: 12, kind: "hit" });
+    client.emit("DamageDealt", { nonsense: true });
+
+    expect(connection.damage.value).toHaveLength(1);
+    expect(connection.damage.value[0]).toMatchObject({ shooterGuid: "a", targetGuid: "b", damage: 12, kind: "hit" });
+  });
+
+  it("forgets the damage of an earlier game when it connects again", async () => {
+    const { client, connection } = await connected();
+    client.emit("DamageDealt", { shooterGuid: "a", targetGuid: "b", x: 10, y: 20, damage: 12, kind: "hit" });
+
+    await connection.connect(assignment);
+
+    expect(connection.damage.value).toEqual([]);
+  });
+
   it("records death with the final score", async () => {
     const { client, connection } = await connected();
 

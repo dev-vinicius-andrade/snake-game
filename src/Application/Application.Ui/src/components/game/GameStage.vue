@@ -7,11 +7,12 @@ import { DEFAULT_HEAD_SIZE } from "@/render/pixelRenderer";
 import { CameraSmoother } from "@/render/cameraSmoothing";
 import { SnapshotBuffer } from "@/render/snapshotBuffer";
 import { headCenter, type StageRect } from "@/render/stageGeometry";
-import type { GamePoint, GameSnapshot } from "@/types/game";
+import type { FloatingDamage, GamePoint, GameSnapshot } from "@/types/game";
 
 const props = defineProps<{
   snapshot: GameSnapshot | null;
   selfGuid?: string | null;
+  damage?: FloatingDamage[];
 }>();
 
 const canvas = ref<HTMLCanvasElement | null>(null);
@@ -69,7 +70,7 @@ useCanvasRenderer(canvas, () => {
   const frame = currentFrame();
   return {
     snapshot: frame?.snapshot ?? null,
-    options: { selfGuid: props.selfGuid, timeMs: performance.now(), origin: frame?.camera?.origin, view: frame?.camera?.view },
+    options: { selfGuid: props.selfGuid, timeMs: performance.now(), damage: props.damage, origin: frame?.camera?.origin, view: frame?.camera?.view },
   };
 });
 </script>

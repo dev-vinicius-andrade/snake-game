@@ -1,4 +1,5 @@
-import type { FoodSnapshot, GamePoint, GameSnapshot, RoomDimensions, ShotSnapshot, SnakeSnapshot } from "@/types/game";
+import type { FloatingDamage, FoodSnapshot, GamePoint, GameSnapshot, RoomDimensions, ShotSnapshot, SnakeSnapshot } from "@/types/game";
+import { GLYPH_HEIGHT, GLYPH_WIDTH, damageColor as damageNumberColor, damageLabel, damagePosition, glyphFor, isVisible } from "./damageNumbers";
 import { DAMAGE_COLOR, contrastColor, headColor, segmentColor, shadeColor } from "./segmentColor";
 
 /** The 2D canvas methods the renderer needs, so it can be tested without a browser. */
@@ -30,6 +31,8 @@ export interface RenderOptions {
   origin?: GamePoint;
   /** Clock in milliseconds, for things that glow. Without it they stay still. */
   timeMs?: number;
+  /** Damage numbers on their way up the screen. Drawn only with `timeMs`. */
+  damage?: FloatingDamage[];
 }
 
 const BACKGROUND = "#16161d";
@@ -133,6 +136,33 @@ function drawFood(painter: Painter, food: FoodSnapshot, timeMs: number) {
   painter.block(food.color.fillColor, food.position, food.value >= BIG_FOOD_VALUE ? BIG_FOOD_PIXELS : SMALL_FOOD_PIXELS);
 }
 
+const DAMAGE_SHADOW = "#000000";
+/** Space between two characters of a damage number, in pixels. */
+const GLYPH_GAP = 1;
+
+/** One character of a damage number, with its top-left corner at `origin` (world units). */
+function drawGlyph(painter: Painter, character: string, origin: GamePoint, pixelSize: number, color: string) {
+  glyphFor(character).forEach((row, y) =>
+    [...row].forEach((cell, x) => {
+      if (cell === "#") painter.block(color, { x: origin.x + x * pixelSize, y: origin.y + y * pixelSize }, 1);
+    })
+  );
+}
+
+/** A damage number, centred over the point it floats at, with a dark shadow so it reads on any floor. */
+function drawDamage(painter: Painter, damage: FloatingDamage, selfGuid: string | null | undefined, nowMs: number, pixelSize: number) {
+  const label = damageLabel(damage);
+  const at = damagePosition(damage, nowMs);
+  const widthPixels = label.length * (GLYPH_WIDTH + GLYPH_GAP) - GLYPH_GAP;
+  const left = at.x - (widthPixels * pixelSize) / 2;
+  const top = at.y - (GLYPH_HEIGHT * pixelSize) / 2;
+  const color = damageNumberColor(damage, selfGuid);
+  for (const [shadow, tint] of [[1, DAMAGE_SHADOW], [0, color]] as const)
+    [...label].forEach((character, index) =>
+      drawGlyph(painter, character, { x: left + (index * (GLYPH_WIDTH + GLYPH_GAP) + shadow) * pixelSize, y: top + shadow * pixelSize }, pixelSize, tint)
+    );
+}
+
 function drawShot(painter: Painter, shot: ShotSnapshot) {
   painter.block(SHOT_COLOR, shot.position, SHOT_PIXELS);
 }
@@ -192,7 +222,7 @@ function drawSnake(painter: Painter, snake: SnakeSnapshot, segmentPixels: number
 export function drawFrame(ctx: PixelContext, snapshot: GameSnapshot, options: RenderOptions = {}) {
   const pixelSize = options.pixelSize ?? DEFAULT_PIXEL_SIZE;
   const segmentPixels = Math.max(1, Math.round((options.headSize ?? DEFAULT_HEAD_SIZE) / pixelSize));
-  const damageColor = options.damageColor ?? DAMAGE_COLOR;
+  const damageTint = options.damageColor ?? DAMAGE_COLOR;
   const origin = options.origin ?? { x: 0, y: 0 };
   const background = options.backgroundColor ?? BACKGROUND;
   const room = logicalSize(snapshot.room, pixelSize);
@@ -210,5 +240,8 @@ export function drawFrame(ctx: PixelContext, snapshot: GameSnapshot, options: Re
   const living = snapshot.snakes.filter((snake) => snake.isAlive);
   const others = living.filter((snake) => snake.guid !== options.selfGuid);
   const own = living.filter((snake) => snake.guid === options.selfGuid);
-  [...others, ...own].forEach((snake) => drawSnake(painter, snake, segmentPixels, damageColor, snapshot.room));
+  [...others, ...own].forEach((snake) => drawSnake(painter, snake, segmentPixels, damageTint, snapshot.room));
+  const now = options.timeMs;
+  if (now !== undefined)
+    (options.damage ?? []).filter((entry) => isVisible(entry, now)).forEach((entry) => drawDamage(painter, entry, options.selfGuid, now, pixelSize));
 }

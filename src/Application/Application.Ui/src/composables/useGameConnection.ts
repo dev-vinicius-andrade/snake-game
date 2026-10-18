@@ -1,10 +1,13 @@
 import { computed, getCurrentScope, onScopeDispose, shallowRef } from "vue";
+import { parseDamage } from "@/game/damage";
+import { recentDamage } from "@/render/damageNumbers";
 import { parseLeaderboard, parseRoomSize, parseSnapshot } from "@/game/snapshot";
 import { angleDistance } from "@/input/angles";
 import { createHubClient, type HubClient, type HubClientFactory } from "@/services/hub";
 import type {
   ControlDirection,
   GameConnectionStatus,
+  FloatingDamage,
   GameSnapshot,
   JoinAssignment,
   LeaderboardEntry,
@@ -40,6 +43,8 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
   /** An administrator closed the room this session was playing in. */
   const roomClosed = shallowRef(false);
   const connectionId = shallowRef<string | null>(null);
+  /** Damage numbers still on their way up the screen, oldest first. */
+  const damage = shallowRef<FloatingDamage[]>([]);
 
   let client: HubClient | null = null;
   let session: JoinAssignment | null = null;
@@ -82,6 +87,13 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
       RoomClosed: () => {
         roomClosed.value = true;
       },
+      DamageDealt: (raw: unknown) => {
+        const event = parseDamage(raw);
+        if (event) {
+          const now = performance.now();
+          damage.value = [...recentDamage(damage.value, now), { ...event, bornMs: now }];
+        }
+      },
       PlayerDied: (raw: { score?: number } | null) => {
         death.value = { score: typeof raw?.score === "number" ? raw.score : score.value };
       },
@@ -95,6 +107,7 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
     score.value = 0;
     death.value = null;
     roomClosed.value = false;
+    damage.value = [];
     error.value = null;
     connectionId.value = null;
     lastDirection = null;
@@ -247,6 +260,7 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
     leaderboard,
     score,
     death,
+    damage,
     roomClosed,
     connectionId,
     self,

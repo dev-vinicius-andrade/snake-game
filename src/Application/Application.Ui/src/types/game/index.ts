@@ -57,6 +57,25 @@ export interface ShotSnapshot {
   ownerGuid?: string;
 }
 
+export type DamageKind = "hit" | "broke" | "kill";
+
+/** A shot did damage: sent to the shooter and to the snake that was hit. */
+export interface DamageEvent {
+  shooterGuid: string;
+  targetGuid: string;
+  /** World position of the segment that was hit. */
+  x: number;
+  y: number;
+  /** HP taken from the segment; 0 for a kill. */
+  damage: number;
+  kind: DamageKind;
+}
+
+/** A damage event on its way up the screen. `bornMs` is the clock reading (performance.now) when it arrived. */
+export interface FloatingDamage extends DamageEvent {
+  bornMs: number;
+}
+
 export interface RoomDimensions {
   width: number;
   height: number;

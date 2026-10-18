@@ -118,7 +118,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="snake-view">
-    <GameStage ref="stage" :snapshot="game.snapshot.value" :self-guid="game.self.value?.guid" />
+    <GameStage ref="stage" :snapshot="game.snapshot.value" :self-guid="game.self.value?.guid" :damage="game.damage.value" />
     <GameHud
       :nickname="nickname"
       :score="game.score.value"

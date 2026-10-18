@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { FoodSnapshot, GameSnapshot, ShotSnapshot, SnakeSnapshot } from "@/types/game";
+import type { FloatingDamage, FoodSnapshot, GameSnapshot, ShotSnapshot, SnakeSnapshot } from "@/types/game";
 import { drawFrame, logicalSize, type PixelContext } from "./pixelRenderer";
 import { contrastColor, headColor, segmentColor, shadeColor } from "./segmentColor";
 
@@ -172,6 +172,50 @@ describe("drawFrame", () => {
       drawFrame(later, snapshot({ foods: [food(5)] }), { timeMs: 400 });
 
       expect(later.calls).toEqual(first.calls);
+    });
+  });
+
+  describe("damage numbers", () => {
+    const damage = (overrides: Partial<FloatingDamage> = {}): FloatingDamage => ({
+      shooterGuid: "s1",
+      targetGuid: "other",
+      x: 100,
+      y: 50,
+      damage: 23,
+      kind: "hit",
+      bornMs: 1000,
+      ...overrides,
+    });
+
+    it("draws the number in the colour of who it is for, over everything else", () => {
+      drawFrame(ctx, snapshot({ snakes: [snake()] }), { selfGuid: "s1", timeMs: 1100, damage: [damage()] });
+
+      const gold = ctx.calls.filter((call) => call.style === "#ffd23f" && call.w === 1 && call.h === 1);
+      expect(gold.length).toBeGreaterThan(8);
+      expect(ctx.calls.indexOf(gold[0])).toBeGreaterThan(ctx.calls.findIndex((call) => call.w === 3));
+    });
+
+    it("moves up as time goes by", () => {
+      const early = new RecordingContext();
+      const late = new RecordingContext();
+
+      drawFrame(early, snapshot(), { selfGuid: "s1", timeMs: 1000, damage: [damage()] });
+      drawFrame(late, snapshot(), { selfGuid: "s1", timeMs: 1400, damage: [damage()] });
+
+      const top = (context: RecordingContext) => Math.min(...context.calls.filter((call) => call.style === "#ffd23f").map((call) => call.y));
+      expect(top(late)).toBeLessThan(top(early));
+    });
+
+    it("is gone once its time is up", () => {
+      drawFrame(ctx, snapshot(), { selfGuid: "s1", timeMs: 5000, damage: [damage()] });
+
+      expect(ctx.calls.filter((call) => call.style === "#ffd23f")).toHaveLength(0);
+    });
+
+    it("draws nothing without a clock, so a still frame stays still", () => {
+      drawFrame(ctx, snapshot(), { selfGuid: "s1", damage: [damage()] });
+
+      expect(ctx.calls.filter((call) => call.style === "#ffd23f")).toHaveLength(0);
     });
   });
 
