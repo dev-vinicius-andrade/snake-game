@@ -17,6 +17,8 @@ interface KeyEventLike {
 
 interface MouseEventLike {
   button: number;
+  /** Set by browsers on mouse events that are only an echo of a touch. */
+  sourceCapabilities?: { firesTouchEvents?: boolean } | null;
   target?: unknown;
   preventDefault(): void;
 }
@@ -59,7 +61,7 @@ export function useKeyboardControls(options: UseKeyboardControlsOptions) {
 
   function onMouse(pressed: boolean) {
     return (event: MouseEventLike) => {
-      if (!isEnabled() || isPageControl(event.target)) return;
+      if (!isEnabled() || isPageControl(event.target) || event.sourceCapabilities?.firesTouchEvents) return;
       const result = reduceMouse(state, { button: event.button, pressed });
       if (result.handled) event.preventDefault();
       apply(result);

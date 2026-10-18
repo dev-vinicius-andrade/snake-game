@@ -5,6 +5,7 @@ import { useRoute, useRouter } from "vue-router";
 import InviteBadge from "@/components/rooms/InviteBadge.vue";
 import type { JoinTarget } from "@/composables/useManagerJoin";
 import GameStage from "@/components/game/GameStage.vue";
+import TouchControls from "@/components/game/TouchControls.vue";
 import PerkList from "@/components/game/PerkList.vue";
 import PrizeHint from "@/components/game/PrizeHint.vue";
 import { useEyeControl } from "@/composables/useEyeControl";
@@ -124,6 +125,7 @@ onBeforeUnmount(() => {
     />
     <PerkList :perks="ownSnake?.perks ?? []" :foods-eaten="ownSnake?.foodsEaten ?? 0" />
     <PrizeHint :compass="compass" />
+    <TouchControls v-if="session.phase.value === 'playing'" @intent="session.handleIntent" />
     <InviteBadge v-if="inviteCode" :code="inviteCode" />
     <EyeControlPanel
       :phase="eye.phase.value"

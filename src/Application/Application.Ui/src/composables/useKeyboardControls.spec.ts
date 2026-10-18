@@ -181,6 +181,16 @@ describe("useKeyboardControls", () => {
       expect(event.preventDefault).not.toHaveBeenCalled();
     });
 
+    it("ignores mouse events that only echo a touch", () => {
+      const { target, intents, controls } = setup();
+      controls.attach();
+      const echo = { button: 0, target: { closest: () => null }, sourceCapabilities: { firesTouchEvents: true }, preventDefault: () => {} };
+
+      (target as any).listeners.get("mousedown")?.forEach((listener: (event: unknown) => void) => listener(echo));
+
+      expect(intents).toEqual([]);
+    });
+
     it("does nothing while disabled", () => {
       const { target, intents, controls } = setup(() => false);
       controls.attach();
