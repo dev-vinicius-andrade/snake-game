@@ -3,6 +3,7 @@ using Domain.Game.Entities;
 using Domain.Game.Extensions;
 using Domain.Game.Helpers;
 using Domain.Game.Rules;
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Entities.Configurations;
 using Library.Commons.Game.Domain.Enums;
 using Library.Commons.Game.Domain.Exceptions;
@@ -380,7 +381,7 @@ public class GameStateService : IGameStateService
         if (impact.Shot.Piercing) impact.Shot.HitPlayers.Add(player.Guid);
         else gameState.Obstacles.Remove(impact.Shot.Guid);
         if (impact.Hit.IsHead)
-            KillPlayer(gameState, player);
+            KillByShot(gameState, player, impact);
         else
             DamageBody(gameState, player, impact);
     }
@@ -411,18 +412,33 @@ public class GameStateService : IGameStateService
             .FirstOrDefault();
     }
 
+    private void KillByShot(IGameState gameState, IPlayer player, ShotImpact impact)
+    {
+        var head = player.CurrentPosition;
+        gameState.Hits.Enqueue(new DamageDealt(impact.Shot.CreatedyBy.Guid, player.Guid, head.X, head.Y, 0, DamageKind.Kill));
+        KillPlayer(gameState, player);
+    }
+
     private void DamageBody(IGameState gameState, IPlayer player, ShotImpact impact)
     {
         var targetLength = player.Path.Count;
         var shooterLength = GetPlayer(gameState, impact.Shot.CreatedyBy)?.Path.Count ?? InitialLength;
         var damage = _damageCalculator.ShotDamage(shooterLength, targetLength) * _perkRules.EffectsFor(player.FoodsEaten).DamageFactor;
+        var maxHp = _damageCalculator.MaxSegmentHp(targetLength);
+        var hitAt = player.Path[impact.Hit.SegmentIndex];
+        var hpBefore = player.SegmentHealth[impact.Hit.SegmentIndex] * maxHp;
         var outcome = _bodyShotRules.ApplyDamage(ToBodyState(player), impact.Hit.SegmentIndex, damage,
-            _damageCalculator.MaxSegmentHp(targetLength), canBreak: targetLength > InitialLength);
+            maxHp, canBreak: targetLength > InitialLength);
+        RecordDamage(gameState, impact, player, hitAt, Math.Min(damage, hpBefore), outcome.SegmentBroken);
         ApplyBody(player, outcome.Body);
         if (outcome.BrokenAt.HasValue)
             DropBrokenSegment(gameState, player, outcome.BrokenAt.Value);
         UpdatePlayer(player);
     }
+
+    private static void RecordDamage(IGameState gameState, ShotImpact impact, IPlayer target, IPointAxis at, double damage, bool broke)
+        => gameState.Hits.Enqueue(new DamageDealt(
+            impact.Shot.CreatedyBy.Guid, target.Guid, at.X, at.Y, damage, broke ? DamageKind.Broke : DamageKind.Hit));
 
     private void DropBrokenSegment(IGameState gameState, IPlayer player, Point at)
     {

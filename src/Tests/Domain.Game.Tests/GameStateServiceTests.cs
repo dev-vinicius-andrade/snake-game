@@ -2,6 +2,7 @@
 using Domain.Game.Entities;
 using Domain.Game.Rules;
 using Domain.Game.Services;
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Entities.Configurations;
 using Library.Commons.Game.Domain.Enums;
 using Library.Commons.Game.Domain.Interfaces.Entities;
@@ -939,5 +940,90 @@ public sealed class GameStateServiceTests
         await service.CheckFoodCollision(_state, player);
 
         Assert.True(player.AutoFire);
+    }
+
+    [Fact]
+    public async Task CheckObstacleCollision_ShotOnBody_RecordsTheDamageForThePlayersInvolved()
+    {
+        var target = AddPlayer("target", 500, 500);
+        var shooter = AddPlayer("shooter", 1500, 100);
+        var hitAt = target.Path[2];
+        AddShot(shooter, hitAt.X - 0.1, 500);
+
+        await _service.CheckObstacleCollision(_state, target);
+
+        var hit = Assert.Single(_state.Hits);
+        Assert.Equal(shooter.Guid, hit.ShooterGuid);
+        Assert.Equal(target.Guid, hit.TargetGuid);
+        Assert.Equal(DamageKind.Hit, hit.Kind);
+        Assert.Equal(_damage.ShotDamage(InitialLength, InitialLength), hit.Damage, 6);
+        Assert.Equal(hitAt.X, hit.X);
+        Assert.Equal(hitAt.Y, hit.Y);
+    }
+
+    [Fact]
+    public async Task CheckObstacleCollision_ArmoredTarget_RecordsTheDamageItReallyTook()
+    {
+        var service = With(PerkEffect.Armor, 0.5);
+        var target = AddPlayer("target", 500, 500);
+        target.FoodsEaten = 1;
+        var shooter = AddPlayer("shooter", 1500, 100);
+        AddShot(shooter, target.Path[2].X - 0.1, 500);
+
+        await service.CheckObstacleCollision(_state, target);
+
+        Assert.Equal(_damage.ShotDamage(InitialLength, InitialLength) / 2, Assert.Single(_state.Hits).Damage, 6);
+    }
+
+    [Fact]
+    public async Task CheckObstacleCollision_SegmentWithLittleHpLeft_RecordsOnlyWhatWasLeft()
+    {
+        var target = AddPlayer("target", 500, 500, length: 8, score: 2);
+        target.SegmentHealth[2] = 0.05;
+        var shooter = AddPlayer("shooter", 1500, 100);
+        AddShot(shooter, target.Path[2].X - 0.1, 500);
+
+        await _service.CheckObstacleCollision(_state, target);
+
+        var hit = Assert.Single(_state.Hits);
+        Assert.Equal(DamageKind.Broke, hit.Kind);
+        Assert.Equal(0.05 * _damage.MaxSegmentHp(8), hit.Damage, 6);
+    }
+
+    [Fact]
+    public async Task CheckObstacleCollision_ShotOnTheHead_RecordsAKill()
+    {
+        var target = AddPlayer("target", 500, 500);
+        var shooter = AddPlayer("shooter", 1500, 100);
+        AddShot(shooter, target.CurrentPosition.X, 500);
+
+        await _service.CheckObstacleCollision(_state, target);
+
+        var hit = Assert.Single(_state.Hits);
+        Assert.Equal(DamageKind.Kill, hit.Kind);
+        Assert.Equal(shooter.Guid, hit.ShooterGuid);
+    }
+
+    [Fact]
+    public async Task CheckObstacleCollision_NoShot_RecordsNothing()
+    {
+        var target = AddPlayer("target", 500, 500);
+
+        await _service.CheckObstacleCollision(_state, target);
+
+        Assert.Empty(_state.Hits);
+    }
+
+    [Fact]
+    public async Task CheckObstacleCollision_PiercingShotPassingAgain_RecordsOnce()
+    {
+        var target = AddPlayer("target", 500, 500);
+        var shooter = AddPlayer("shooter", 1500, 100);
+        AddShot(shooter, target.Path[2].X - 0.1, 500).Piercing = true;
+
+        await _service.CheckObstacleCollision(_state, target);
+        await _service.CheckObstacleCollision(_state, target);
+
+        Assert.Single(_state.Hits);
     }
 }

@@ -1,4 +1,6 @@
 ﻿using System.Collections.Concurrent;
+using System.Text.Json.Serialization;
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 
 namespace Domain.Game.Entities;
@@ -19,4 +21,6 @@ internal record GameState:IGameState
     public IDictionary<string, IColor> Colors { get; set; }
     public IDictionary<Guid, IFood> Foods { get; set; }
     public IDictionary<Guid, IObstacle> Obstacles { get; set; }
+    [JsonIgnore]
+    public ConcurrentQueue<DamageDealt> Hits { get; } = new();
 }

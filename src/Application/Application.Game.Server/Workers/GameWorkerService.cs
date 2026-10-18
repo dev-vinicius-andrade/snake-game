@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using Application.Game.Server.Hubs;
+using Application.Game.Server.Services;
 using Domain.Game.Simulation;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 using Library.Commons.Game.Domain.Interfaces.Services;
@@ -80,6 +81,7 @@ public class GameWorkerService : BackgroundService
             var ticks = _clocks.GetOrAdd(roomId, CreateClock).Advance(elapsed);
             if (ticks.Count == 0) return;
             var diedPlayers = await StepAsync(gameState, ticks, cancellationToken);
+            await NotifyDamageAsync(gameState);
             await NotifyDiedAsync(diedPlayers);
             if (diedPlayers.Count > 0 || ticks.Any(tick => tick.BroadcastSnapshot))
                 await BroadcastSnapshotAsync(roomId, gameState);
@@ -102,6 +104,12 @@ public class GameWorkerService : BackgroundService
         foreach (var _ in ticks)
             diedPlayers.AddRange((await _roomSimulation.StepAsync(gameState, cancellationToken)).DiedPlayers);
         return diedPlayers;
+    }
+
+    private async Task NotifyDamageAsync(IGameState gameState)
+    {
+        foreach (var notice in DamageNotices.Drain(gameState))
+            await _gameHub.Clients.Client(notice.ConnectionId).DamageDealt(notice.Event);
     }
 
     private async Task NotifyDiedAsync(IEnumerable<IPlayer> diedPlayers)
