@@ -5,6 +5,8 @@ import { useRoute, useRouter } from "vue-router";
 import InviteBadge from "@/components/rooms/InviteBadge.vue";
 import type { JoinTarget } from "@/composables/useManagerJoin";
 import GameStage from "@/components/game/GameStage.vue";
+import PerkList from "@/components/game/PerkList.vue";
+import PrizeHint from "@/components/game/PrizeHint.vue";
 import { useEyeControl } from "@/composables/useEyeControl";
 import { useGameConnection } from "@/composables/useGameConnection";
 import { useGazeControls } from "@/composables/useGazeControls";
@@ -16,6 +18,7 @@ import { createCameraPreferenceStorage } from "@/input/gaze/cameraPreference";
 import { createMediaPipeGazeSource } from "@/input/gaze/mediapipeGazeSource";
 import { createPointerSource } from "@/input/gaze/pointerSource";
 import { targetOnScreen } from "@/render/camera";
+import { prizeCompass } from "@/render/prizeCompass";
 import { DEFAULT_HEAD_SIZE } from "@/render/pixelRenderer";
 import { usePlayerStore } from "@/store/usePlayerStore";
 
@@ -26,6 +29,8 @@ const game = useGameConnection();
 const session = useSnakeSession({ joiner: useManagerJoin(), game });
 
 const stage = ref<InstanceType<typeof GameStage> | null>(null);
+const ownSnake = computed(() => game.snapshot.value?.snakes.find((snake) => snake.guid === game.self.value?.guid) ?? null);
+const compass = computed(() => (game.snapshot.value ? prizeCompass(game.snapshot.value, game.self.value?.guid) : null));
 const mouseAim = useStorage("snake.mouseAim", false);
 
 /**
@@ -117,6 +122,8 @@ onBeforeUnmount(() => {
       :mouse-aim="mouseAim"
       @toggle-mouse-aim="toggleMouseAim"
     />
+    <PerkList :perks="ownSnake?.perks ?? []" :foods-eaten="ownSnake?.foodsEaten ?? 0" />
+    <PrizeHint :compass="compass" />
     <InviteBadge v-if="inviteCode" :code="inviteCode" />
     <EyeControlPanel
       :phase="eye.phase.value"

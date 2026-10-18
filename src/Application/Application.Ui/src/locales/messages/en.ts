@@ -144,6 +144,8 @@ export const messages = {
       shoot: "Shoot: Space or left click",
       boost: "Boost: hold Shift or right click",
     },
+    perks: "Perks",
+    prize: "Prize",
     mouseAimOn: "Mouse aim: on",
     mouseAimOff: "Mouse aim: off",
     eye: {

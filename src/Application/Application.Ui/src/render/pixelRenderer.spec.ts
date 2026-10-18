@@ -28,6 +28,8 @@ function snake(overrides: Partial<SnakeSnapshot> = {}): SnakeSnapshot {
     segmentHealth: path.map(() => 1),
     isAlive: true,
     isBoosting: false,
+    perks: [],
+    foodsEaten: 0,
     score: 0,
     color: { fillColor: "#00ff00", border: "#007700" },
     direction: "right",
@@ -44,6 +46,7 @@ const food = (value = 1, x = 100, y = 50): FoodSnapshot => ({
   position: { x, y },
   color: { fillColor: "#ffaa00", border: "#aa7700" },
   value,
+  kind: "normal",
 });
 const shot = (x = 200, y = 100): ShotSnapshot => ({ guid: "sh", position: { x, y }, size: 15 });
 
@@ -132,6 +135,43 @@ describe("drawFrame", () => {
     drawFrame(ctx, snapshot({ shots: [shot(200, 100)] }));
 
     expect(ctx.calls[1]).toEqual({ style: "#ffffff", x: 40, y: 20, w: 2, h: 2 });
+  });
+
+  describe("prize", () => {
+    const prize = (x = 100, y = 50): FoodSnapshot => ({ ...food(20, x, y), kind: "prize" });
+
+    it("is a 5x5 gold block, bigger than any food", () => {
+      drawFrame(ctx, snapshot({ foods: [prize(100, 50)] }), { timeMs: 0 });
+
+      const block = ctx.calls.find((call) => call.w === 5 && call.h === 5);
+      expect(block).toMatchObject({ x: 20, y: 10 });
+    });
+
+    it("has a bright heart in the middle", () => {
+      drawFrame(ctx, snapshot({ foods: [prize(100, 50)] }), { timeMs: 0 });
+
+      expect(ctx.calls.find((call) => call.x === 22 && call.y === 12 && call.w === 1)?.style).toBe("#ffffff");
+    });
+
+    it("glows: the gold changes with time", () => {
+      const first = new RecordingContext();
+      const later = new RecordingContext();
+
+      drawFrame(first, snapshot({ foods: [prize()] }), { timeMs: 0 });
+      drawFrame(later, snapshot({ foods: [prize()] }), { timeMs: 400 });
+
+      expect(later.calls).not.toEqual(first.calls);
+    });
+
+    it("does not make ordinary food glow", () => {
+      const first = new RecordingContext();
+      const later = new RecordingContext();
+
+      drawFrame(first, snapshot({ foods: [food(5)] }), { timeMs: 0 });
+      drawFrame(later, snapshot({ foods: [food(5)] }), { timeMs: 400 });
+
+      expect(later.calls).toEqual(first.calls);
+    });
   });
 
   it("draws foods, then shots, then snakes", () => {

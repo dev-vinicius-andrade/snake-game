@@ -70,6 +70,8 @@ function parseSnake([key, player]: [string, Dictionary]): SnakeSnapshot | null {
     segmentHealth: alignHealth(player.segmentHealth, path.length),
     isAlive: typeof player.isAlive === "boolean" ? player.isAlive : true,
     isBoosting: player.isBoosting === true,
+    perks: Array.isArray(player.perks) ? player.perks.filter((perk): perk is string => typeof perk === "string") : [],
+    foodsEaten: isFinite(player.foodsEaten) ? player.foodsEaten : 0,
     score: isFinite(player.score) ? player.score : 0,
     color: parseColor(player.backgroundColor),
     direction: parseDirection(player.currentDirection),
@@ -81,6 +83,7 @@ function parseFood([key, food]: [string, Dictionary]): FoodSnapshot | null {
   if (!position) return null;
   return {
     guid: asString(food.guid) ?? key,
+    kind: food.kind === "prize" ? "prize" : "normal",
     position,
     color: parseColor(food.color),
     value: isFinite(food.value) && food.value > 0 ? food.value : 1,

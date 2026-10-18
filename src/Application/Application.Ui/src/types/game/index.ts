@@ -28,13 +28,21 @@ export interface SnakeSnapshot {
   segmentHealth: number[];
   isAlive: boolean;
   isBoosting: boolean;
+  /** Ids of the perks the snake has earned, in the order it earned them. */
+  perks: string[];
+  /** Foods eaten in this life; perks are earned from it. */
+  foodsEaten: number;
   score: number;
   color: GameColor;
   direction: SnakeDirection;
 }
 
+export type FoodKind = "normal" | "prize";
+
 export interface FoodSnapshot {
   guid: string;
+  /** The prize is rare and valuable; snakes fight over it. */
+  kind: FoodKind;
   position: GamePoint;
   color: GameColor;
   value: number;

@@ -28,6 +28,8 @@ export interface RenderOptions {
    */
   view?: { width: number; height: number };
   origin?: GamePoint;
+  /** Clock in milliseconds, for things that glow. Without it they stay still. */
+  timeMs?: number;
 }
 
 const BACKGROUND = "#16161d";
@@ -112,7 +114,22 @@ function drawGrid(ctx: PixelContext, view: { width: number; height: number }, or
       );
 }
 
-function drawFood(painter: Painter, food: FoodSnapshot) {
+const PRIZE_PIXELS = 5;
+const PRIZE_RING = "#b8860b";
+const PRIZE_GOLD = ["#ffd23f", "#fff0a0"];
+const PRIZE_HEART = "#ffffff";
+const PRIZE_GLOW_MS = 400;
+
+/** A gold block with a ring and a white heart, whose gold flips between two shades. */
+function drawPrize(painter: Painter, food: FoodSnapshot, timeMs: number) {
+  const gold = PRIZE_GOLD[Math.floor(timeMs / PRIZE_GLOW_MS) % PRIZE_GOLD.length];
+  painter.block(PRIZE_RING, food.position, PRIZE_PIXELS);
+  for (let dx = 1; dx <= 3; dx++)
+    for (let dy = 1; dy <= 3; dy++) painter.pixel(dx === 2 && dy === 2 ? PRIZE_HEART : gold, food.position, PRIZE_PIXELS, dx, dy);
+}
+
+function drawFood(painter: Painter, food: FoodSnapshot, timeMs: number) {
+  if (food.kind === "prize") return drawPrize(painter, food, timeMs);
   painter.block(food.color.fillColor, food.position, food.value >= BIG_FOOD_VALUE ? BIG_FOOD_PIXELS : SMALL_FOOD_PIXELS);
 }
 
@@ -188,7 +205,7 @@ export function drawFrame(ctx: PixelContext, snapshot: GameSnapshot, options: Re
   ctx.fillRect(0, 0, options.view?.width ?? room.width, options.view?.height ?? room.height);
   if (options.view) drawGrid(ctx, options.view, origin, pixelSize);
 
-  snapshot.foods.forEach((food) => drawFood(painter, food));
+  snapshot.foods.forEach((food) => drawFood(painter, food, options.timeMs ?? 0));
   snapshot.shots.forEach((shot) => drawShot(painter, shot));
   const living = snapshot.snakes.filter((snake) => snake.isAlive);
   const others = living.filter((snake) => snake.guid !== options.selfGuid);

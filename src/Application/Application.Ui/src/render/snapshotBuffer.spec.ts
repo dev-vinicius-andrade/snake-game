@@ -15,6 +15,8 @@ function snake(path: Array<[number, number]>, overrides: Partial<SnakeSnapshot> 
     segmentHealth: points.map(() => 1),
     isAlive: true,
     isBoosting: false,
+    perks: [],
+    foodsEaten: 0,
     score: 0,
     color: { fillColor: "#00ff00", border: "#00ff00" },
     direction: "right",
@@ -124,7 +126,7 @@ describe("blendSnapshots", () => {
   });
 
   it("takes food, which does not move, from the newer snapshot", () => {
-    const food = { guid: "f", position: { x: 5, y: 5 }, color: { fillColor: "#fff", border: "#fff" }, value: 1 };
+    const food = { guid: "f", position: { x: 5, y: 5 }, color: { fillColor: "#fff", border: "#fff" }, value: 1, kind: "normal" as const };
 
     expect(blendSnapshots(frame(), frame({ foods: [food] }), 0.5).foods).toEqual([food]);
   });

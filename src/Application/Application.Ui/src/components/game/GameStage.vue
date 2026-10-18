@@ -69,7 +69,7 @@ useCanvasRenderer(canvas, () => {
   const frame = currentFrame();
   return {
     snapshot: frame?.snapshot ?? null,
-    options: { selfGuid: props.selfGuid, origin: frame?.camera?.origin, view: frame?.camera?.view },
+    options: { selfGuid: props.selfGuid, timeMs: performance.now(), origin: frame?.camera?.origin, view: frame?.camera?.view },
   };
 });
 </script>

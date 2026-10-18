@@ -29,6 +29,8 @@ describe("parseSnapshot", () => {
       segmentHealth: [0.5, 1],
       isAlive: true,
       isBoosting: true,
+      perks: [],
+      foodsEaten: 0,
       score: 7,
       color: { fillColor: "#ff0000", border: "#aa0000" },
       direction: "right",
@@ -42,8 +44,43 @@ describe("parseSnapshot", () => {
         position: { x: 10, y: 20 },
         color: { fillColor: "#00ff00", border: "#00aa00" },
         value: 3,
+        kind: "normal",
       },
     ]);
+  });
+
+  it("reads the prize kind of a food", () => {
+    const raw = clone(fixture) as any;
+    const key = Object.keys(raw.foods)[0];
+    raw.foods[key].kind = "prize";
+
+    expect(parseSnapshot(raw)!.foods[0].kind).toBe("prize");
+  });
+
+  it("treats an unknown food kind as normal", () => {
+    const raw = clone(fixture) as any;
+    raw.foods[Object.keys(raw.foods)[0]].kind = "mystery";
+
+    expect(parseSnapshot(raw)!.foods[0].kind).toBe("normal");
+  });
+
+  it("reads the perks and foods eaten of a snake", () => {
+    const raw = clone(fixture) as any;
+    const player = raw.players[Object.keys(raw.players)[0]];
+    player.perks = ["swift", 5, "twin-shot"];
+    player.foodsEaten = 12;
+
+    const snake = parseSnapshot(raw)!.snakes[0];
+
+    expect(snake.perks).toEqual(["swift", "twin-shot"]);
+    expect(snake.foodsEaten).toBe(12);
+  });
+
+  it("has no perks when the server sends none", () => {
+    const snake = parseSnapshot(fixture)!.snakes[0];
+
+    expect(snake.perks).toEqual([]);
+    expect(snake.foodsEaten).toBe(0);
   });
 
   it("reads shots with their owner", () => {
