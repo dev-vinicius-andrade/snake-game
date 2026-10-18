@@ -46,17 +46,13 @@ export function viewLayout(cssWidth: number, cssHeight: number, options: ViewLay
   return { scale, logicalWidth, logicalHeight, worldWidth: logicalWidth * pixelSize, worldHeight: logicalHeight * pixelSize };
 }
 
-function axisOrigin(target: number, viewSize: number, worldSize: number): number {
-  if (viewSize >= worldSize) return (worldSize - viewSize) / 2;
-  return Math.min(worldSize - viewSize, Math.max(0, target - viewSize / 2));
-}
-
 /**
- * Top-left of the view in world coordinates when it follows `target`: the target is in the middle, except near the
- * edges of the world where the view stops, and on an axis where the view is larger than the world, which is centred.
+ * Top-left of the view in world coordinates when it follows `target`: the target is always in the middle. The world wraps
+ * around, so there are no edges to stop at: next to a wall the view simply shows the far side of the world, and the
+ * renderer draws the world tiled to fill it.
  */
-export function cameraOrigin(target: GamePoint, view: { width: number; height: number }, world: RoomDimensions): GamePoint {
-  return { x: axisOrigin(target.x, view.width, world.width), y: axisOrigin(target.y, view.height, world.height) };
+export function cameraOrigin(target: GamePoint, view: { width: number; height: number }): GamePoint {
+  return { x: target.x - view.width / 2, y: target.y - view.height / 2 };
 }
 
 /** A world point measured from the top-left of the view. */
@@ -74,11 +70,11 @@ export interface Camera {
   view: { width: number; height: number };
 }
 
-/** The camera for a screen showing `world`, following `target`. */
-export function followCamera(layout: ViewLayout, world: RoomDimensions, target: GamePoint): Camera {
+/** The camera for a screen, following `target`. */
+export function followCamera(layout: ViewLayout, target: GamePoint): Camera {
   const size = { width: layout.worldWidth, height: layout.worldHeight };
   return {
-    origin: cameraOrigin(target, size, world),
+    origin: cameraOrigin(target, size),
     size,
     view: { width: layout.logicalWidth, height: layout.logicalHeight },
   };

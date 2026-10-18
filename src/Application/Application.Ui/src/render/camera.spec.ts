@@ -83,40 +83,22 @@ describe("viewLayout", () => {
 });
 
 describe("cameraOrigin", () => {
-  const world = { width: 1920, height: 1080 };
   const view = { width: 1070, height: 600 };
 
   it("puts the target in the middle of the view", () => {
-    expect(cameraOrigin({ x: 960, y: 540 }, view, world)).toEqual({ x: 425, y: 240 });
+    expect(cameraOrigin({ x: 960, y: 540 }, view)).toEqual({ x: 425, y: 240 });
   });
 
-  it("stops at the left and top edge of the world", () => {
-    expect(cameraOrigin({ x: 10, y: 5 }, view, world)).toEqual({ x: 0, y: 0 });
+  it("follows the target one to one", () => {
+    const first = cameraOrigin({ x: 900, y: 500 }, view);
+    const second = cameraOrigin({ x: 960, y: 530 }, view);
+
+    expect(second).toEqual({ x: first.x + 60, y: first.y + 30 });
   });
 
-  it("stops at the right and bottom edge of the world", () => {
-    expect(cameraOrigin({ x: 1915, y: 1075 }, view, world)).toEqual({ x: 850, y: 480 });
-  });
-
-  it("handles each axis on its own", () => {
-    expect(cameraOrigin({ x: 10, y: 540 }, view, world)).toEqual({ x: 0, y: 240 });
-  });
-
-  it("centres the world on an axis where the view is larger than the world", () => {
-    const tall = { width: 625, height: 1355 };
-
-    expect(cameraOrigin({ x: 960, y: 100 }, tall, world)).toEqual({ x: 647.5, y: -137.5 });
-  });
-
-  it("centres the world when the view is exactly as large", () => {
-    expect(cameraOrigin({ x: 5, y: 5 }, { width: 1920, height: 1080 }, world)).toEqual({ x: 0, y: 0 });
-  });
-
-  it("follows a target that moves", () => {
-    const first = cameraOrigin({ x: 900, y: 500 }, view, world);
-    const second = cameraOrigin({ x: 960, y: 500 }, view, world);
-
-    expect(second.x - first.x).toBe(60);
+  it("is never held back by a wall, because the world wraps: next to a wall the view shows the other side", () => {
+    expect(cameraOrigin({ x: 0, y: 0 }, view)).toEqual({ x: -535, y: -300 });
+    expect(cameraOrigin({ x: 1920, y: 1080 }, view)).toEqual({ x: 1385, y: 780 });
   });
 });
 
@@ -131,23 +113,29 @@ describe("toViewPoint", () => {
 });
 
 describe("followCamera", () => {
-  const world = { width: 1920, height: 1080 };
   const layout = viewLayout(1920, 1080)!;
 
   it("gives the canvas size in logical pixels and the world size it shows", () => {
-    const camera = followCamera(layout, world, { x: 960, y: 540 });
+    const camera = followCamera(layout, { x: 960, y: 540 });
 
     expect(camera.view).toEqual({ width: 214, height: 120 });
     expect(camera.size).toEqual({ width: 1070, height: 600 });
   });
 
   it("centres on the target", () => {
-    expect(followCamera(layout, world, { x: 960, y: 540 }).origin).toEqual({ x: 425, y: 240 });
+    expect(followCamera(layout, { x: 960, y: 540 }).origin).toEqual({ x: 425, y: 240 });
   });
 
-  it("measures points from the top-left of what is visible", () => {
-    const camera = followCamera(layout, world, { x: 960, y: 540 });
+  it("keeps the target exactly where it was on screen however it moves, so the snake never wobbles", () => {
+    const on = (x: number, y: number) => {
+      const camera = followCamera(layout, { x, y });
+      return toViewPoint({ x, y }, camera.origin);
+    };
 
-    expect(toViewPoint({ x: 960, y: 540 }, camera.origin)).toEqual({ x: 535, y: 300 });
+    expect(on(100.3, 77.9)).toEqual(on(1800.1, 1000.6));
+  });
+
+  it("is not held back by the walls", () => {
+    expect(followCamera(layout, { x: 0, y: 0 }).origin).toEqual({ x: -535, y: -300 });
   });
 });

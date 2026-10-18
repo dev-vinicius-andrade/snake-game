@@ -167,52 +167,87 @@ describe("drawFrame with a camera", () => {
   });
 
   const view = { width: 100, height: 60 };
+  // The room is 1920 x 1080 world units: 384 x 216 logical pixels, and it wraps around.
+  const draw = (parts: Partial<GameSnapshot>, origin: { x: number; y: number }) => drawFrame(ctx, snapshot(parts), { view, origin });
+  /** Everything except the background and the grid dots. */
+  const sprites = () => ctx.calls.slice(1).filter((call) => !(call.w === 1 && call.h === 1));
 
-  it("fills the whole view with the void colour first", () => {
-    drawFrame(ctx, snapshot(), { view, origin: { x: 0, y: 0 } });
+  it("fills the whole view with the arena colour first, and shows no void and no walls", () => {
+    draw({}, { x: 0, y: 0 });
 
     expect(ctx.calls[0]).toMatchObject({ x: 0, y: 0, w: 100, h: 60 });
-  });
-
-  it("then fills the arena where it is in the view", () => {
-    drawFrame(ctx, snapshot(), { view, origin: { x: 100, y: 50 } });
-
-    // The world starts 100 / 5 = 20 pixels left of and 50 / 5 = 10 pixels above the view, and is 384 x 216 pixels.
-    expect(ctx.calls[1]).toMatchObject({ x: -20, y: -10, w: 384, h: 216 });
-  });
-
-  it("draws the arena in another colour than the void, with a border around it", () => {
-    drawFrame(ctx, snapshot(), { view, origin: { x: 0, y: 0 } });
-
-    const styles = ctx.calls.slice(0, 6).map((call) => call.style);
-    expect(styles[0]).not.toBe(styles[1]);
-    expect(new Set(styles.slice(2, 6)).size).toBe(1);
-    expect(styles[2]).not.toBe(styles[1]);
+    expect(new Set(ctx.calls.map((call) => call.style).slice(1)).size).toBe(1);
   });
 
   it("shifts everything by the camera origin", () => {
-    drawFrame(ctx, snapshot({ foods: [food(1, 600, 350)] }), { view, origin: { x: 500, y: 300 } });
+    draw({ foods: [food(1, 600, 350)] }, { x: 500, y: 300 });
 
-    const foodCall = ctx.calls[ctx.calls.length - 1];
-    expect(foodCall).toMatchObject({ x: 20, y: 10 });
+    expect(sprites()[0]).toMatchObject({ x: 20, y: 10 });
   });
 
   it("draws the head where the snake is relative to the camera", () => {
-    drawFrame(ctx, snapshot({ snakes: [snake({ path: [{ x: 500, y: 300 }] })] }), { view, origin: { x: 450, y: 250 } });
+    draw({ snakes: [snake({ path: [{ x: 500, y: 300 }] })] }, { x: 450, y: 250 });
 
-    expect(ctx.calls[ctx.calls.length - 1]).toMatchObject({ x: 10, y: 10 });
+    expect(sprites()[0]).toMatchObject({ x: 10, y: 10 });
   });
 
-  it("keeps drawing things that are partly outside the view: the canvas clips them", () => {
-    drawFrame(ctx, snapshot({ foods: [food(1, 0, 0)] }), { view, origin: { x: 50, y: 50 } });
+  it("shows the far side of the world in front of an edge: past the right wall comes the left wall", () => {
+    // The view covers x = 1700 .. 2200; 2200 - 1920 = 280 is where the left side of the world continues.
+    draw({ foods: [food(1, 100, 0)] }, { x: 1700, y: 0 });
 
-    expect(ctx.calls[ctx.calls.length - 1]).toMatchObject({ x: -10, y: -10 });
+    expect(sprites()[0]).toMatchObject({ x: 64, y: 0 });
   });
 
-  it("without a view it still clears the whole room with one fill", () => {
-    drawFrame(ctx, snapshot());
+  it("does the same past the left wall and the top and bottom walls", () => {
+    draw({ foods: [food(1, 1900, 1070)] }, { x: -50, y: -50 });
 
-    expect(ctx.calls).toHaveLength(1);
+    expect(sprites()[0]).toMatchObject({ x: 6, y: 8 });
+  });
+
+  it("draws a sprite across the seam on both sides of it", () => {
+    // Logical x 383 is the last column of the world; a 3 pixel block there reaches 2 pixels into the next copy.
+    draw({ snakes: [snake({ path: [{ x: 1915, y: 0 }] })] }, { x: 0, y: 0 });
+
+    expect(sprites().map((call) => call.x)).toEqual([-1]);
+  });
+
+  it("does not draw what is far outside the view", () => {
+    draw({ foods: [food(1, 1000, 500)] }, { x: 0, y: 0 });
+
+    expect(sprites()).toHaveLength(0);
+  });
+
+  it("keeps the own snake in the same place on screen when it wraps to the other side of the world", () => {
+    const before = snake({ path: [{ x: 1905, y: 500 }] });
+    const after = snake({ path: [{ x: 0, y: 500 }] });
+
+    drawFrame(ctx, snapshot({ snakes: [before] }), { view, origin: { x: 1905 + 7.5 - 250, y: 500 + 7.5 - 150 } });
+    const first = sprites()[0];
+    ctx.calls.length = 0;
+    drawFrame(ctx, snapshot({ snakes: [after] }), { view, origin: { x: 0 + 7.5 - 250, y: 500 + 7.5 - 150 } });
+
+    expect(sprites()[0]).toMatchObject({ x: first.x, y: first.y });
+  });
+
+  it("draws a faint grid fixed to the world, so moving through the arena is visible", () => {
+    draw({}, { x: 0, y: 0 });
+
+    const dots = ctx.calls.filter((call) => call.w === 1 && call.h === 1);
+    expect(dots).toContainEqual(expect.objectContaining({ x: 24, y: 24 }));
+    expect(dots).toContainEqual(expect.objectContaining({ x: 48, y: 24 }));
+  });
+
+  it("moves the grid with the camera", () => {
+    draw({}, { x: 60, y: 0 });
+
+    const dots = ctx.calls.filter((call) => call.w === 1 && call.h === 1);
+    expect(dots).toContainEqual(expect.objectContaining({ x: 12, y: 24 }));
+  });
+
+  it("without a view it still clears the whole room with one fill and does not wrap", () => {
+    drawFrame(ctx, snapshot({ foods: [food(1, 1900, 1070)] }));
+
+    expect(ctx.calls).toHaveLength(2);
     expect(ctx.calls[0]).toMatchObject({ x: 0, y: 0, w: 384, h: 216 });
   });
 });

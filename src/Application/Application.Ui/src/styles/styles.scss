@@ -13,6 +13,11 @@
   --snake-pixel-font: "Press Start 2P", ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 
+// Vuetify always shows a scrollbar track; the game screen fills the window and should not have one.
+html {
+  overflow-y: auto;
+}
+
 html,
 body {
   margin: 0;

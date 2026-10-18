@@ -31,9 +31,10 @@ export interface RenderOptions {
 }
 
 const BACKGROUND = "#16161d";
-/** Outside the arena, and the line along its edge. */
-const VOID = "#07080f";
-const EDGE = "#3a4670";
+/** The faint dots of the floor grid, fixed to the world so moving through it is visible. */
+const GRID_COLOR = "#23263a";
+/** World units between grid dots. 120 divides the default room (1920 x 1080), so the grid is seamless where the world wraps. */
+const GRID_SPACING = 120;
 const SHOT_COLOR = "#ffffff";
 const SMALL_FOOD_PIXELS = 2;
 const BIG_FOOD_PIXELS = 3;
@@ -49,30 +50,47 @@ interface Painter {
   block(color: string, world: GamePoint, pixels: number): void;
 }
 
-function createPainter(ctx: PixelContext, pixelSize: number, origin: GamePoint): Painter {
+/** Where blocks of a camera view go: which part of the wrapping world is on the canvas. */
+interface Tiling {
+  /** The canvas, in logical pixels. */
+  view: { width: number; height: number };
+  /** The world, in logical pixels. It repeats in every direction. */
+  period: { width: number; height: number };
+}
+
+const mod = (value: number, period: number) => ((value % period) + period) % period;
+
+/** The places a block shows on one axis: where it is within one copy of the world, and one copy to the left of that. */
+function copies(position: number, period: number, size: number, extent: number): number[] {
+  const inside = mod(position, period);
+  return [inside, inside - period].map(Math.floor).filter((at) => at + size > 0 && at < extent);
+}
+
+function createPainter(ctx: PixelContext, pixelSize: number, origin: GamePoint, tiling?: Tiling): Painter {
   return {
     block(color, world, pixels) {
       ctx.fillStyle = color;
-      ctx.fillRect(Math.floor((world.x - origin.x) / pixelSize), Math.floor((world.y - origin.y) / pixelSize), pixels, pixels);
+      const left = (world.x - origin.x) / pixelSize;
+      const top = (world.y - origin.y) / pixelSize;
+      if (!tiling) {
+        ctx.fillRect(Math.floor(left), Math.floor(top), pixels, pixels);
+        return;
+      }
+      // The world wraps, so what leaves the canvas on one side of an edge is what enters on the other.
+      for (const x of copies(left, tiling.period.width, pixels, tiling.view.width))
+        for (const y of copies(top, tiling.period.height, pixels, tiling.view.height)) ctx.fillRect(x, y, pixels, pixels);
     },
   };
 }
 
-/** The arena on the screen: the void everywhere, the arena where it is, and a thin line along its edge. */
-function drawArena(ctx: PixelContext, snapshot: GameSnapshot, view: { width: number; height: number }, origin: GamePoint, pixelSize: number, background: string) {
-  const arena = logicalSize(snapshot.room, pixelSize);
-  const left = Math.floor(-origin.x / pixelSize);
-  const top = Math.floor(-origin.y / pixelSize);
-
-  ctx.fillStyle = VOID;
-  ctx.fillRect(0, 0, view.width, view.height);
-  ctx.fillStyle = background;
-  ctx.fillRect(left, top, arena.width, arena.height);
-  ctx.fillStyle = EDGE;
-  ctx.fillRect(left - 1, top - 1, arena.width + 2, 1);
-  ctx.fillRect(left - 1, top + arena.height, arena.width + 2, 1);
-  ctx.fillRect(left - 1, top, 1, arena.height);
-  ctx.fillRect(left + arena.width, top, 1, arena.height);
+/** One dot per grid point that is on the canvas. The grid repeats with the world, so it needs no wrapping. */
+function drawGrid(ctx: PixelContext, view: { width: number; height: number }, origin: GamePoint, pixelSize: number) {
+  const first = { x: Math.ceil(origin.x / GRID_SPACING), y: Math.ceil(origin.y / GRID_SPACING) };
+  const last = { x: Math.floor((origin.x + view.width * pixelSize) / GRID_SPACING), y: Math.floor((origin.y + view.height * pixelSize) / GRID_SPACING) };
+  ctx.fillStyle = GRID_COLOR;
+  for (let column = first.x; column <= last.x; column++)
+    for (let row = first.y; row <= last.y; row++)
+      ctx.fillRect(Math.floor((column * GRID_SPACING - origin.x) / pixelSize), Math.floor((row * GRID_SPACING - origin.y) / pixelSize), 1, 1);
 }
 
 function drawFood(painter: Painter, food: FoodSnapshot) {
@@ -100,16 +118,16 @@ export function drawFrame(ctx: PixelContext, snapshot: GameSnapshot, options: Re
   const segmentPixels = Math.max(1, Math.round((options.headSize ?? DEFAULT_HEAD_SIZE) / pixelSize));
   const damageColor = options.damageColor ?? DAMAGE_COLOR;
   const origin = options.origin ?? { x: 0, y: 0 };
-  const painter = createPainter(ctx, pixelSize, origin);
   const background = options.backgroundColor ?? BACKGROUND;
+  const room = logicalSize(snapshot.room, pixelSize);
+  const tiling = options.view
+    ? { view: options.view, period: { width: snapshot.room.width / pixelSize, height: snapshot.room.height / pixelSize } }
+    : undefined;
+  const painter = createPainter(ctx, pixelSize, origin, tiling);
 
-  if (options.view) {
-    drawArena(ctx, snapshot, options.view, origin, pixelSize, background);
-  } else {
-    const size = logicalSize(snapshot.room, pixelSize);
-    ctx.fillStyle = background;
-    ctx.fillRect(0, 0, size.width, size.height);
-  }
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, options.view?.width ?? room.width, options.view?.height ?? room.height);
+  if (options.view) drawGrid(ctx, options.view, origin, pixelSize);
 
   snapshot.foods.forEach((food) => drawFood(painter, food));
   snapshot.shots.forEach((shot) => drawShot(painter, shot));
