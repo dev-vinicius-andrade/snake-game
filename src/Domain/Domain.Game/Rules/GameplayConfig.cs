@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace Domain.Game.Rules;
 
 /// <summary>
-/// Everything an administrator can tune while the game runs: the perks and the prize. The manager keeps it and the game
+/// Everything an administrator can tune while the game runs: the perks, the prize, the room lifetimes and the world events. The manager keeps it and the game
 /// servers fetch it, so both sides read and write it the same way (<see cref="Json"/>).
 /// </summary>
 public sealed record GameplayConfig
@@ -12,6 +12,7 @@ public sealed record GameplayConfig
     public PerkOptions Perks { get; init; } = new();
     public PrizeOptions Prize { get; init; } = new();
     public RoomLifetimeOptions Rooms { get; init; } = new();
+    public WorldEventOptions WorldEvents { get; init; } = new();
 
     /// <summary>How the config is written and read: camel case names, and effects by name.</summary>
     public static JsonSerializerOptions Json { get; } = new()
@@ -47,6 +48,7 @@ public sealed record GameplayConfig
         _ = new PrizeRules(Prize);
         EnsurePerksGrantedExist();
         _ = new RoomLifetimeSettings(Rooms);
+        _ = new WorldEventRules(WorldEvents);
     }
 
     /// <summary>A prize can only give a perk that is in the list (the built-in set when no list was given).</summary>

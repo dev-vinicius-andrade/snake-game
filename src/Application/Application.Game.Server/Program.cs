@@ -76,7 +76,8 @@ namespace Application.Game.Server
         {
             services.AddGameServices(
                 perkOptions: configuration.GetSection(PerkOptions.SectionName).Get<PerkOptions>(),
-                prizeOptions: configuration.GetSection(PrizeOptions.SectionName).Get<PrizeOptions>());
+                prizeOptions: configuration.GetSection(PrizeOptions.SectionName).Get<PrizeOptions>(),
+                worldEventOptions: configuration.GetSection(WorldEventOptions.SectionName).Get<WorldEventOptions>());
             services.AddGameState();
             services.AddRooms();
             services.AddPlayers();
@@ -86,7 +87,7 @@ namespace Application.Game.Server
             services.AddSnakeConfiguration(configuration,$"{ServerConfiguration.SectionName}:{SnakeConfiguration.SectionName}");
             services.AddSingleton<GameplayApplier>(provider => new GameplayApplier(
                 provider.GetRequiredService<PerkRules>(), provider.GetRequiredService<PrizeRules>(), provider.GetRequiredService<RoomLifetimeSettings>(),
-                provider.GetRequiredService<Serilog.ILogger>()));
+                provider.GetRequiredService<WorldEventRules>(), provider.GetRequiredService<Serilog.ILogger>()));
             services.AddHostedService<GameplaySyncWorkerService>();
             services.AddHostedService<FoodGeneratorWorkerService>();
             services.AddSingleton<JoinRequestHandler>();

@@ -39,6 +39,39 @@ public sealed class GameplayConfigTests
     }
 
     [Fact]
+    public void Defaults_HaveLightningOnAndValid()
+    {
+        var lightning = GameplayConfig.Defaults.WorldEvents;
+
+        Assert.True(lightning.Enabled);
+        Assert.True(lightning.Lightning.Enabled);
+    }
+
+    [Fact]
+    public void Json_WorldEventsAreWrittenAndReadBack()
+    {
+        var config = GameplayConfig.Defaults with
+        {
+            WorldEvents = new WorldEventOptions { Lightning = new LightningOptions { Radius = 123, ExcludedRooms = ["quiet"] } }
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(config, GameplayConfig.Json);
+        var back = System.Text.Json.JsonSerializer.Deserialize<GameplayConfig>(json, GameplayConfig.Json)!;
+
+        Assert.Contains("\"worldEvents\"", json);
+        Assert.Equal(123, back.WorldEvents.Lightning.Radius);
+        Assert.Equal(["quiet"], back.WorldEvents.Lightning.ExcludedRooms);
+    }
+
+    [Fact]
+    public void EnsureValid_RefusesLightningThatCannotWork()
+    {
+        var config = new GameplayConfig { WorldEvents = new WorldEventOptions { Lightning = new LightningOptions { Radius = 0 } } };
+
+        Assert.Throws<ArgumentOutOfRangeException>(config.EnsureValid);
+    }
+
+    [Fact]
     public void EnsureValid_RefusesAPrizeThatCannotWork()
     {
         var config = new GameplayConfig { Prize = new PrizeOptions { SpawnIntervalSeconds = 0 } };

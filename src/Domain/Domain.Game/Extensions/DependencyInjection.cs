@@ -17,7 +17,7 @@ public static class DependencyInjection
         return services;
     }
     public static IServiceCollection AddGameServices(this IServiceCollection services, IEnumerable<KeyValuePair<Direction, IPointAxis>>? directions = null,
-        PerkOptions? perkOptions = null, PrizeOptions? prizeOptions = null)
+        PerkOptions? perkOptions = null, PrizeOptions? prizeOptions = null, WorldEventOptions? worldEventOptions = null)
     {
         if (directions is not null)
             services.AddKnowDirections(directions);
@@ -37,9 +37,11 @@ public static class DependencyInjection
         services.AddSingleton(new DamageModelOptions());
         services.AddSingleton(perkOptions ?? new PerkOptions());
         services.AddSingleton(prizeOptions ?? new PrizeOptions());
+        services.AddSingleton(worldEventOptions ?? new WorldEventOptions());
         services.AddSingleton<PerkRules>();
         services.AddSingleton<PrizeRules>();
         services.AddSingleton<RoomLifetimeSettings>();
+        services.AddSingleton<WorldEventRules>(provider => new WorldEventRules(provider.GetRequiredService<WorldEventOptions>()));
         services.AddSingleton<PrizeSpawner>();
         services.AddSingleton<PerkWorld>();
         services.AddSingleton<DamageCalculator>();

@@ -5,6 +5,8 @@ namespace Domain.Game.Rules;
 /// <summary>Tunable world events: things that happen to a whole room now and then. See docs/WORLD_EVENTS.md.</summary>
 public sealed record WorldEventOptions
 {
+    public const string SectionName = "WorldEventConfiguration";
+
     /// <summary>Turns every world event off with one switch.</summary>
     public bool Enabled { get; init; } = true;
 

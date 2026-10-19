@@ -9,11 +9,12 @@ public sealed class GameplayApplierTests
     private readonly PerkRules _perks = new(new PerkOptions());
     private readonly PrizeRules _prize = new(new PrizeOptions());
     private readonly RoomLifetimeSettings _lifetime = new();
+    private readonly WorldEventRules _worldEvents = new(new WorldEventOptions());
     private readonly GameplayApplier _applier;
 
     public GameplayApplierTests()
     {
-        _applier = new GameplayApplier(_perks, _prize, _lifetime);
+        _applier = new GameplayApplier(_perks, _prize, _lifetime, _worldEvents);
     }
 
     private static string Document(string revision, GameplayConfig config)
@@ -109,5 +110,28 @@ public sealed class GameplayApplierTests
 
         Assert.False(applied);
         Assert.Equal(77, _prize.Options.Value);
+    }
+
+    [Fact]
+    public void Apply_SwitchesTheWorldEventsToo()
+    {
+        var config = Config() with { WorldEvents = new WorldEventOptions { Lightning = new LightningOptions { Radius = 150 } } };
+
+        Assert.True(_applier.Apply(Document("r1", config)));
+
+        Assert.Equal(150, _worldEvents.Options.Lightning.Radius);
+    }
+
+    [Fact]
+    public void Apply_WorldEventsThatCannotWorkRefuseTheWholeConfig()
+    {
+        _applier.Apply(Document("r1", Config(prizeValue: 77)));
+        var bad = Config(prizeValue: 5) with { WorldEvents = new WorldEventOptions { Lightning = new LightningOptions { Radius = 0 } } };
+
+        var applied = _applier.Apply(Document("r2", bad));
+
+        Assert.False(applied);
+        Assert.Equal(77, _prize.Options.Value);
+        Assert.Equal(90, _worldEvents.Options.Lightning.Radius);
     }
 }
