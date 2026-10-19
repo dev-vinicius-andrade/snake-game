@@ -139,7 +139,7 @@ spawn interval.
 
 ## Icon and description
 
-Each perk can have an **icon** (a Material Design Icons name such as `mdi-shield`, picked from a list or typed) and a **description**
+Each perk can have an **icon** (a game icon such as `game-icons:magnet`, picked from the list of the icons the game ships, or a Material Design Icons name such as `mdi-shield`, typed) and a **description**
 (one sentence, at most 200 characters) that players see in the perk's tooltip. Without an icon the perk uses the icon of its first
 effect, so a perk made only of a script should have one.
 

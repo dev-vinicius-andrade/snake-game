@@ -1,3 +1,6 @@
+import gameIconNames from "./gameIconNames.json";
+import { GAME_ICON_PREFIX } from "./gameIcons";
+
 /** The effects a perk can have, as the server names them. */
 export const PERK_EFFECTS = [
   "ExtraShots",
@@ -14,70 +17,33 @@ export const PERK_EFFECTS = [
 ] as const;
 
 const ICONS: Readonly<Record<string, string>> = {
-  ExtraShots: "mdi-source-branch",
-  BoostSpeed: "mdi-lightning-bolt",
-  FasterReload: "mdi-timer-sand",
-  EfficientBoost: "mdi-lungs",
-  BurstShot: "mdi-chevron-triple-right",
-  ShotSpeed: "mdi-rocket-launch",
-  AutoFire: "mdi-autorenew",
-  PiercingShot: "mdi-arrow-collapse-right",
-  Armor: "mdi-shield",
-  Regeneration: "mdi-heart-plus",
-  Magnet: "mdi-magnet",
+  ExtraShots: "game-icons:arrow-cluster",
+  BoostSpeed: "game-icons:sprint",
+  FasterReload: "game-icons:reload-gun-barrel",
+  EfficientBoost: "game-icons:lungs",
+  BurstShot: "game-icons:bullets",
+  ShotSpeed: "game-icons:fast-arrow",
+  AutoFire: "game-icons:cycle",
+  PiercingShot: "game-icons:arrow-dunk",
+  Armor: "game-icons:checked-shield",
+  Regeneration: "game-icons:health-increase",
+  Magnet: "game-icons:magnet",
 };
 
 /** The icon of an effect; an effect this client does not know yet still gets one. */
-export const perkIcon = (effect: string): string => ICONS[effect] ?? "mdi-star-four-points";
+export const perkIcon = (effect: string): string => ICONS[effect] ?? "game-icons:sparkles";
 
-/** Icons an admin can pick for a perk. Any other Material Design Icons name (mdi-...) can be typed. */
-export const PERK_ICON_CHOICES: readonly string[] = [
-  "mdi-shield",
-  "mdi-shield-star",
-  "mdi-shield-sword",
-  "mdi-sword-cross",
-  "mdi-skull",
-  "mdi-skull-crossbones",
-  "mdi-flash",
-  "mdi-lightning-bolt",
-  "mdi-weather-lightning",
-  "mdi-fire",
-  "mdi-snowflake",
-  "mdi-water",
-  "mdi-leaf",
-  "mdi-heart",
-  "mdi-heart-plus",
-  "mdi-star",
-  "mdi-star-four-points",
-  "mdi-crown",
-  "mdi-diamond-stone",
-  "mdi-trophy",
-  "mdi-target",
-  "mdi-crosshairs",
-  "mdi-bullseye-arrow",
-  "mdi-rocket-launch",
-  "mdi-magnet",
-  "mdi-eye",
-  "mdi-ghost",
-  "mdi-timer-sand",
-  "mdi-clock-fast",
-  "mdi-speedometer",
-  "mdi-gift",
-  "mdi-bomb",
-  "mdi-dice-5",
-  "mdi-clover",
-  "mdi-paw",
-  "mdi-flag-checkered",
-];
+/** Icons an admin can pick for a perk: the game icons the game ships. Any Material Design Icons name (mdi-...) can still be typed. */
+export const PERK_ICON_CHOICES: readonly string[] = gameIconNames.map((name) => `${GAME_ICON_PREFIX}${name}`);
 
-const ICON_NAME = /^mdi-[a-z0-9]+(-[a-z0-9]+)*$/;
+const ICON_NAME = /^(mdi-[a-z0-9]+(-[a-z0-9]+)*|game-icons:[a-z0-9]+(-[a-z0-9]+)*)$/;
 
 interface IconSource {
   icon?: string | null;
   effects: { effect: string }[];
 }
 
-/** The icon a perk is shown with: the one it was given, else the icon of its first effect. */
+/** The icon a perk is shown with: the one it was given (a game icon or a Material Design icon), else the icon of its first effect. */
 export const perkIconOf = (perk: IconSource): string => (perk.icon && ICON_NAME.test(perk.icon) ? perk.icon : perkIcon(perk.effects[0]?.effect ?? ""));
 
 /** Where the sentence that says what an effect does is kept in the language files. */

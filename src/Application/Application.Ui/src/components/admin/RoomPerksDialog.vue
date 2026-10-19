@@ -4,6 +4,7 @@ import type { AdminRoom } from "@/composables/useAdminRooms";
 import type { useAdminGameplay } from "@/composables/useAdminGameplay";
 import { perkIconOf } from "@/game/perkInfo";
 import { perkWorksInRoom, setPerkInRoom } from "@/game/perkRooms";
+import GameIcon from "@/components/game/GameIcon.vue";
 import { getText } from "@/helpers";
 
 /** The perks of one room: tick the ones that work there. What is ticked is saved into the perks themselves (their room lists). */
@@ -56,7 +57,7 @@ function cancel() {
             @update:model-value="(value: boolean | null) => toggle(index, value)"
           />
           <span class="room-perk-icons" aria-hidden="true">
-            <VIcon size="x-small">{{ perkIconOf(perk) }}</VIcon>
+            <GameIcon :name="perkIconOf(perk)" :size="16" />
           </span>
           <VChip v-if="!perk.enabled" size="x-small" label color="warning">{{ getText({ key: "admin.perkOff" }) }}</VChip>
           <VChip v-if="perk.script?.trim()" size="x-small" label>{{ getText({ key: "admin.scripted" }) }}</VChip>

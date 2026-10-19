@@ -810,6 +810,8 @@ public sealed class PerkRulesTests
     [InlineData("mdi-shield")]
     [InlineData("mdi-lightning-bolt")]
     [InlineData("mdi-numeric-5-circle")]
+    [InlineData("game-icons:magnet")]
+    [InlineData("game-icons:arrow-cluster")]
     [InlineData(null)]
     [InlineData("")]
     public void Constructor_AValidIconOrNone_IsAccepted(string? icon)
@@ -825,7 +827,13 @@ public sealed class PerkRulesTests
     [InlineData("mdi-Shield")]
     [InlineData("mdi-shield\"><script>")]
     [InlineData("mdi-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
-    public void Constructor_AnIconThatIsNotAMaterialDesignIconsName_IsRefused(string icon)
+    [InlineData("game-icons:")]
+    [InlineData("game-icons:Magnet")]
+    [InlineData("game-icons:mag net")]
+    [InlineData("game-icons:magnet\"><script>")]
+    [InlineData("game-icons:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    [InlineData("other:magnet")]
+    public void Constructor_AnIconThatIsNotAMaterialDesignOrGameIconsName_IsRefused(string icon)
     {
         var failure = Assert.Throws<ArgumentException>(() =>
             new PerkRules(new PerkOptions { Perks = [new() { Id = "a", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 1, Icon = icon }] }));

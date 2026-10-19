@@ -28,6 +28,7 @@ export const messages = {
   footer: {
     about: "About and architecture",
     source: "Source on GitHub",
+    icons: "Perk icons by Lorc, Delapouite and contributors from",
     language: "Language",
   },
   about: {

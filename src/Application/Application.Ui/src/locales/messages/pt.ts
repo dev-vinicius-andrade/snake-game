@@ -27,6 +27,7 @@ export const messages = {
   },
   footer: {
     about: "Sobre e arquitetura",
+    icons: "Ícones dos perks por Lorc, Delapouite e colaboradores, de",
     source: "Código no GitHub",
     language: "Idioma",
   },

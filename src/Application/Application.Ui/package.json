@@ -6,7 +6,7 @@
     "build": "vite build && vue-tsc --noEmit",
     "preview": "vite preview",
     "lint": "eslint . --fix --ignore-path .gitignore",
-    "build:icons": "tsc -b src/@iconify && node src/@iconify/build-icons.js",
+    "icons": "node scripts/build-game-icons.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -33,6 +33,7 @@
     "webfontloader": "^1.0.0"
   },
   "devDependencies": {
+    "@iconify-json/game-icons": "^1.2.4",
     "@iconify/vue": "^4.0.2",
     "@intlify/unplugin-vue-i18n": "^0.8.1",
     "@types/lodash": "^4.14.191",

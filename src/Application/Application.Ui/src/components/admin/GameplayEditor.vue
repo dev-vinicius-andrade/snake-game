@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, reactive, ref } from "vue";
 import type { ScriptCheck, useAdminGameplay } from "@/composables/useAdminGameplay";
+import GameIcon from "@/components/game/GameIcon.vue";
 import { getText } from "@/helpers";
 import { PERK_EFFECTS, PERK_ICON_CHOICES, perkIconOf, tierLabel } from "@/game/perkInfo";
 import { SCRIPT_TEMPLATES } from "@/game/scriptTemplates";
@@ -117,7 +118,7 @@ onMounted(() => {
         <VExpansionPanels v-model="openPerks" multiple class="perk-panels">
           <VExpansionPanel v-for="(perk, index) in draft.perks.perks" :key="index" :value="index" :class="{ 'is-off': !perk.enabled }">
             <VExpansionPanelTitle>
-              <VIcon size="small" class="mr-2">{{ perkIconOf(perk) }}</VIcon>
+              <GameIcon :name="perkIconOf(perk)" :size="20" class="mr-2" />
               <strong>{{ perk.name || perk.id }}</strong>
               <span class="perk-sub">{{ perk.id }} · {{ perk.foodsRequired }}</span>
               <VChip v-if="!perk.enabled" size="x-small" label color="warning" class="ml-2">{{ getText({ key: "admin.perkOff" }) }}</VChip>
@@ -178,14 +179,18 @@ onMounted(() => {
             <VCombobox
               v-model="perk.icon"
               :items="PERK_ICON_CHOICES"
-              :prepend-inner-icon="perkIconOf(perk)"
               density="compact"
               hide-details
               clearable
               :label="getText({ key: 'admin.gameplay.perkIcon' })"
             >
+              <template #prepend-inner>
+                <GameIcon :name="perkIconOf(perk)" :size="20" />
+              </template>
               <template #item="{ props: item }">
-                <VListItem v-bind="item" :prepend-icon="item.title" />
+                <VListItem v-bind="item">
+                  <template #prepend><GameIcon :name="item.title" :size="22" class="mr-3" /></template>
+                </VListItem>
               </template>
             </VCombobox>
             <VTextField

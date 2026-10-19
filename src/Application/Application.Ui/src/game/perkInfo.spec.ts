@@ -2,28 +2,42 @@ import { describe, expect, it } from "vitest";
 import en from "@/locales/messages/en";
 import pt from "@/locales/messages/pt";
 import { PERK_EFFECTS, PERK_ICON_CHOICES, perkIcon, perkIconOf, perkParams, perkTooltipKey, tierInfo, tierLabel } from "./perkInfo";
+import { gameIconBody } from "./gameIcons";
 
 describe("perkInfo", () => {
-  it("knows an icon for every effect the server has, and a fallback for others", () => {
-    for (const effect of PERK_EFFECTS) expect(perkIcon(effect)).toMatch(/^mdi-/);
-    expect(perkIcon("SomethingNew")).toBe("mdi-star-four-points");
+  it("knows an icon for every effect the server has, from the game icons, and a fallback for others", () => {
+    for (const effect of PERK_EFFECTS) expect(perkIcon(effect)).toMatch(/^game-icons:/);
+    expect(perkIcon("SomethingNew")).toBe("game-icons:sparkles");
+  });
+
+  it("gives every effect its own icon", () => {
+    expect(new Set(PERK_EFFECTS.map((effect) => perkIcon(effect))).size).toBe(PERK_EFFECTS.length);
   });
 
   it("shows the icon a perk was given, else the icon of its first effect", () => {
     expect(perkIconOf({ icon: "mdi-skull", effects: [{ effect: "Magnet" }] })).toBe("mdi-skull");
     expect(perkIconOf({ icon: "", effects: [{ effect: "Magnet" }] })).toBe(perkIcon("Magnet"));
     expect(perkIconOf({ effects: [{ effect: "Armor" }] })).toBe(perkIcon("Armor"));
-    expect(perkIconOf({ effects: [] })).toBe("mdi-star-four-points");
+    expect(perkIconOf({ effects: [] })).toBe("game-icons:sparkles");
   });
 
-  it("ignores an icon that is not a Material Design Icons name", () => {
+  it("shows an icon of the game icons too", () => {
+    expect(perkIconOf({ icon: "game-icons:crown", effects: [{ effect: "Magnet" }] })).toBe("game-icons:crown");
+  });
+
+  it("ignores an icon that is not a Material Design Icons or game icons name", () => {
     expect(perkIconOf({ icon: "skull", effects: [{ effect: "Magnet" }] })).toBe(perkIcon("Magnet"));
-    expect(perkIconOf({ icon: "mdi-x y", effects: [] })).toBe("mdi-star-four-points");
+    expect(perkIconOf({ icon: "mdi-x y", effects: [] })).toBe("game-icons:sparkles");
+    expect(perkIconOf({ icon: "game-icons:Crown", effects: [] })).toBe("game-icons:sparkles");
+    expect(perkIconOf({ icon: "game-icons:", effects: [] })).toBe("game-icons:sparkles");
   });
 
-  it("offers only valid, different icon names to pick from", () => {
+  it("offers only valid, different game icons to pick from, every one of which can be drawn", () => {
     expect(new Set(PERK_ICON_CHOICES).size).toBe(PERK_ICON_CHOICES.length);
-    for (const name of PERK_ICON_CHOICES) expect(name).toMatch(/^mdi-[a-z0-9]+(-[a-z0-9]+)*$/);
+    for (const name of PERK_ICON_CHOICES) {
+      expect(name).toMatch(/^game-icons:[a-z0-9]+(-[a-z0-9]+)*$/);
+      expect(gameIconBody(name), name).toBeTruthy();
+    }
   });
 
   it("has a name, a help text and a tooltip for every effect in both languages", () => {

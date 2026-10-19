@@ -3,6 +3,7 @@ import { computed } from "vue";
 import type { CatalogPerk } from "@/composables/usePerkCatalog";
 import { perkLabel } from "@/game/perks";
 import { perkIcon, perkIconOf, perkParams, perkTooltipKey, tierInfo, tierLabel } from "@/game/perkInfo";
+import GameIcon from "@/components/game/GameIcon.vue";
 import { getText } from "@/helpers";
 
 const props = defineProps<{
@@ -53,7 +54,7 @@ const shown = computed(() => props.perks.map((id, index) => describe(id, index))
     <VTooltip v-for="perk in shown" :key="perk.id" location="top">
       <template #activator="{ props: activator }">
         <span class="perk" tabindex="0" :aria-label="`${perk.title}. ${perk.lines.join('. ')}`" v-bind="activator">
-          <VIcon size="small">{{ perk.icon }}</VIcon>
+          <GameIcon :name="perk.icon" :size="18" />
           <span v-if="perk.badge" class="perk-tier" aria-hidden="true">{{ perk.badge }}</span>
         </span>
       </template>

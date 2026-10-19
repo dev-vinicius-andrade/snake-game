@@ -55,6 +55,15 @@ the one before and multiplies everything the perk does by its `multiplier`, coun
 - On the admin page, in the perk's panel: **Add a tier** gives it the next foods and strength to edit, **Remove tier** takes one away.
   A tier must ask for more foods than the perk and than the tier before it; the strength is above 0 and at most 10.
 
+## Icons
+
+Perk icons are from [game-icons.net](https://game-icons.net) (by Lorc, Delapouite and contributors, CC BY 3.0, credited in the footer of the
+site), written `game-icons:name`, for example `game-icons:magnet`. Each built-in effect has its own. The pack is not shipped: only the
+few icons the game uses are, in `src/game/gameIcons.json`, written from `src/game/gameIconNames.json` by `npm run icons` (which reads
+the `@iconify-json/game-icons` dev dependency). To offer another icon in the admin picker, add its name to the list, run `npm run icons`
+and commit both files. A perk may also be given any Material Design Icons name (`mdi-skull`), typed; a name that is neither, or a game icon
+that does not ship, is shown as a star. The server checks the shape of the name only.
+
 ## Perks per room
 
 A perk works in every room unless it says otherwise, and a perk with a script works in no room until it names some. Three ways to
