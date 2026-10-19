@@ -358,7 +358,7 @@ onMounted(() => {
 /* Fields side by side as far as the screen allows, then onto more lines: nothing is squeezed. */
 .field-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 8px;
   align-items: center;
   margin-top: 8px;
