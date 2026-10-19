@@ -33,6 +33,7 @@ public static class SnapshotBuilder
             Y = (int)Math.Round(strike.Y),
             R = (int)Math.Round(strike.Radius),
             T = (int)Math.Max(0, Math.Round((strike.StrikesAt - now).TotalMilliseconds)),
+            K = (int)strike.Kind,
         }).ToList();
     }
 

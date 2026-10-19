@@ -198,6 +198,21 @@ public sealed class SnapshotBuilderTests
         Assert.Equal(201, strike.GetProperty("y").GetInt32());
         Assert.Equal(90, strike.GetProperty("r").GetInt32());
         Assert.Equal(1234, strike.GetProperty("t").GetInt32());
+        Assert.Equal(0, strike.GetProperty("k").GetInt32());
+    }
+
+    [Fact]
+    public void Build_AMeteorSaysItIsOne_SoTheClientDrawsItAsOne()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        _strikes[Guid.NewGuid()] = new WorldStrike(10, 20, 130, now.AddMilliseconds(2000), WorldStrikeKind.Meteor);
+        _strikes[Guid.NewGuid()] = new WorldStrike(30, 40, 90, now.AddMilliseconds(500), WorldStrikeKind.Lightning);
+
+        var json = JsonDocument.Parse(JsonSerializer.Serialize(SnapshotBuilder.Build(_state, now), Options)).RootElement;
+
+        var kinds = json.GetProperty("strikes").EnumerateArray().ToDictionary(strike => strike.GetProperty("x").GetInt32(), strike => strike.GetProperty("k").GetInt32());
+        Assert.Equal(1, kinds[10]);
+        Assert.Equal(0, kinds[30]);
     }
 
     [Fact]

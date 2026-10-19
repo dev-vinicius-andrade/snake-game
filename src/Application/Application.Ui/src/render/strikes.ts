@@ -1,8 +1,10 @@
-import type { GamePoint, GameSnapshot, StrikeSnapshot } from "@/types/game";
+import type { GamePoint, GameSnapshot, StrikeKind, StrikeSnapshot } from "@/types/game";
 import { DEFAULT_HEAD_SIZE } from "./pixelRenderer";
 
-/** What the player is told about the lightning that is about to strike: how long is left, and whether the own snake stands in it. */
-export interface LightningWarning {
+/** What the player is told about the strikes that are coming (lightning, meteors): what, how long is left, and whether the own snake stands in one. */
+export interface StrikeWarning {
+  /** What the own snake stands in the way of, or else what strikes first. */
+  kind: StrikeKind;
   danger: boolean;
   /** Milliseconds to the first strike, as of the snapshot. */
   msLeft: number;
@@ -24,31 +26,32 @@ function inSpot(snapshot: GameSnapshot, selfGuid: string | null | undefined, spo
 }
 
 /** Null while no spot is marked. */
-export function lightningWarning(snapshot: GameSnapshot, selfGuid: string | null | undefined): LightningWarning | null {
+export function strikeWarning(snapshot: GameSnapshot, selfGuid: string | null | undefined): StrikeWarning | null {
   if (snapshot.strikes.length === 0) return null;
-  return {
-    danger: snapshot.strikes.some((spot) => inSpot(snapshot, selfGuid, spot)),
-    msLeft: Math.min(...snapshot.strikes.map((spot) => spot.msLeft)),
-  };
+  const bySoonest = [...snapshot.strikes].sort((first, second) => first.msLeft - second.msLeft);
+  const threat = bySoonest.find((spot) => inSpot(snapshot, selfGuid, spot));
+  return { kind: (threat ?? bySoonest[0]).kind, danger: threat !== undefined, msLeft: bySoonest[0].msLeft };
 }
 
 /** A warning ring: it grows from the centre (`progress` 0) to the full `radius` (1), where the strike falls. */
-export interface LightningRing {
+export interface StrikeRing {
+  kind: StrikeKind;
   center: GamePoint;
   radius: number;
   progress: number;
 }
 
 /** The flash of a strike that fell: `age` goes from 0 (just now) to 1 (gone). */
-export interface LightningFlash {
+export interface StrikeFlash {
+  kind: StrikeKind;
   center: GamePoint;
   radius: number;
   age: number;
 }
 
-export interface LightningView {
-  rings: LightningRing[];
-  flashes: LightningFlash[];
+export interface StrikeView {
+  rings: StrikeRing[];
+  flashes: StrikeFlash[];
 }
 
 interface Seen {
@@ -62,30 +65,32 @@ interface Seen {
  * Keeps the lightning warnings between snapshots. The server says how long each has left, 30 times a second; the tracker counts on
  * from there so the ring grows smoothly, and notices a warning that is gone from the newest snapshot: the strike fell, so it flashes.
  */
-export class LightningTracker {
+export class StrikeTracker {
   private seen = new Map<string, Seen>();
-  private flashes: Array<{ center: GamePoint; radius: number; bornMs: number }> = [];
+  private flashes: Array<{ kind: StrikeKind; center: GamePoint; radius: number; bornMs: number }> = [];
 
   observe(strikes: StrikeSnapshot[], nowMs: number) {
     const next = new Map<string, Seen>();
     for (const spot of strikes) {
-      const before = this.seen.get(spot.guid);
-      next.set(spot.guid, { spot, total: Math.max(before?.total ?? 0, spot.msLeft, 1), seenAtMs: nowMs });
+      const key = `${spot.kind}:${spot.guid}`;
+      const before = this.seen.get(key);
+      next.set(key, { spot, total: Math.max(before?.total ?? 0, spot.msLeft, 1), seenAtMs: nowMs });
     }
     for (const [key, gone] of this.seen)
-      if (!next.has(key)) this.flashes.push({ center: gone.spot.position, radius: gone.spot.radius, bornMs: nowMs });
+      if (!next.has(key)) this.flashes.push({ kind: gone.spot.kind, center: gone.spot.position, radius: gone.spot.radius, bornMs: nowMs });
     this.seen = next;
   }
 
-  view(nowMs: number): LightningView {
+  view(nowMs: number): StrikeView {
     this.flashes = this.flashes.filter((flash) => nowMs - flash.bornMs < FLASH_MS);
     return {
       rings: [...this.seen.values()].map(({ spot, total, seenAtMs }) => ({
+        kind: spot.kind,
         center: spot.position,
         radius: spot.radius,
         progress: Math.min(1, Math.max(0, 1 - (spot.msLeft - (nowMs - seenAtMs)) / total)),
       })),
-      flashes: this.flashes.map((flash) => ({ center: flash.center, radius: flash.radius, age: (nowMs - flash.bornMs) / FLASH_MS })),
+      flashes: this.flashes.map((flash) => ({ kind: flash.kind, center: flash.center, radius: flash.radius, age: (nowMs - flash.bornMs) / FLASH_MS })),
     };
   }
 
@@ -117,4 +122,19 @@ export function discPoints(center: GamePoint, radius: number, pixelSize: number)
     for (let y = snap(center.y - radius, pixelSize); y <= center.y + radius; y += pixelSize)
       if (Math.hypot(x + half - center.x, y + half - center.y) <= radius) points.push({ x, y });
   return points;
+}
+
+/** A circle as rows of pixels, widest in the middle: one run per row, as world positions on the pixel grid and a width in pixels. */
+export function discRows(center: GamePoint, radius: number, pixelSize: number): Array<{ x: number; y: number; width: number }> {
+  const rows: Array<{ x: number; y: number; width: number }> = [];
+  const half = pixelSize / 2;
+  for (let y = snap(center.y - radius, pixelSize); y <= center.y + radius; y += pixelSize) {
+    const dy = y + half - center.y;
+    if (Math.abs(dy) > radius) continue;
+    const reach = Math.sqrt(radius * radius - dy * dy);
+    const left = snap(center.x - reach, pixelSize);
+    const width = Math.round((snap(center.x + reach, pixelSize) - left) / pixelSize) + 1;
+    rows.push({ x: left, y, width });
+  }
+  return rows;
 }

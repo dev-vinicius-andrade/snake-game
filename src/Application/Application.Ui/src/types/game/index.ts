@@ -57,9 +57,13 @@ export interface ShotSnapshot {
   ownerGuid?: string;
 }
 
-/** A spot lightning is about to strike. `msLeft` is the time left when the snapshot was sent. */
+/** What is coming down on a spot of the map. */
+export type StrikeKind = "lightning" | "meteor";
+
+/** A spot lightning or a meteor is about to strike. `msLeft` is the time left when the snapshot was sent. */
 export interface StrikeSnapshot {
   guid: string;
+  kind: StrikeKind;
   position: GamePoint;
   /** World units around the spot that the strike reaches. */
   radius: number;

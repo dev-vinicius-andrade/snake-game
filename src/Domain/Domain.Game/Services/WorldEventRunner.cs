@@ -7,16 +7,27 @@ using Library.Commons.Game.Domain.Interfaces.Services;
 namespace Domain.Game.Services;
 
 /// <summary>
-/// Carries out the world events of a room: when <see cref="WorldEventRules"/> says so, marks a spot for lightning in the game state
-/// (the snapshot shows it) and strikes it when the warning is over. Call it from the game loop of the room, every frame: the warning
-/// is timed in fractions of a second, and the snakes a strike kills are to be removed by that same loop.
+/// Carries out the world events of a room: when <see cref="WorldEventRules"/> says so, marks a spot in the game state (the snapshot
+/// shows it) and strikes it when its warning is over. Lightning storms and meteor rains are run alike. Call it from the game loop
+/// of the room, every frame: the warnings are timed in fractions of a second, and the snakes a strike kills are to be removed by
+/// that same loop.
 /// </summary>
 public sealed class WorldEventRunner
 {
+    /// <summary>The most spots marked at once in a room, whatever is going on, so a snapshot stays small.</summary>
+    public const int MaxActiveStrikes = 40;
+
     private readonly WorldEventRules _rules;
     private readonly IGameStateService _gameStates;
     private readonly TimeProvider _time;
-    private readonly ConcurrentDictionary<Guid, (LightningState State, Guid StrikeId)> _rooms = new();
+    private readonly ConcurrentDictionary<(Guid Room, WorldEventKind Kind), Storm> _storms = new();
+
+    /// <summary>One kind of event in one room: where its storm is, and the ids of the spots it has marked.</summary>
+    private sealed class Storm
+    {
+        public StormState State { get; set; } = StormState.None;
+        public List<(StormStrike Strike, Guid Id)> Marked { get; } = [];
+    }
 
     public WorldEventRunner(WorldEventRules rules, IGameStateService gameStates, TimeProvider time)
     {
@@ -28,50 +39,58 @@ public sealed class WorldEventRunner
         _time = time;
     }
 
-    /// <summary>Returns the snakes a strike killed this time, to be told and removed. A room without players, or that is not struck, forgets its events.</summary>
+    /// <summary>Returns the snakes the strikes killed this time, to be told and removed. A room without players, or that an event is not for, forgets it.</summary>
     public IReadOnlyList<IPlayer> Update(IGameState gameState)
     {
         ArgumentNullException.ThrowIfNull(gameState);
-        var room = gameState.Room;
-        if (gameState.Players.Count == 0 || !_rules.Options.Lightning.AppliesTo(room))
-        {
-            Forget(gameState);
-            return [];
-        }
-
-        var (state, strikeId) = _rooms.GetValueOrDefault(room.Guid);
-        var step = _rules.Step(state, _time.GetUtcNow(), room.Width, room.Height);
-        if (step.Action == LightningAction.None && step.State == LightningState.None)
-        {
-            Forget(gameState);
-            return [];
-        }
-
-        var died = Act(gameState, step, ref strikeId);
-        _rooms[room.Guid] = (step.State, strikeId);
+        var died = new List<IPlayer>();
+        foreach (var kind in Enum.GetValues<WorldEventKind>()) died.AddRange(Run(gameState, kind));
         return died;
     }
 
-    private IReadOnlyList<IPlayer> Act(IGameState gameState, LightningStep step, ref Guid strikeId)
+    private IReadOnlyList<IPlayer> Run(IGameState gameState, WorldEventKind kind)
     {
-        if (step.Action == LightningAction.Telegraph)
+        var room = gameState.Room;
+        var options = _rules.Options;
+        if (gameState.Players.Count == 0 || !options.Enabled || !options.Of(kind).AppliesTo(room))
         {
-            strikeId = Guid.NewGuid();
-            var spot = step.Strike!.Value;
-            gameState.Strikes[strikeId] = new WorldStrike(spot.X, spot.Y, spot.Radius, spot.StrikesAt);
+            Forget(gameState, kind);
+            return [];
         }
-        else if (step.Action == LightningAction.Strike)
-        {
-            gameState.Strikes.TryRemove(strikeId, out _);
-            var spot = step.Strike!.Value;
-            return _gameStates.StrikeArea(gameState, spot.X, spot.Y, spot.Radius);
-        }
-        return [];
+
+        var storm = _storms.GetOrAdd((room.Guid, kind), _ => new Storm());
+        var heads = gameState.Players.Values.Where(player => player.IsAlive).Select(player => new Point(player.CurrentPosition.X, player.CurrentPosition.Y)).ToArray();
+        var step = _rules.Step(kind, storm.State, _time.GetUtcNow(), room.Width, room.Height, heads);
+        storm.State = step.State;
+        foreach (var strike in step.Started) Mark(gameState, storm, strike, kind);
+        return step.Fired.SelectMany(strike => Strike(gameState, storm, strike)).ToList();
     }
 
-    private void Forget(IGameState gameState)
+    private static void Mark(IGameState gameState, Storm storm, StormStrike strike, WorldEventKind kind)
     {
-        _rooms.TryRemove(gameState.Room.Guid, out _);
-        gameState.Strikes.Clear();
+        // Past the cap the strike is dropped: it is never shown, so it never falls.
+        if (gameState.Strikes.Count >= MaxActiveStrikes) return;
+        var id = Guid.NewGuid();
+        storm.Marked.Add((strike, id));
+        gameState.Strikes[id] = new WorldStrike(strike.X, strike.Y, strike.Radius, strike.StrikesAt, ToStrikeKind(kind));
     }
+
+    private IReadOnlyList<IPlayer> Strike(IGameState gameState, Storm storm, StormStrike strike)
+    {
+        var index = storm.Marked.FindIndex(marked => marked.Strike == strike);
+        if (index < 0) return [];
+        gameState.Strikes.TryRemove(storm.Marked[index].Id, out _);
+        storm.Marked.RemoveAt(index);
+        return _gameStates.StrikeArea(gameState, strike.X, strike.Y, strike.Radius);
+    }
+
+    private void Forget(IGameState gameState, WorldEventKind kind)
+    {
+        _storms.TryRemove((gameState.Room.Guid, kind), out _);
+        var strikeKind = ToStrikeKind(kind);
+        foreach (var (id, _) in gameState.Strikes.Where(entry => entry.Value.Kind == strikeKind).ToArray()) gameState.Strikes.TryRemove(id, out _);
+    }
+
+    private static WorldStrikeKind ToStrikeKind(WorldEventKind kind)
+        => kind == WorldEventKind.Meteor ? WorldStrikeKind.Meteor : WorldStrikeKind.Lightning;
 }

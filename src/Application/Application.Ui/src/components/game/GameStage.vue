@@ -3,7 +3,7 @@ import { useElementSize } from "@vueuse/core";
 import { computed, ref, watch } from "vue";
 import { useCanvasRenderer } from "@/composables/useCanvasRenderer";
 import { followCamera, viewLayout, type Camera } from "@/render/camera";
-import { LightningTracker } from "@/render/lightning";
+import { StrikeTracker } from "@/render/strikes";
 import { DEFAULT_HEAD_SIZE } from "@/render/pixelRenderer";
 import { CameraSmoother } from "@/render/cameraSmoothing";
 import { SnapshotBuffer } from "@/render/snapshotBuffer";
@@ -37,16 +37,16 @@ const buffer = new SnapshotBuffer({ jitterCorrection: 0.1 });
 /** The camera follows the snake a little behind, so quickly turning left and right does not shake the screen. */
 const smoother = new CameraSmoother();
 /** Lightning warnings are shown as they arrive, not a moment in the past: the countdown is the server's, not the snakes' motion. */
-const lightning = new LightningTracker();
+const strikeTracker = new StrikeTracker();
 watch(
   () => props.snapshot,
   (snapshot) => {
     if (snapshot) {
       buffer.push(snapshot, performance.now());
-      lightning.observe(snapshot.strikes, performance.now());
+      strikeTracker.observe(snapshot.strikes, performance.now());
     } else {
       buffer.clear();
-      lightning.clear();
+      strikeTracker.clear();
     }
   },
   { immediate: true }
@@ -85,7 +85,7 @@ useCanvasRenderer(canvas, () => {
       selfGuid: props.selfGuid,
       timeMs: performance.now(),
       damage: props.damage,
-      lightning: lightning.view(performance.now()),
+      strikes: strikeTracker.view(performance.now()),
       origin: frame?.camera?.origin,
       view: frame?.camera?.view,
     },

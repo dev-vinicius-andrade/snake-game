@@ -25,7 +25,7 @@ public sealed record GameplayConfig
     };
 
     /// <summary>The built-in perks listed out, so an editor shows them, and the default prize.</summary>
-    public static GameplayConfig Defaults => new GameplayConfig().WithBuiltInPerks();
+    public static GameplayConfig Defaults => (new GameplayConfig() with { WorldEvents = new WorldEventOptions().WithStormDefaults() }).WithBuiltInPerks();
 
     /// <summary>An empty perk list means the built-in set; this spells it out so it can be edited. Perks come out normalized.</summary>
     public GameplayConfig WithBuiltInPerks()

@@ -54,7 +54,14 @@ describe("parseSnapshot", () => {
     const raw = clone(fixture) as any;
     raw.strikes = [{ x: 100, y: 200, r: 90, t: 1200 }];
 
-    expect(parseSnapshot(raw)!.strikes).toEqual([{ guid: "100,200", position: { x: 100, y: 200 }, radius: 90, msLeft: 1200 }]);
+    expect(parseSnapshot(raw)!.strikes).toEqual([{ guid: "100,200", kind: "lightning", position: { x: 100, y: 200 }, radius: 90, msLeft: 1200 }]);
+  });
+
+  it("tells a meteor from lightning by the kind of the warning", () => {
+    const raw = clone(fixture) as any;
+    raw.strikes = [{ x: 1, y: 2, r: 130, t: 2000, k: 1 }, { x: 3, y: 4, r: 90, t: 500, k: 0 }, { x: 5, y: 6, r: 90, t: 500 }];
+
+    expect(parseSnapshot(raw)!.strikes.map((strike) => strike.kind)).toEqual(["meteor", "lightning", "lightning"]);
   });
 
   it("has no lightning warnings when the server sends none", () => {
@@ -65,7 +72,7 @@ describe("parseSnapshot", () => {
     const raw = clone(fixture) as any;
     raw.strikes = ["nope", { x: 1 }, { x: 1, y: 2, r: 0, t: 5 }, { x: 3, y: 4, r: 50, t: -10 }];
 
-    expect(parseSnapshot(raw)!.strikes).toEqual([{ guid: "3,4", position: { x: 3, y: 4 }, radius: 50, msLeft: 0 }]);
+    expect(parseSnapshot(raw)!.strikes).toEqual([{ guid: "3,4", kind: "lightning", position: { x: 3, y: 4 }, radius: 50, msLeft: 0 }]);
   });
 
   it("reads the prize kind of a food", () => {

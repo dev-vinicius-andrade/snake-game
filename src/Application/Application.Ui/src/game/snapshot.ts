@@ -97,11 +97,12 @@ function parseShot(shot: unknown): ShotSnapshot | null {
   };
 }
 
-/** A lightning warning: where, how far it reaches (`r`) and the milliseconds left (`t`). Like food, the place is its identity. */
+/** A strike warning: where, how far it reaches (`r`), the milliseconds left (`t`) and what it is (`k`: 1 a meteor, else lightning). Like food, the place is its identity. */
 function parseStrike(strike: unknown): StrikeSnapshot | null {
   if (!isDictionary(strike) || !isFinite(strike.x) || !isFinite(strike.y) || !isFinite(strike.r) || strike.r <= 0) return null;
   return {
     guid: `${strike.x},${strike.y}`,
+    kind: strike.k === 1 ? "meteor" : "lightning",
     position: { x: strike.x, y: strike.y },
     radius: strike.r,
     msLeft: isFinite(strike.t) ? Math.max(0, strike.t) : 0,

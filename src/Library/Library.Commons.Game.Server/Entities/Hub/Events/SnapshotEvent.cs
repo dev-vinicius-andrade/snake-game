@@ -22,12 +22,12 @@ public record SnapshotEvent
     [JsonPropertyName("shots")]
     public List<SnapshotShot> Shots { get; set; } = new();
 
-    /// <summary>Spots lightning is about to strike. Left out while there are none.</summary>
+    /// <summary>Spots about to be struck by lightning or a meteor. Left out while there are none.</summary>
     [JsonPropertyName("strikes")]
     public List<SnapshotStrike>? Strikes { get; set; }
 }
 
-/// <summary>A lightning warning: the spot, how far the strike reaches, and the milliseconds left before it.</summary>
+/// <summary>A warning of a strike (lightning, a meteor): the spot, how far it reaches, the milliseconds left, and what it is.</summary>
 public record SnapshotStrike
 {
     [JsonPropertyName("x")]
@@ -41,6 +41,10 @@ public record SnapshotStrike
 
     [JsonPropertyName("t")]
     public int T { get; set; }
+
+    /// <summary>What is coming: 0 lightning, 1 a meteor.</summary>
+    [JsonPropertyName("k")]
+    public int K { get; set; }
 }
 
 public record SnapshotRoom

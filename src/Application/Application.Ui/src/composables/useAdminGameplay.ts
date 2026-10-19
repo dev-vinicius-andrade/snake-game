@@ -30,17 +30,35 @@ export interface PerkDefinition {
   script?: string;
 }
 
-/** Lightning: a spot is marked, and a moment later struck. Snake segments in it break off, a head in it dies. */
-export interface LightningConfig {
+/** What every event that comes as a burst of strikes has: how often, how big, how well signalled, and where. */
+export interface StormConfigBase {
   enabled: boolean;
   minIntervalSeconds: number;
   maxIntervalSeconds: number;
-  /** World units around the spot that the strike reaches. */
+  /** World units around a spot that a strike reaches. */
   radius: number;
-  /** Milliseconds the spot is shown before the strike. */
+  /** Milliseconds each spot is shown before it is struck. */
   telegraphMilliseconds: number;
+  /** Share (0..1) of strikes aimed near a random living snake; 0 is all random. */
+  aimedShare: number;
   rooms: string[];
   excludedRooms: string[];
+}
+
+/** Lightning storms: a burst of small strikes, each marked on the map a moment before it falls. */
+export interface LightningConfig extends StormConfigBase {
+  minStrikes: number;
+  maxStrikes: number;
+  /** Seconds over which the strikes of a storm begin. */
+  stormSeconds: number;
+}
+
+/** Meteor rain: a shower of meteors, each shown by a big shadow before it lands. */
+export interface MeteorConfig extends StormConfigBase {
+  minMeteors: number;
+  maxMeteors: number;
+  /** Seconds over which the meteors of a rain begin to fall. */
+  rainSeconds: number;
 }
 
 export interface GameplayConfig {
@@ -67,6 +85,7 @@ export interface GameplayConfig {
     /** Switches every world event off at once. */
     enabled: boolean;
     lightning: LightningConfig;
+    meteors: MeteorConfig;
   };
 }
 
@@ -150,10 +169,29 @@ const axiosHttp: GameplayHttp = {
 /** What lightning starts as, and what a server that does not send it yet gets. */
 const DEFAULT_LIGHTNING: LightningConfig = {
   enabled: true,
-  minIntervalSeconds: 30,
-  maxIntervalSeconds: 90,
+  minIntervalSeconds: 45,
+  maxIntervalSeconds: 120,
   radius: 90,
   telegraphMilliseconds: 1500,
+  minStrikes: 5,
+  maxStrikes: 12,
+  stormSeconds: 6,
+  aimedShare: 0.25,
+  rooms: [],
+  excludedRooms: [],
+};
+
+/** What meteor rain starts as, and what a server that does not send it yet gets. */
+const DEFAULT_METEORS: MeteorConfig = {
+  enabled: true,
+  minIntervalSeconds: 120,
+  maxIntervalSeconds: 300,
+  radius: 130,
+  telegraphMilliseconds: 2000,
+  minMeteors: 6,
+  maxMeteors: 14,
+  rainSeconds: 8,
+  aimedShare: 0.2,
   rooms: [],
   excludedRooms: [],
 };
@@ -252,11 +290,15 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     }
     completePrizes(copy);
     copy.rooms ??= { emptyPrivateRoomMinutes: 10, maxPrivateRoomMinutes: 0 };
-    const events = (copy.worldEvents ??= { enabled: true, lightning: clone(DEFAULT_LIGHTNING) });
+    const events = (copy.worldEvents ??= { enabled: true, lightning: clone(DEFAULT_LIGHTNING), meteors: clone(DEFAULT_METEORS) });
     events.enabled ??= true;
+    // Lightning from before storms had no storm: it is shown with the storm defaults, which is what saving it makes it.
     events.lightning = { ...DEFAULT_LIGHTNING, ...events.lightning };
-    events.lightning.rooms ??= [];
-    events.lightning.excludedRooms ??= [];
+    events.meteors = { ...DEFAULT_METEORS, ...events.meteors };
+    for (const event of [events.lightning, events.meteors]) {
+      event.rooms ??= [];
+      event.excludedRooms ??= [];
+    }
     return copy;
   }
 
@@ -322,9 +364,10 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
       kind.excludedRooms = kind.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       if (!kind.grantsPerk?.trim()) delete kind.grantsPerk;
     }
-    const lightning = body.worldEvents.lightning;
-    lightning.rooms = lightning.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
-    lightning.excludedRooms = lightning.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+    for (const event of [body.worldEvents.lightning, body.worldEvents.meteors]) {
+      event.rooms = event.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+      event.excludedRooms = event.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+    }
     try {
       take(await http.put(url, adminKey, body));
       status.value = "saved";
