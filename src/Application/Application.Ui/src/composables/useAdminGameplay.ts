@@ -61,6 +61,33 @@ export interface MeteorConfig extends StormConfigBase {
   rainSeconds: number;
 }
 
+/** The turret: a mini boss that now and then appears, fires volleys that turn round it, and is shot down for a reward. */
+export interface TurretConfig {
+  enabled: boolean;
+  minIntervalSeconds: number;
+  maxIntervalSeconds: number;
+  /** Seconds it stays when nobody brings it down. */
+  lifetimeSeconds: number;
+  /** Shots it takes to bring it down. */
+  hitPoints: number;
+  /** Side of its square, in world units. */
+  size: number;
+  fireIntervalMilliseconds: number;
+  /** Shots in a volley, evenly spread. */
+  arms: number;
+  /** Degrees the volley turns by every time it fires. */
+  spinDegrees: number;
+  /** How fast its shots fly compared with a snake shot (1). */
+  shotSpeed: number;
+  minPlayers: number;
+  /** Mass that falls as food where it is brought down. */
+  rewardMass: number;
+  /** The id of a perk the snake that brings it down gets. Empty: none. */
+  grantsPerk?: string | null;
+  rooms: string[];
+  excludedRooms: string[];
+}
+
 export interface GameplayConfig {
   perks: {
     enabled: boolean;
@@ -86,6 +113,7 @@ export interface GameplayConfig {
     enabled: boolean;
     lightning: LightningConfig;
     meteors: MeteorConfig;
+    turret: TurretConfig;
   };
 }
 
@@ -196,6 +224,24 @@ const DEFAULT_METEORS: MeteorConfig = {
   excludedRooms: [],
 };
 
+/** What the turret starts as, and what a server that does not send it yet gets. */
+const DEFAULT_TURRET: TurretConfig = {
+  enabled: true,
+  minIntervalSeconds: 180,
+  maxIntervalSeconds: 420,
+  lifetimeSeconds: 90,
+  hitPoints: 40,
+  size: 60,
+  fireIntervalMilliseconds: 900,
+  arms: 6,
+  spinDegrees: 11,
+  shotSpeed: 0.5,
+  minPlayers: 2,
+  rewardMass: 60,
+  rooms: [],
+  excludedRooms: [],
+};
+
 /** What a new kind of prize starts as. */
 const DEFAULT_PRIZE: PrizeDefinition = {
   id: "prize",
@@ -290,12 +336,18 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     }
     completePrizes(copy);
     copy.rooms ??= { emptyPrivateRoomMinutes: 10, maxPrivateRoomMinutes: 0 };
-    const events = (copy.worldEvents ??= { enabled: true, lightning: clone(DEFAULT_LIGHTNING), meteors: clone(DEFAULT_METEORS) });
+    const events = (copy.worldEvents ??= {
+      enabled: true,
+      lightning: clone(DEFAULT_LIGHTNING),
+      meteors: clone(DEFAULT_METEORS),
+      turret: clone(DEFAULT_TURRET),
+    });
     events.enabled ??= true;
     // Lightning from before storms had no storm: it is shown with the storm defaults, which is what saving it makes it.
     events.lightning = { ...DEFAULT_LIGHTNING, ...events.lightning };
     events.meteors = { ...DEFAULT_METEORS, ...events.meteors };
-    for (const event of [events.lightning, events.meteors]) {
+    events.turret = { ...DEFAULT_TURRET, ...events.turret };
+    for (const event of [events.lightning, events.meteors, events.turret]) {
       event.rooms ??= [];
       event.excludedRooms ??= [];
     }
@@ -364,10 +416,13 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
       kind.excludedRooms = kind.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       if (!kind.grantsPerk?.trim()) delete kind.grantsPerk;
     }
-    for (const event of [body.worldEvents.lightning, body.worldEvents.meteors]) {
+    for (const event of [body.worldEvents.lightning, body.worldEvents.meteors, body.worldEvents.turret]) {
       event.rooms = event.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       event.excludedRooms = event.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
     }
+    const turret = body.worldEvents.turret;
+    if (!turret.grantsPerk?.trim()) delete turret.grantsPerk;
+    else turret.grantsPerk = turret.grantsPerk.trim();
     try {
       take(await http.put(url, adminKey, body));
       status.value = "saved";

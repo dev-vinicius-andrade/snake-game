@@ -60,6 +60,22 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
       rooms: [],
       excludedRooms: [],
     },
+    turret: {
+      enabled: true,
+      minIntervalSeconds: 180,
+      maxIntervalSeconds: 420,
+      lifetimeSeconds: 90,
+      hitPoints: 40,
+      size: 60,
+      fireIntervalMilliseconds: 900,
+      arms: 6,
+      spinDegrees: 11,
+      shotSpeed: 0.5,
+      minPlayers: 2,
+      rewardMass: 60,
+      rooms: [],
+      excludedRooms: [],
+    },
   },
 });
 
@@ -319,6 +335,54 @@ describe("useAdminGameplay", () => {
       expect(gameplay.draft.value!.worldEvents).toEqual(config().worldEvents);
     });
 
+    it("fills in the turret for a server that does not know it yet", async () => {
+      const { turret: _unknown, ...older } = config().worldEvents;
+      http.get.mockResolvedValue({ ...payload, current: { revision: "r1", config: { ...config(), worldEvents: older } } });
+      const gameplay = create();
+
+      await gameplay.load();
+
+      expect(gameplay.draft.value!.worldEvents.turret).toEqual(config().worldEvents.turret);
+    });
+
+    it("keeps the turret settings the server sent, with a perk it gives", async () => {
+      http.get.mockResolvedValue({
+        ...payload,
+        current: { revision: "r1", config: { ...config(), worldEvents: { ...config().worldEvents, turret: { hitPoints: 99, grantsPerk: "magnet" } } } },
+      });
+      const gameplay = create();
+
+      await gameplay.load();
+
+      expect(gameplay.draft.value!.worldEvents.turret).toEqual({ ...config().worldEvents.turret, hitPoints: 99, grantsPerk: "magnet" });
+    });
+
+    it("sends the turret settings without blank rooms, and without a blank perk", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      const turret = gameplay.draft.value!.worldEvents.turret;
+      turret.hitPoints = 25;
+      turret.grantsPerk = "  ";
+      turret.rooms = ["arena", " "];
+      turret.excludedRooms = ["", "calm "];
+
+      await gameplay.save();
+
+      const sent = (http.put.mock.calls[0][2] as GameplayConfig).worldEvents.turret;
+      expect(sent).toMatchObject({ hitPoints: 25, rooms: ["arena"], excludedRooms: ["calm"] });
+      expect(sent.grantsPerk).toBeUndefined();
+    });
+
+    it("sends the perk the turret gives, trimmed", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      gameplay.draft.value!.worldEvents.turret.grantsPerk = " magnet ";
+
+      await gameplay.save();
+
+      expect((http.put.mock.calls[0][2] as GameplayConfig).worldEvents.turret.grantsPerk).toBe("magnet");
+    });
+
     it("makes lightning from before storms a storm to edit, with the storm defaults", async () => {
       const { minStrikes: _a, maxStrikes: _b, stormSeconds: _c, aimedShare: _d, ...single } = config().worldEvents.lightning;
       http.get.mockResolvedValue({
@@ -359,6 +423,7 @@ describe("useAdminGameplay", () => {
         enabled: false,
         lightning: { ...config().worldEvents.lightning, radius: 150, rooms: ["ABC234"] },
         meteors: config().worldEvents.meteors,
+        turret: config().worldEvents.turret,
       });
     });
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
-import type { LightningConfig, MeteorConfig, useAdminGameplay } from "@/composables/useAdminGameplay";
+import type { LightningConfig, MeteorConfig, TurretConfig, useAdminGameplay } from "@/composables/useAdminGameplay";
 import { getText } from "@/helpers";
 
 const props = defineProps<{ gameplay: ReturnType<typeof useAdminGameplay> }>();
@@ -30,6 +30,23 @@ const meteorFields: Array<{ key: NumberKeys<MeteorConfig>; label: string; step?:
   { key: "telegraphMilliseconds", label: "meteorTelegraph" },
   { key: "aimedShare", label: "meteorAimed", step: 0.05 },
 ];
+
+const turretFields: Array<{ key: NumberKeys<TurretConfig>; label: string; step?: number }> = [
+  { key: "minIntervalSeconds", label: "turretMin" },
+  { key: "maxIntervalSeconds", label: "turretMax" },
+  { key: "lifetimeSeconds", label: "turretLifetime" },
+  { key: "hitPoints", label: "turretHitPoints" },
+  { key: "size", label: "turretSize" },
+  { key: "fireIntervalMilliseconds", label: "turretFireInterval" },
+  { key: "arms", label: "turretArms" },
+  { key: "spinDegrees", label: "turretSpin" },
+  { key: "shotSpeed", label: "turretShotSpeed", step: 0.1 },
+  { key: "minPlayers", label: "turretMinPlayers" },
+  { key: "rewardMass", label: "turretReward" },
+];
+
+/** The perks the turret can give: none, or any perk of the list. */
+const perkItems = computed(() => [{ id: "", name: getText({ key: "admin.gameplay.prizeGrantsNone" }) }, ...gameplay.perkChoices.value]);
 
 const KNOWN_ERRORS = ["unavailable", "invalidKey"];
 const errorText = computed(() => {
@@ -92,6 +109,37 @@ onMounted(() => {
           </div>
           <VCombobox v-model="draft.worldEvents.meteors.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.meteorRooms' })" />
           <VCombobox v-model="draft.worldEvents.meteors.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+        </div>
+
+        <div class="event-card" :class="{ 'is-off': !draft.worldEvents.turret.enabled }" data-event="turret">
+          <div class="event-row">
+            <strong>{{ getText({ key: "admin.gameplay.turretTitle" }) }}</strong>
+            <VSwitch v-model="draft.worldEvents.turret.enabled" class="switch-field" color="primary" hide-details :label="getText({ key: 'admin.gameplay.turretOn' })" />
+          </div>
+          <div class="event-help">{{ getText({ key: "admin.gameplay.turretHelp" }) }}</div>
+          <div class="field-grid">
+            <VTextField
+              v-for="field in turretFields"
+              :key="field.key"
+              v-model.number="draft.worldEvents.turret[field.key]"
+              type="number"
+              :step="field.step"
+              density="compact"
+              hide-details
+              :label="getText({ key: `admin.gameplay.${field.label}` })"
+            />
+            <VSelect
+              v-model="draft.worldEvents.turret.grantsPerk"
+              :items="perkItems"
+              item-title="name"
+              item-value="id"
+              density="compact"
+              hide-details
+              :label="getText({ key: 'admin.gameplay.turretGrantsPerk' })"
+            />
+          </div>
+          <VCombobox v-model="draft.worldEvents.turret.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.turretRooms' })" />
+          <VCombobox v-model="draft.worldEvents.turret.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
         </div>
       </VCardText>
     </VCard>
