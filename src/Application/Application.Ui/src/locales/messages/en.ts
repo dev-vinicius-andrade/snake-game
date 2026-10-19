@@ -245,6 +245,7 @@ export const messages = {
     perks: "Perks",
     prize: "Prize",
     lightning: { warning: "Lightning incoming!", danger: "Lightning! Get out of the circle!" },
+    meteor: { warning: "Meteors incoming!", danger: "Meteor! Get out of the circle!" },
     mouseAimOn: "Mouse aim: on",
     mouseAimOff: "Mouse aim: off",
     eye: {

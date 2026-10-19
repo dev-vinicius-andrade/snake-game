@@ -1,6 +1,6 @@
 import type { FloatingDamage, FoodSnapshot, GamePoint, GameSnapshot, RoomDimensions, ShotSnapshot, SnakeSnapshot } from "@/types/game";
 import { GLYPH_HEIGHT, GLYPH_WIDTH, damageColor as damageNumberColor, damageLabel, damagePosition, glyphFor, isVisible } from "./damageNumbers";
-import { discPoints, ringPoints, type LightningView } from "./lightning";
+import { discPoints, discRows, ringPoints, type StrikeRing, type StrikeFlash, type StrikeView } from "./strikes";
 import { DAMAGE_COLOR, contrastColor, headColor, lightenColor, segmentColor, shadeColor } from "./segmentColor";
 
 /** The 2D canvas methods the renderer needs, so it can be tested without a browser. */
@@ -35,7 +35,7 @@ export interface RenderOptions {
   /** Damage numbers on their way up the screen. Drawn only with `timeMs`. */
   damage?: FloatingDamage[];
   /** Lightning warnings and flashes. The warning is drawn under the snakes, the flash over everything. */
-  lightning?: LightningView;
+  strikes?: StrikeView;
 }
 
 const BACKGROUND = "#16161d";
@@ -58,6 +58,8 @@ interface Painter {
   block(color: string, world: GamePoint, pixels: number): void;
   /** One pixel inside the block at `world`, `dx` and `dy` pixels from its top-left corner. */
   pixel(color: string, world: GamePoint, pixels: number, dx: number, dy: number): void;
+  /** A run of `width` pixels in one row, starting at `world`. */
+  row(color: string, world: GamePoint, width: number): void;
 }
 
 /** Where blocks of a camera view go: which part of the wrapping world is on the canvas. */
@@ -102,6 +104,7 @@ function createPainter(ctx: PixelContext, pixelSize: number, origin: GamePoint, 
   return {
     block: (color, world, pixels) => fill(color, world, pixels, 0, 0, pixels, pixels),
     pixel: (color, world, pixels, dx, dy) => fill(color, world, pixels, dx, dy, 1, 1),
+    row: (color, world, width) => fill(color, world, width, 0, 0, width, 1),
   };
 }
 
@@ -180,32 +183,93 @@ const LIGHTNING_FLICKER_MS = 90;
 const FLASH_SOLID_UNTIL = 0.4;
 const FLASH_THIN_UNTIL = 0.75;
 
-function drawLightningWarning(painter: Painter, view: LightningView, pixelSize: number, timeMs: number) {
+function drawLightningWarning(painter: Painter, ring: StrikeRing, pixelSize: number, urgent: boolean) {
+  // Where it will strike: a dashed rim, and a mark in the middle.
+  ringPoints(ring.center, ring.radius, pixelSize).forEach((point, index) => {
+    if (index % 2 === 0) painter.block(LIGHTNING_EDGE_COLOR, point, 1);
+  });
+  painter.block(LIGHTNING_MARK_COLOR, ring.center, 1);
+  if (ring.progress <= 0) return;
+  const color = ring.progress >= LIGHTNING_URGENT_FROM && urgent ? LIGHTNING_FLASH_COLOR : LIGHTNING_RING_COLOR;
+  ringPoints(ring.center, Math.max(ring.radius * ring.progress, pixelSize), pixelSize).forEach((point) => painter.block(color, point, 1));
+}
+
+export const METEOR_SHADOW_COLOR = "#0a0a12";
+export const METEOR_RING_COLOR = "#ff7a2f";
+const METEOR_EDGE_COLOR = "#7a2418";
+export const METEOR_BODY_COLOR = "#ffd23f";
+const METEOR_TRAIL_COLORS = ["#e8541f", "#c0392b", "#8f2d1c"];
+export const METEOR_FLASH_COLOR = "#ffe9c4";
+const METEOR_AFTERGLOW_COLOR = "#ff9a52";
+/** Where a meteor comes from, relative to the spot it lands on: up and to the left, far enough to start off the screen. */
+const METEOR_FALL = { x: -150, y: -420 };
+const METEOR_BODY_PIXELS = 3;
+const METEOR_TRAIL_PIXELS = 2;
+/** World units between the blocks of a meteor's streak. */
+const METEOR_TRAIL_STEP = 22;
+
+/** A big shadow on the ground, striped so the floor shows through, its rim, a ring that grows to it, and the meteor falling in. */
+function drawMeteorWarning(painter: Painter, ring: StrikeRing, pixelSize: number, urgent: boolean) {
+  discRows(ring.center, ring.radius, pixelSize).forEach((row, index) => {
+    if (index % 2 === 0) painter.row(METEOR_SHADOW_COLOR, { x: row.x, y: row.y }, row.width);
+  });
+  ringPoints(ring.center, ring.radius, pixelSize).forEach((point, index) => {
+    if (index % 2 === 0) painter.block(METEOR_EDGE_COLOR, point, 1);
+  });
+  if (ring.progress <= 0) return;
+  const color = ring.progress >= LIGHTNING_URGENT_FROM && urgent ? METEOR_FLASH_COLOR : METEOR_RING_COLOR;
+  ringPoints(ring.center, Math.max(ring.radius * ring.progress, pixelSize), pixelSize).forEach((point) => painter.block(color, point, 1));
+  if (ring.progress >= 1) return;
+
+  const left = 1 - ring.progress;
+  const at = { x: ring.center.x + METEOR_FALL.x * left, y: ring.center.y + METEOR_FALL.y * left };
+  const length = Math.hypot(METEOR_FALL.x, METEOR_FALL.y);
+  METEOR_TRAIL_COLORS.forEach((trail, index) =>
+    painter.block(
+      trail,
+      { x: at.x + (METEOR_FALL.x / length) * METEOR_TRAIL_STEP * (index + 1), y: at.y + (METEOR_FALL.y / length) * METEOR_TRAIL_STEP * (index + 1) },
+      METEOR_TRAIL_PIXELS
+    )
+  );
+  painter.block(METEOR_BODY_COLOR, at, METEOR_BODY_PIXELS);
+}
+
+function drawStrikeWarning(painter: Painter, view: StrikeView, pixelSize: number, timeMs: number) {
   const urgent = Math.floor(timeMs / LIGHTNING_FLICKER_MS) % 2 === 1;
-  for (const ring of view.rings) {
-    // Where it will strike: a dashed rim, and a mark in the middle.
-    ringPoints(ring.center, ring.radius, pixelSize).forEach((point, index) => {
-      if (index % 2 === 0) painter.block(LIGHTNING_EDGE_COLOR, point, 1);
-    });
-    painter.block(LIGHTNING_MARK_COLOR, ring.center, 1);
-    if (ring.progress <= 0) continue;
-    const color = ring.progress >= LIGHTNING_URGENT_FROM && urgent ? LIGHTNING_FLASH_COLOR : LIGHTNING_RING_COLOR;
-    ringPoints(ring.center, Math.max(ring.radius * ring.progress, pixelSize), pixelSize).forEach((point) => painter.block(color, point, 1));
+  for (const ring of view.rings)
+    if (ring.kind === "meteor") drawMeteorWarning(painter, ring, pixelSize, urgent);
+    else drawLightningWarning(painter, ring, pixelSize, urgent);
+}
+
+function drawLightningFlash(painter: Painter, flash: StrikeFlash, pixelSize: number) {
+  if (flash.age < FLASH_SOLID_UNTIL) {
+    discPoints(flash.center, flash.radius, pixelSize).forEach((point) => painter.block(LIGHTNING_FLASH_COLOR, point, 1));
+  } else if (flash.age < FLASH_THIN_UNTIL) {
+    discPoints(flash.center, flash.radius, pixelSize)
+      .filter((point) => (Math.floor(point.x / pixelSize) + Math.floor(point.y / pixelSize)) % 2 === 0)
+      .forEach((point) => painter.block(LIGHTNING_AFTERGLOW_COLOR, point, 1));
+  } else {
+    ringPoints(flash.center, flash.radius, pixelSize).forEach((point) => painter.block(LIGHTNING_AFTERGLOW_COLOR, point, 1));
   }
 }
 
-function drawLightningFlash(painter: Painter, view: LightningView, pixelSize: number) {
-  for (const flash of view.flashes) {
-    if (flash.age < FLASH_SOLID_UNTIL) {
-      discPoints(flash.center, flash.radius, pixelSize).forEach((point) => painter.block(LIGHTNING_FLASH_COLOR, point, 1));
-    } else if (flash.age < FLASH_THIN_UNTIL) {
-      discPoints(flash.center, flash.radius, pixelSize)
-        .filter((point) => (Math.floor(point.x / pixelSize) + Math.floor(point.y / pixelSize)) % 2 === 0)
-        .forEach((point) => painter.block(LIGHTNING_AFTERGLOW_COLOR, point, 1));
-    } else {
-      ringPoints(flash.center, flash.radius, pixelSize).forEach((point) => painter.block(LIGHTNING_AFTERGLOW_COLOR, point, 1));
-    }
+/** A meteor's impact is the same shape in fire colours, in rows of pixels: solid, then every other row, then only the rim. */
+function drawMeteorFlash(painter: Painter, flash: StrikeFlash, pixelSize: number) {
+  if (flash.age < FLASH_SOLID_UNTIL) {
+    discRows(flash.center, flash.radius, pixelSize).forEach((row) => painter.row(METEOR_FLASH_COLOR, { x: row.x, y: row.y }, row.width));
+  } else if (flash.age < FLASH_THIN_UNTIL) {
+    discRows(flash.center, flash.radius, pixelSize).forEach((row, index) => {
+      if (index % 2 === 0) painter.row(METEOR_AFTERGLOW_COLOR, { x: row.x, y: row.y }, row.width);
+    });
+  } else {
+    ringPoints(flash.center, flash.radius, pixelSize).forEach((point) => painter.block(METEOR_AFTERGLOW_COLOR, point, 1));
   }
+}
+
+function drawStrikeFlash(painter: Painter, view: StrikeView, pixelSize: number) {
+  for (const flash of view.flashes)
+    if (flash.kind === "meteor") drawMeteorFlash(painter, flash, pixelSize);
+    else drawLightningFlash(painter, flash, pixelSize);
 }
 
 function drawShot(painter: Painter, shot: ShotSnapshot) {
@@ -280,14 +344,14 @@ export function drawFrame(ctx: PixelContext, snapshot: GameSnapshot, options: Re
   ctx.fillRect(0, 0, options.view?.width ?? room.width, options.view?.height ?? room.height);
   if (options.view) drawGrid(ctx, options.view, origin, pixelSize);
 
-  if (options.lightning) drawLightningWarning(painter, options.lightning, pixelSize, options.timeMs ?? 0);
+  if (options.strikes) drawStrikeWarning(painter, options.strikes, pixelSize, options.timeMs ?? 0);
   snapshot.foods.forEach((food) => drawFood(painter, food, options.timeMs ?? 0));
   snapshot.shots.forEach((shot) => drawShot(painter, shot));
   const living = snapshot.snakes.filter((snake) => snake.isAlive);
   const others = living.filter((snake) => snake.guid !== options.selfGuid);
   const own = living.filter((snake) => snake.guid === options.selfGuid);
   [...others, ...own].forEach((snake) => drawSnake(painter, snake, segmentPixels, damageTint, snapshot.room));
-  if (options.lightning) drawLightningFlash(painter, options.lightning, pixelSize);
+  if (options.strikes) drawStrikeFlash(painter, options.strikes, pixelSize);
   const now = options.timeMs;
   if (now !== undefined)
     (options.damage ?? []).filter((entry) => isVisible(entry, now)).forEach((entry) => drawDamage(painter, entry, options.selfGuid, now, pixelSize));

@@ -1,18 +1,24 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { getText } from "@/helpers";
-import type { LightningWarning } from "@/render/lightning";
+import type { StrikeWarning } from "@/render/strikes";
 
-const props = defineProps<{ warning: LightningWarning | null }>();
+const props = defineProps<{ warning: StrikeWarning | null }>();
 
 const text = computed(() =>
-  getText({ key: props.warning?.danger ? "game.lightning.danger" : "game.lightning.warning" })
+  getText({ key: `game.${props.warning?.kind ?? "lightning"}.${props.warning?.danger ? "danger" : "warning"}` })
 );
 </script>
 
 <template>
-  <div v-if="warning" class="lightning-hint" :class="{ 'lightning-danger': warning.danger }" role="alert" aria-live="assertive">
-    <span aria-hidden="true">&#9889;</span>
+  <div
+    v-if="warning"
+    class="lightning-hint"
+    :class="{ 'lightning-danger': warning.danger, 'meteor-hint': warning.kind === 'meteor' }"
+    role="alert"
+    aria-live="assertive"
+  >
+    <span aria-hidden="true">{{ warning.kind === "meteor" ? "☄" : "⚡" }}</span>
     <span>{{ text }}</span>
   </div>
 </template>
@@ -34,6 +40,10 @@ const text = computed(() =>
   border: 2px solid #8a7a1f;
   transform: translateX(-50%);
   pointer-events: none;
+}
+.meteor-hint {
+  color: #ff9a52;
+  border-color: #8f2d1c;
 }
 .lightning-danger {
   color: #ffffff;
