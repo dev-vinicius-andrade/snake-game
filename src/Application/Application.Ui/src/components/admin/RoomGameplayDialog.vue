@@ -18,8 +18,8 @@ const triggered = ref<{ kind: string; result: TriggerResult } | null>(null);
 
 watch(
   () => props.target,
-  (room) => {
-    saved.value = parseChoices(room?.gameplay);
+  (next) => {
+    saved.value = parseChoices(next?.gameplay);
     choices.value = { ...saved.value };
     failed.value = false;
     triggered.value = null;
