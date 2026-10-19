@@ -30,6 +30,7 @@ public sealed class RoomRegistry(TimeProvider time)
             Players = 0,
             MaxPlayers = created.MaxPlayers,
             CreatedAt = now,
+            Gameplay = created.Gameplay,
         };
         _rooms[created.RoomId] = new RegisteredRoom(summary, created.GameServerUrl, created.BaseUrl, now, now);
     }
@@ -60,6 +61,14 @@ public sealed class RoomRegistry(TimeProvider time)
     public bool IsCodeTaken(string code) => FindByCode(code) is not null;
 
     public IReadOnlyList<RegisteredRoom> List() => _rooms.Values.OrderBy(room => room.Summary.CreatedAt).ToArray();
+
+    /// <summary>Remembers what a room now does with the gameplay, until its server says it again.</summary>
+    public bool SetGameplay(Guid id, Dictionary<string, string> gameplay)
+    {
+        if (!_rooms.TryGetValue(id, out var room)) return false;
+        room.Summary.Gameplay = gameplay;
+        return true;
+    }
 
     public bool Remove(Guid id) => _rooms.TryRemove(id, out _);
 

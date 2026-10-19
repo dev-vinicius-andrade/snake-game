@@ -71,7 +71,7 @@ public sealed class GameplayConfigTests
 
         Assert.True(turret.Enabled);
         Assert.True(turret.HitPoints > 1);
-        Assert.True(turret.MinPlayers >= 2);
+        Assert.Equal(1, turret.MinPlayers);
     }
 
     [Fact]

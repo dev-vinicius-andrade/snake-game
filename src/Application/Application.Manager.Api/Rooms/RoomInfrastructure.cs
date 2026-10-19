@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using Library.Commons.Api.Contants;
 using Library.Commons.Api.Entities.Configurations;
 using Library.Commons.Eventbus.RabbitMq.Interfaces;
@@ -18,18 +19,31 @@ public sealed class HttpGameServerClient(HttpClient http, IOptions<AuthConfigura
 {
     public async Task<CloseResult> CloseRoomAsync(string baseUrl, Guid roomId, CancellationToken cancellationToken = default)
     {
+        var call = await SendAsync(HttpMethod.Delete, baseUrl, $"rooms/{roomId}", null, cancellationToken);
+        return call switch { ServerCall.NotFound => CloseResult.NotFound, ServerCall.Unreachable => CloseResult.Unreachable, ServerCall.Refused => CloseResult.Unreachable, _ => CloseResult.Closed };
+    }
+
+    public Task<ServerCall> SetGameplayAsync(string baseUrl, Guid roomId, IReadOnlyDictionary<string, string> choices, CancellationToken cancellationToken = default)
+        => SendAsync(HttpMethod.Put, baseUrl, $"rooms/{roomId}/gameplay", JsonContent.Create(choices), cancellationToken);
+
+    public Task<ServerCall> TriggerEventAsync(string baseUrl, Guid roomId, string kind, CancellationToken cancellationToken = default)
+        => SendAsync(HttpMethod.Post, baseUrl, $"rooms/{roomId}/events/{Uri.EscapeDataString(kind)}", null, cancellationToken);
+
+    private async Task<ServerCall> SendAsync(HttpMethod method, string baseUrl, string path, HttpContent? content, CancellationToken cancellationToken)
+    {
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Delete, $"{baseUrl.TrimEnd('/')}/rooms/{roomId}");
+            using var request = new HttpRequestMessage(method, $"{baseUrl.TrimEnd('/')}/{path}") { Content = content };
             request.Headers.Add(AuthConstants.ApiKeyHeaderName, auth.Value.ApiKeys?.FirstOrDefault() ?? string.Empty);
             using var response = await http.SendAsync(request, cancellationToken);
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return CloseResult.NotFound;
-            return response.IsSuccessStatusCode ? CloseResult.Closed : CloseResult.Unreachable;
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return ServerCall.NotFound;
+            if (response.StatusCode is System.Net.HttpStatusCode.Conflict or System.Net.HttpStatusCode.BadRequest) return ServerCall.Refused;
+            return response.IsSuccessStatusCode ? ServerCall.Done : ServerCall.Unreachable;
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
         {
             logger.LogWarning(exception, "Could not reach the game server at {BaseUrl}", baseUrl);
-            return CloseResult.Unreachable;
+            return ServerCall.Unreachable;
         }
     }
 }

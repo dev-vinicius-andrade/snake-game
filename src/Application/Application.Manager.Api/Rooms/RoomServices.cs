@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Entities.Eventbus.Payloads;
 
 namespace Application.Manager.Api.Rooms;
@@ -51,13 +52,13 @@ public sealed class RoomCreationService(RoomRegistry registry, InviteCodeGenerat
     public const int MaxPlayersLimit = 64;
     private const int MinPlayersWhenSet = 2;
 
-    public RoomCreationResult Request(string? requesterId, string? name, int maxPlayers)
+    public RoomCreationResult Request(string? requesterId, string? name, int maxPlayers, IReadOnlyDictionary<string, string>? gameplay = null)
     {
         if (string.IsNullOrWhiteSpace(requesterId)) return new RoomCreationResult(false, Error: "missingConnection");
         var code = codes.Generate(registry.IsCodeTaken);
         try
         {
-            publisher.Publish(new RoomCreatePayload { RequesterId = requesterId, Name = CleanName(name), Code = code, MaxPlayers = LimitPlayers(maxPlayers) });
+            publisher.Publish(new RoomCreatePayload { RequesterId = requesterId, Name = CleanName(name), Code = code, MaxPlayers = LimitPlayers(maxPlayers), Gameplay = RoomGameplay.FromMap(gameplay) });
         }
         catch (Exception)
         {
@@ -78,10 +79,19 @@ public sealed class RoomCreationService(RoomRegistry registry, InviteCodeGenerat
 
 public enum CloseResult { Closed, NotFound, Unreachable }
 
+/// <summary>What a game server said to something the manager asked of one of its rooms.</summary>
+public enum ServerCall { Done, NotFound, Refused, Unreachable }
+
 public interface IGameServerClient
 {
     Task<CloseResult> CloseRoomAsync(string baseUrl, Guid roomId, CancellationToken cancellationToken = default);
+
+    Task<ServerCall> SetGameplayAsync(string baseUrl, Guid roomId, IReadOnlyDictionary<string, string> choices, CancellationToken cancellationToken = default);
+
+    Task<ServerCall> TriggerEventAsync(string baseUrl, Guid roomId, string kind, CancellationToken cancellationToken = default);
 }
+
+public enum AdminRoomResult { Done, NotFound, ServerUnreachable, Refused }
 
 public enum DeleteResult { Deleted, NotFound, ServerUnreachable }
 
@@ -89,6 +99,32 @@ public enum DeleteResult { Deleted, NotFound, ServerUnreachable }
 public sealed class RoomAdminService(RoomRegistry registry, IGameServerClient servers)
 {
     public IReadOnlyList<RegisteredRoom> List() => registry.List();
+
+    /// <summary>Changes what a room does with the gameplay. The game server is told first; what is kept is only what it understands.</summary>
+    public async Task<AdminRoomResult> SetGameplayAsync(Guid roomId, IReadOnlyDictionary<string, string> choices, CancellationToken cancellationToken = default)
+    {
+        var room = registry.Get(roomId);
+        if (room is null) return AdminRoomResult.NotFound;
+        var understood = RoomGameplay.FromMap(choices).ToMap().ToDictionary(pair => pair.Key, pair => pair.Value);
+        var result = Result(await servers.SetGameplayAsync(room.BaseUrl, roomId, understood, cancellationToken));
+        if (result == AdminRoomResult.Done) registry.SetGameplay(roomId, understood);
+        return result;
+    }
+
+    /// <summary>Starts a world event (lightning, meteors, turret, zone) in a room now.</summary>
+    public async Task<AdminRoomResult> TriggerAsync(Guid roomId, string kind, CancellationToken cancellationToken = default)
+    {
+        var room = registry.Get(roomId);
+        return room is null ? AdminRoomResult.NotFound : Result(await servers.TriggerEventAsync(room.BaseUrl, roomId, kind, cancellationToken));
+    }
+
+    private static AdminRoomResult Result(ServerCall call) => call switch
+    {
+        ServerCall.Done => AdminRoomResult.Done,
+        ServerCall.NotFound => AdminRoomResult.NotFound,
+        ServerCall.Refused => AdminRoomResult.Refused,
+        _ => AdminRoomResult.ServerUnreachable
+    };
 
     public async Task<DeleteResult> DeleteAsync(Guid roomId, CancellationToken cancellationToken = default)
     {

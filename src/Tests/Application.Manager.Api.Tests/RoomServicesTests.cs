@@ -132,6 +132,60 @@ public sealed class RoomCreationServiceTests
     }
 }
 
+public sealed class RoomGameplayPassingTests
+{
+    private readonly RoomRegistry _registry = new(TimeProvider.System);
+    private readonly IRoomCreatePublisher _publisher = Substitute.For<IRoomCreatePublisher>();
+
+    [Fact]
+    public void Request_CarriesTheGameplayTheHostPickedToTheGameServer()
+    {
+        var service = new RoomCreationService(_registry, new InviteCodeGenerator(), _publisher);
+
+        service.Request("c1", "Friends", 6, new Dictionary<string, string> { ["turret"] = "off", ["lightning"] = "wild" });
+
+        _publisher.Received(1).Publish(Arg.Is<RoomCreatePayload>(payload =>
+            payload.Gameplay!.Turret == Library.Commons.Game.Domain.Entities.FeaturePreset.Off
+            && payload.Gameplay.Lightning == Library.Commons.Game.Domain.Entities.FeaturePreset.Wild));
+    }
+
+    [Fact]
+    public void Request_WithoutChoices_LeavesTheRoomOnTheDefault()
+    {
+        var service = new RoomCreationService(_registry, new InviteCodeGenerator(), _publisher);
+
+        service.Request("c1", "Friends", 6);
+
+        _publisher.Received(1).Publish(Arg.Is<RoomCreatePayload>(payload => payload.Gameplay == null || payload.Gameplay.IsDefault));
+    }
+
+    [Fact]
+    public void Request_IgnoresWhatItDoesNotUnderstand()
+    {
+        var service = new RoomCreationService(_registry, new InviteCodeGenerator(), _publisher);
+
+        service.Request("c1", null, 0, new Dictionary<string, string> { ["zone"] = "maybe", ["weather"] = "off" });
+
+        _publisher.Received(1).Publish(Arg.Is<RoomCreatePayload>(payload => payload.Gameplay == null || payload.Gameplay.IsDefault));
+    }
+
+    [Fact]
+    public void Register_KeepsTheGameplayOfTheRoom_AndTheHeartbeatKeepsItUpToDate()
+    {
+        var id = Guid.NewGuid();
+        _registry.Register(new RoomCreatedRequest { RoomId = id, Code = "ABC234", BaseUrl = "http://a", GameServerUrl = "http://a/g", Gameplay = new Dictionary<string, string> { ["zone"] = "off" } });
+        Assert.Equal("off", _registry.Get(id)!.Summary.Gameplay!["zone"]);
+
+        _registry.Update(new RoomHeartbeatRequest
+        {
+            BaseUrl = "http://a", GameServerUrl = "http://a/g",
+            Rooms = [new RoomSummary { Id = id, Code = "ABC234", Gameplay = new Dictionary<string, string> { ["zone"] = "wild" } }]
+        });
+
+        Assert.Equal("wild", _registry.Get(id)!.Summary.Gameplay!["zone"]);
+    }
+}
+
 public sealed class RoomAdminServiceTests
 {
     private readonly TestTime _time = new();
@@ -181,5 +235,67 @@ public sealed class RoomAdminServiceTests
     {
         Assert.Equal(DeleteResult.NotFound, await _service.DeleteAsync(Guid.NewGuid()));
         await _servers.DidNotReceiveWithAnyArgs().CloseRoomAsync(default!, default, default);
+    }
+
+    [Fact]
+    public async Task SetGameplayAsync_TellsTheServerAndKeepsWhatItNowIs()
+    {
+        var choices = new Dictionary<string, string> { ["turret"] = "off" };
+        _servers.SetGameplayAsync("http://a:5000", _id, choices, Arg.Any<CancellationToken>()).Returns(ServerCall.Done);
+
+        var result = await _service.SetGameplayAsync(_id, choices);
+
+        Assert.Equal(AdminRoomResult.Done, result);
+        Assert.Equal("off", _registry.Get(_id)!.Summary.Gameplay!["turret"]);
+    }
+
+    [Fact]
+    public async Task SetGameplayAsync_KeepsOnlyWhatItUnderstands()
+    {
+        _servers.SetGameplayAsync(Arg.Any<string>(), _id, Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>()).Returns(ServerCall.Done);
+
+        await _service.SetGameplayAsync(_id, new Dictionary<string, string> { ["ZONE"] = "Wild", ["weather"] = "off", ["turret"] = "maybe" });
+
+        var kept = _registry.Get(_id)!.Summary.Gameplay!;
+        Assert.Equal("wild", kept["zone"]);
+        Assert.Equal("inherit", kept["turret"]);
+        Assert.False(kept.ContainsKey("weather"));
+    }
+
+    [Fact]
+    public async Task SetGameplayAsync_ServerUnreachable_ChangesNothing()
+    {
+        _servers.SetGameplayAsync(Arg.Any<string>(), _id, Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>()).Returns(ServerCall.Unreachable);
+
+        var result = await _service.SetGameplayAsync(_id, new Dictionary<string, string> { ["turret"] = "off" });
+
+        Assert.Equal(AdminRoomResult.ServerUnreachable, result);
+        Assert.Null(_registry.Get(_id)!.Summary.Gameplay);
+    }
+
+    [Fact]
+    public async Task SetGameplayAsync_UnknownRoom_IsNotFound()
+    {
+        Assert.Equal(AdminRoomResult.NotFound, await _service.SetGameplayAsync(Guid.NewGuid(), new Dictionary<string, string>()));
+        await _servers.DidNotReceiveWithAnyArgs().SetGameplayAsync(default!, default, default!, default);
+    }
+
+    [Theory]
+    [InlineData(ServerCall.Done, AdminRoomResult.Done)]
+    [InlineData(ServerCall.NotFound, AdminRoomResult.NotFound)]
+    [InlineData(ServerCall.Refused, AdminRoomResult.Refused)]
+    [InlineData(ServerCall.Unreachable, AdminRoomResult.ServerUnreachable)]
+    public async Task TriggerAsync_AsksTheServerToStartTheEvent_AndSaysWhatCameOfIt(ServerCall call, AdminRoomResult expected)
+    {
+        _servers.TriggerEventAsync("http://a:5000", _id, "turret", Arg.Any<CancellationToken>()).Returns(call);
+
+        Assert.Equal(expected, await _service.TriggerAsync(_id, "turret"));
+    }
+
+    [Fact]
+    public async Task TriggerAsync_UnknownRoom_IsNotFound()
+    {
+        Assert.Equal(AdminRoomResult.NotFound, await _service.TriggerAsync(Guid.NewGuid(), "zone"));
+        await _servers.DidNotReceiveWithAnyArgs().TriggerEventAsync(default!, default, default!, default);
     }
 }

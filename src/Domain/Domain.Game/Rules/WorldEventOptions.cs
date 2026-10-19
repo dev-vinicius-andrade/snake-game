@@ -163,10 +163,10 @@ public sealed record TurretOptions
     public bool Enabled { get; init; } = true;
 
     /// <summary>The shortest wait, in seconds, from one turret going (or the room waking up) to the next appearing.</summary>
-    public int MinIntervalSeconds { get; init; } = 180;
+    public int MinIntervalSeconds { get; init; } = 120;
 
     /// <summary>The longest wait, in seconds, to the next turret.</summary>
-    public int MaxIntervalSeconds { get; init; } = 420;
+    public int MaxIntervalSeconds { get; init; } = 300;
 
     /// <summary>Seconds it stays when nobody brings it down.</summary>
     public int LifetimeSeconds { get; init; } = 90;
@@ -189,8 +189,8 @@ public sealed record TurretOptions
     /// <summary>How fast its shots fly compared with a snake shot (1). Slower can be dodged.</summary>
     public double ShotSpeed { get; init; } = 0.5;
 
-    /// <summary>Players needed in the room before one appears; alone there is nobody to fight it with.</summary>
-    public int MinPlayers { get; init; } = 2;
+    /// <summary>Players needed in the room before one appears.</summary>
+    public int MinPlayers { get; init; } = 1;
 
     /// <summary>Mass that falls as food where it is brought down.</summary>
     public long RewardMass { get; init; } = 60;

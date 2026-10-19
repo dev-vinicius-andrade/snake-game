@@ -17,6 +17,9 @@ public class RoomCreatedRequest
     public string GameServerUrl { get; set; } = null!;
     [JsonPropertyName("baseUrl")]
     public string BaseUrl { get; set; } = null!;
+    /// <summary>What the room does differently from the default gameplay: feature name to preset name. Null: nothing.</summary>
+    [JsonPropertyName("gameplay")]
+    public Dictionary<string, string>? Gameplay { get; set; }
 }
 
 /// <summary>Why a join or a room creation did not work, for the player.</summary>
@@ -42,6 +45,9 @@ public class RoomSummary
     public int MaxPlayers { get; set; }
     [JsonPropertyName("createdAt")]
     public DateTimeOffset CreatedAt { get; set; }
+    /// <summary>What the room does differently from the default gameplay: feature name to preset name. Null: nothing.</summary>
+    [JsonPropertyName("gameplay")]
+    public Dictionary<string, string>? Gameplay { get; set; }
 }
 
 /// <summary>What a game server sends every few seconds: all of its rooms. Rooms missing from it are gone.</summary>

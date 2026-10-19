@@ -66,6 +66,7 @@ internal class ManagementApiService: IManagementApiService
             Code = room.Code,
             Name = room.Name,
             MaxPlayers = room.MaxPlayers,
+            Gameplay = room.GameplayOf().ToMap().ToDictionary(pair => pair.Key, pair => pair.Value),
             GameServerUrl = hubUrl,
             BaseUrl = baseUrl,
         });
@@ -90,6 +91,7 @@ internal class ManagementApiService: IManagementApiService
                 Players = snapshot.Players,
                 MaxPlayers = snapshot.Room.MaxPlayers,
                 CreatedAt = snapshot.Room.CreatedAt,
+                Gameplay = snapshot.Room.GameplayOf().ToMap().ToDictionary(pair => pair.Key, pair => pair.Value),
             }).ToList(),
         });
     }
