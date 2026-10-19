@@ -39,12 +39,37 @@ public sealed class GameplayConfigTests
     }
 
     [Fact]
-    public void Defaults_HaveLightningOnAndValid()
+    public void Defaults_HaveLightningStormsAndMeteorRainOn()
     {
-        var lightning = GameplayConfig.Defaults.WorldEvents;
+        var events = GameplayConfig.Defaults.WorldEvents;
 
-        Assert.True(lightning.Enabled);
-        Assert.True(lightning.Lightning.Enabled);
+        Assert.True(events.Enabled);
+        Assert.True(events.Lightning.Enabled);
+        Assert.Equal((5, 12, 6), (events.Lightning.MinStrikes, events.Lightning.MaxStrikes, events.Lightning.StormSeconds));
+        Assert.True(events.Meteors.Enabled);
+        Assert.True(events.Meteors.Radius > events.Lightning.Radius);
+        Assert.True(events.Meteors.TelegraphMilliseconds > events.Lightning.TelegraphMilliseconds);
+    }
+
+    [Fact]
+    public void Json_AnOlderConfigWithASingleStrikeLightningStillLoads_AsAStormOfOne()
+    {
+        const string old = "{\"worldEvents\":{\"enabled\":true,\"lightning\":{\"enabled\":true,\"minIntervalSeconds\":30,\"maxIntervalSeconds\":90,\"radius\":90,\"telegraphMilliseconds\":1500}}}";
+
+        var config = System.Text.Json.JsonSerializer.Deserialize<GameplayConfig>(old, GameplayConfig.Json)!;
+
+        config.EnsureValid();
+        IStormSettings lightning = config.WorldEvents.Lightning;
+        Assert.Equal((1, 1), (lightning.MinCount, lightning.MaxCount));
+        Assert.True(config.WorldEvents.Meteors.Enabled);
+    }
+
+    [Fact]
+    public void EnsureValid_RefusesMeteorsThatCannotWork()
+    {
+        var config = new GameplayConfig { WorldEvents = new WorldEventOptions { Meteors = new MeteorOptions { RainSeconds = 0 } } };
+
+        Assert.Throws<ArgumentOutOfRangeException>(config.EnsureValid);
     }
 
     [Fact]
@@ -52,7 +77,11 @@ public sealed class GameplayConfigTests
     {
         var config = GameplayConfig.Defaults with
         {
-            WorldEvents = new WorldEventOptions { Lightning = new LightningOptions { Radius = 123, ExcludedRooms = ["quiet"] } }
+            WorldEvents = new WorldEventOptions
+            {
+                Lightning = new LightningOptions { Radius = 123, MinStrikes = 2, MaxStrikes = 3, StormSeconds = 4, AimedShare = 0.5, ExcludedRooms = ["quiet"] },
+                Meteors = new MeteorOptions { MinMeteors = 3, MaxMeteors = 7, RainSeconds = 5, Rooms = ["arena"] }
+            }
         };
 
         var json = System.Text.Json.JsonSerializer.Serialize(config, GameplayConfig.Json);
@@ -61,6 +90,9 @@ public sealed class GameplayConfigTests
         Assert.Contains("\"worldEvents\"", json);
         Assert.Equal(123, back.WorldEvents.Lightning.Radius);
         Assert.Equal(["quiet"], back.WorldEvents.Lightning.ExcludedRooms);
+        Assert.Equal((2, 3, 4, 0.5), (back.WorldEvents.Lightning.MinStrikes, back.WorldEvents.Lightning.MaxStrikes, back.WorldEvents.Lightning.StormSeconds, back.WorldEvents.Lightning.AimedShare));
+        Assert.Equal((3, 7, 5), (back.WorldEvents.Meteors.MinMeteors, back.WorldEvents.Meteors.MaxMeteors, back.WorldEvents.Meteors.RainSeconds));
+        Assert.Equal(["arena"], back.WorldEvents.Meteors.Rooms);
     }
 
     [Fact]
