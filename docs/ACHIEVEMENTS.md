@@ -40,6 +40,25 @@ being applied again (`unlocked` empty).
 
 `AchievementsUnlocked` to the player's connection: `{ "ids": ["first-blood", "hunter"] }`.
 
+## Game server (as built)
+
+- **Join.** `POST /join` (also `/join/room/{id}` and `/join/code/{code}`): a guest nickname that ends in `#` and digits is `400 { "error": "invalidNickname" }`
+  (as the client's `isGuestNicknameAllowed`). The game server that accepts a signed-in player makes a one-time **join ticket** (random, for that room,
+  2 minutes; `JoinTickets`) and puts it in the hub address it hands back: `gameServerUrl` is `https://…/game?joinTicket=<ticket>`. A client that connects
+  to the address it was given sends it without knowing; `GameHub.JoinRoom` redeems it and the player plays as its account under its display name,
+  whatever `nickname` it sends. No ticket, or one used, expired or for another room: a guest with its nickname.
+- **Counting** (`Domain.Game/Stats/LifeStats`, only for players with an account). `foods`: one per item eaten, whatever it credits (a prize counts as a
+  food and as a prize). `kills`: a snake that dies on your shot or runs into you. `bossKills`: the snake whose shot brings the turret down. `lightningHits`
+  and `meteorHits`: a strike that cost mass, a head hit included; the zone counts for neither. Peaks of mass and segments are taken every move and at
+  the end. `playSeconds`: whole seconds from the join to the end. Every value of a report is capped at 1 000 000.
+- **Once per life.** The numbers are sent when the player is removed (`GameStateService.DisconnectPlayer`): after a death that is once `PlayerDied` was
+  sent (`GameWorkerService`); for a leave, a disconnect or a closed room it is right then. A player is removed once, so its life is reported once.
+- **Sending** (`HttpStatsReporter`, `StatsReportWorkerService`). Reporting only queues (1 000 at most; one more is dropped and logged), so the game loop
+  never waits. `POST /accounts/{id}/stats` with the api key the game server already uses toward the manager. No answer, `5xx`, `408` or `429`: tried
+  again after 1 s, 2 s, 4 s, 8 s with the same `reportId`, then dropped and logged. Another `4xx` (`404` unknown account): dropped at once.
+- **Unlocks.** The answer's `unlocked` goes as `AchievementsUnlocked` to every hub connection of the account on that server: the one still open on the
+  death screen, or the new one after playing again. None: dropped.
+
 ## Storage
 
 Stats and unlocks live in the manager next to the accounts, in a JSON file for now (`AccountsConfiguration:StatsPath`, memory only when empty), behind an
