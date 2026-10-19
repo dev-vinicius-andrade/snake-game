@@ -5,7 +5,8 @@ namespace Library.Commons.Game.Domain.Interfaces.Services;
 
 public interface IManagementApiService
 {
-    Task<bool> PlayerJoinRoomAsync(string playerConnectionId, string playerName, IRoom room);
+    /// <param name="joinTicket">For a signed-in player: the one-time ticket it shows the game hub to be known as its account; null for a guest.</param>
+    Task<bool> PlayerJoinRoomAsync(string playerConnectionId, string playerName, IRoom room, string? joinTicket = null);
     Task<bool> PlayerJoinFailedAsync(string playerConnectionId, string reason);
     Task<bool> RoomCreatedAsync(string requesterId, IRoom room);
     Task<bool> RoomCreateFailedAsync(string requesterId, string reason);

@@ -3,6 +3,7 @@ using Library.Commons.Game.Domain.Constants;
 using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Entities.Eventbus.Payloads;
 using Library.Commons.Game.Domain.Exceptions;
+using Library.Commons.Game.Domain.Interfaces.Entities;
 using Library.Commons.Game.Domain.Interfaces.Services;
 
 namespace Application.Game.Server.Services;
@@ -19,8 +20,11 @@ public enum MessageDisposition
     Discard,
 }
 
-/// <summary>Puts a player who asked to join into a room on this server, or says that this server cannot.</summary>
-public sealed class JoinRequestHandler(IRoomJoinRouter router, IManagementApiService management)
+/// <summary>
+/// Puts a player who asked to join into a room on this server, or says that this server cannot. A signed-in player (the payload has
+/// its account) is given a join ticket, so the game hub knows it as its account when it connects.
+/// </summary>
+public sealed class JoinRequestHandler(IRoomJoinRouter router, IManagementApiService management, JoinTickets tickets)
 {
     public async Task<MessageDisposition> HandleAsync(PlayerJoinPayload payload)
     {
@@ -28,7 +32,7 @@ public sealed class JoinRequestHandler(IRoomJoinRouter router, IManagementApiSer
         switch (route.Outcome)
         {
             case JoinRouteOutcome.Joined:
-                await management.PlayerJoinRoomAsync(payload.Id, payload.Nickname, route.Room!);
+                await management.PlayerJoinRoomAsync(payload.Id, payload.Nickname, route.Room!, TicketFor(payload, route.Room!));
                 return MessageDisposition.Acknowledge;
             case JoinRouteOutcome.Full:
                 await management.PlayerJoinFailedAsync(payload.Id, JoinFailureReasons.RoomFull);
@@ -37,6 +41,9 @@ public sealed class JoinRequestHandler(IRoomJoinRouter router, IManagementApiSer
                 return MessageDisposition.Requeue;
         }
     }
+
+    private string? TicketFor(PlayerJoinPayload payload, IRoom room)
+        => payload.AccountId is Guid accountId ? tickets.Issue(accountId, payload.Nickname, room.Guid) : null;
 }
 
 /// <summary>Makes the private room a player asked for, when this server has room for one.</summary>

@@ -19,7 +19,9 @@ public sealed class JoinRequestHandlerTests
     private readonly IRoom _room = Substitute.For<IRoom>();
     private readonly PlayerJoinPayload _payload = new() { Id = "c1", Nickname = "Ann" };
 
-    public JoinRequestHandlerTests() => _handler = new JoinRequestHandler(_router, _management);
+    private readonly JoinTickets _tickets = new(TimeProvider.System);
+
+    public JoinRequestHandlerTests() => _handler = new JoinRequestHandler(_router, _management, _tickets);
 
     [Fact]
     public async Task HandleAsync_RoomFound_TellsTheManagerAndAcknowledges()
@@ -30,6 +32,23 @@ public sealed class JoinRequestHandlerTests
 
         Assert.Equal(MessageDisposition.Acknowledge, result);
         await _management.Received(1).PlayerJoinRoomAsync("c1", "Ann", _room);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ASignedInPlayer_GetsATicketThatTheHubKnowsAsItsAccount()
+    {
+        var accountId = Guid.NewGuid();
+        var roomId = Guid.NewGuid();
+        _room.Guid.Returns(roomId);
+        var payload = new PlayerJoinPayload { Id = "c1", Nickname = "Vini#09291", AccountId = accountId };
+        _router.Resolve(null).Returns(new JoinRoute(JoinRouteOutcome.Joined, _room));
+
+        await _handler.HandleAsync(payload);
+
+        var call = Assert.Single(_management.ReceivedCalls(), received => received.GetMethodInfo().Name == nameof(IManagementApiService.PlayerJoinRoomAsync));
+        Assert.Equal(new object?[] { "c1", "Vini#09291", _room }, call.GetArguments().Take(3));
+        var ticket = Assert.IsType<string>(call.GetArguments()[3]);
+        Assert.Equal(new PendingAccount(accountId, "Vini#09291", roomId), _tickets.Redeem(ticket, roomId));
     }
 
     [Fact]

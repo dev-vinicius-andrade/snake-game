@@ -1,6 +1,7 @@
 using Application.Game.Server.Services;
 using Domain.Game.Simulation;
 using Library.Commons.Game.Domain.Interfaces.Services;
+using Library.Commons.Game.Server.Constants;
 using Library.Commons.Game.Server.Entities.Hub.Events;
 using Library.Commons.Game.Server.Entities.Hub.Requests;
 using Library.Commons.Game.Server.Interfaces;
@@ -18,12 +19,19 @@ namespace Application.Game.Server.Hubs
         private readonly IGameStateService _gameStateService;
         private readonly IRoomInputQueue _roomInputQueue;
         private readonly Serilog.ILogger _logger;
+        private readonly JoinTickets _joinTickets;
+        private readonly AccountConnections _accountConnections;
         private static readonly TimeSpan CommandTimeout = TimeSpan.FromSeconds(3);
 
-        public GameHub(IPlayerService playerService, IPlayerRoomService playerRoomService, IRoomsService roomsService, ITrackableIdGeneratorService trackableIdGeneratorService, IGameStateService gameStateService, IRoomInputQueue roomInputQueue, Serilog.ILogger logger)
+        public GameHub(IPlayerService playerService, IPlayerRoomService playerRoomService, IRoomsService roomsService, ITrackableIdGeneratorService trackableIdGeneratorService, IGameStateService gameStateService, IRoomInputQueue roomInputQueue, Serilog.ILogger logger,
+            JoinTickets joinTickets, AccountConnections accountConnections)
         {
+            ArgumentNullException.ThrowIfNull(joinTickets);
+            ArgumentNullException.ThrowIfNull(accountConnections);
             _roomInputQueue = roomInputQueue;
             _logger = logger;
+            _joinTickets = joinTickets;
+            _accountConnections = accountConnections;
             _playerService = playerService;
             _playerRoomService = playerRoomService;
             _roomsService = roomsService;
@@ -48,6 +56,7 @@ namespace Application.Game.Server.Hubs
             var result = await RunInRoomAsync(roomId,
                 new ReconnectPlayerCommand(roomTrackableId, playerTrackableId, Context.ConnectionId), Context.ConnectionAborted);
             if(result is null) return;
+            RememberAccount(result.Player.AccountId);
             await Groups.RemoveFromGroupAsync(result.OldConnectionId, roomId.ToString(),
                 Context.ConnectionAborted);
             var gameState = _gameStateService.GetGameState(roomTrackableId);
@@ -63,12 +72,19 @@ namespace Application.Game.Server.Hubs
             });
         }
 
+        /// <summary>
+        /// A signed-in player shows the join ticket it was given in the hub address: it plays as its account, under its display name,
+        /// whatever nickname it sent. Without a valid ticket it is a guest with its nickname.
+        /// </summary>
         private async Task JoinAsNewPlayer(JoinRoomRequest request)
         {
+            var account = _joinTickets.Redeem(JoinTicket(), request.RoomId);
             var player = await RunInRoomAsync(request.RoomId,
-                new JoinNewPlayerCommand(Context.ConnectionId, request.Nickname, request.RoomId), Context.ConnectionAborted);
+                new JoinNewPlayerCommand(Context.ConnectionId, account?.DisplayName ?? request.Nickname, request.RoomId, account?.AccountId),
+                Context.ConnectionAborted);
             if (player is null)
                 return;
+            RememberAccount(account?.AccountId);
 
             var gameState = _gameStateService.GetGameState(_trackableIdGeneratorService.Generate(request.RoomId));
 
@@ -85,6 +101,14 @@ namespace Application.Game.Server.Hubs
             {
                 Players = gameState.Players.Values.ToList()
             });
+        }
+
+        private string? JoinTicket() => Context.GetHttpContext()?.Request.Query[JoinTicketQuery.Name].ToString();
+
+        private void RememberAccount(Guid? accountId)
+        {
+            if (accountId is Guid account)
+                _accountConnections.Add(Context.ConnectionId, account);
         }
 
         public Task ChangeDirection(ChangeDirectionRequest request)
@@ -176,6 +200,7 @@ namespace Application.Game.Server.Hubs
             {
                 _logger.Error(failure, "Could not remove the player of connection {ConnectionId} on disconnect", Context.ConnectionId);
             }
+            _accountConnections.Remove(Context.ConnectionId);
             await base.OnDisconnectedAsync(exception);
         }
     }

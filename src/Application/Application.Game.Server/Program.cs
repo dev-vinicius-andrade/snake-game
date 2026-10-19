@@ -47,6 +47,7 @@ namespace Application.Game.Server
             AddJsonSerializerOptions(services);
 
             services.AddManagementApi(appSettings.ManagementApiConfiguration);
+            services.AddJoinTickets();
 
             return services;
         }

@@ -1,5 +1,10 @@
 using Application.Game.Server.Hubs;
+using Application.Game.Server.Services;
 using Domain.Game.Simulation;
+using Library.Commons.Game.Server.Constants;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Connections.Features;
+using Microsoft.AspNetCore.Http.Features;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 using Library.Commons.Game.Domain.Interfaces.Services;
 using Library.Commons.Game.Server.Entities.Hub.Events;
@@ -47,12 +52,92 @@ public sealed class GameHubTests
         _queue.When(queue => queue.Enqueue(Arg.Any<Guid>(), Arg.Any<IPlayerCommand>()))
             .Do(call => _enqueued.Add((call.ArgAt<Guid>(0), call.ArgAt<IPlayerCommand>(1))));
 
-        _hub = new GameHub(_players, _playerRooms, _rooms, Substitute.For<ITrackableIdGeneratorService>(), _gameStates, _queue, _logger)
+        _hub = new GameHub(_players, _playerRooms, _rooms, Substitute.For<ITrackableIdGeneratorService>(), _gameStates, _queue, _logger,
+            _tickets, _accountConnections)
         {
             Context = _context,
             Clients = clients,
             Groups = Substitute.For<IGroupManager>()
         };
+    }
+
+    private readonly JoinTickets _tickets = new(TimeProvider.System);
+    private readonly AccountConnections _accountConnections = new();
+
+    private sealed class HttpContextFeature : IHttpContextFeature
+    {
+        public HttpContext? HttpContext { get; set; }
+    }
+
+    /// <summary>The connection was opened at the hub address the player was given, with this query.</summary>
+    private void ConnectedWithQuery(string query)
+    {
+        var features = new FeatureCollection();
+        features.Set<IHttpContextFeature>(new HttpContextFeature { HttpContext = new DefaultHttpContext { Request = { QueryString = new QueryString(query) } } });
+        _context.Features.Returns(features);
+    }
+
+    /// <summary>A room that takes the new player and can be drawn in a snapshot.</summary>
+    private void RoomTakesNewPlayers()
+    {
+        _state.Foods.Returns(new Dictionary<Guid, IFood>());
+        _state.Obstacles.Returns(new Dictionary<Guid, IObstacle>());
+        _state.Strikes.Returns(new System.Collections.Concurrent.ConcurrentDictionary<Guid, Library.Commons.Game.Domain.Entities.WorldStrike>());
+        _gameStates.GetGameState(Arg.Any<ITrackableId>()).Returns(_state);
+        _gameStates.CreatePlayerInRoom(default!, default!, default, default).ReturnsForAnyArgs(_player);
+        RoomLoopRunsCommandsImmediately();
+    }
+
+    [Fact]
+    public async Task JoinRoom_WithTheJoinTicketOfAnAccount_PlaysAsTheAccountUnderItsDisplayName()
+    {
+        RoomTakesNewPlayers();
+        var accountId = Guid.NewGuid();
+        var ticket = _tickets.Issue(accountId, "Vini#09291", _roomGuid);
+        ConnectedWithQuery($"?{JoinTicketQuery.Name}={ticket}");
+
+        await _hub.JoinRoom(new JoinRoomRequest { RoomId = _roomGuid, Nickname = "Someone#12345" });
+
+        await _gameStates.Received(1).CreatePlayerInRoom(ConnectionId, "Vini#09291", _roomGuid, Arg.Any<CancellationToken>());
+        _gameStates.Received(1).AttachAccount(_player, accountId);
+        Assert.Equal(new[] { ConnectionId }, _accountConnections.Of(accountId));
+    }
+
+    [Fact]
+    public async Task JoinRoom_WithoutATicket_IsAGuestWithItsNickname()
+    {
+        RoomTakesNewPlayers();
+        ConnectedWithQuery(string.Empty);
+
+        await _hub.JoinRoom(new JoinRoomRequest { RoomId = _roomGuid, Nickname = "ana" });
+
+        await _gameStates.Received(1).CreatePlayerInRoom(ConnectionId, "ana", _roomGuid, Arg.Any<CancellationToken>());
+        _gameStates.DidNotReceiveWithAnyArgs().AttachAccount(default!, default);
+    }
+
+    [Fact]
+    public async Task JoinRoom_ATicketAlreadyUsed_IsAGuest()
+    {
+        RoomTakesNewPlayers();
+        var ticket = _tickets.Issue(Guid.NewGuid(), "Vini#09291", _roomGuid);
+        _tickets.Redeem(ticket, _roomGuid);
+        ConnectedWithQuery($"?{JoinTicketQuery.Name}={ticket}");
+
+        await _hub.JoinRoom(new JoinRoomRequest { RoomId = _roomGuid, Nickname = "ana" });
+
+        await _gameStates.Received(1).CreatePlayerInRoom(ConnectionId, "ana", _roomGuid, Arg.Any<CancellationToken>());
+        _gameStates.DidNotReceiveWithAnyArgs().AttachAccount(default!, default);
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_ForgetsTheConnectionOfTheAccount()
+    {
+        var accountId = Guid.NewGuid();
+        _accountConnections.Add(ConnectionId, accountId);
+
+        await _hub.OnDisconnectedAsync(null);
+
+        Assert.Empty(_accountConnections.Of(accountId));
     }
 
     private void PlayerIsInRoom()

@@ -29,7 +29,7 @@ internal class ManagementApiService: IManagementApiService
         _configuration = configuration;
     }
 
-    public async Task<bool> PlayerJoinRoomAsync(string playerConnectionId,string playerName, IRoom room)
+    public async Task<bool> PlayerJoinRoomAsync(string playerConnectionId,string playerName, IRoom room, string? joinTicket = null)
     {
 
         try
@@ -39,7 +39,7 @@ internal class ManagementApiService: IManagementApiService
 
             var request = new PlayerJoinedRequest
             {
-                GameServerUrl = rootUri,
+                GameServerUrl = JoinTicketQuery.AppendTo(rootUri, joinTicket),
                 Nickname = playerName,
                 RoomId = room.Guid
             };
