@@ -88,6 +88,27 @@ export interface TurretConfig {
   excludedRooms: string[];
 }
 
+/** The shrinking safe zone: a circle that closes in, with snakes outside it losing mass and dying. */
+export interface ZoneConfig {
+  enabled: boolean;
+  minIntervalSeconds: number;
+  maxIntervalSeconds: number;
+  /** Seconds the safe spot is shown before the zone starts to close, with nobody harmed. */
+  warningSeconds: number;
+  /** Seconds it takes to close from covering the whole room to its smallest. */
+  shrinkSeconds: number;
+  /** Seconds it stays at its smallest. */
+  holdSeconds: number;
+  /** World units around the safe spot that stay safe at the end. */
+  finalRadius: number;
+  damageIntervalMilliseconds: number;
+  /** Mass a snake outside loses each time; it falls as food. A snake with none left dies. */
+  damageMass: number;
+  minPlayers: number;
+  rooms: string[];
+  excludedRooms: string[];
+}
+
 export interface GameplayConfig {
   perks: {
     enabled: boolean;
@@ -114,6 +135,7 @@ export interface GameplayConfig {
     lightning: LightningConfig;
     meteors: MeteorConfig;
     turret: TurretConfig;
+    zone: ZoneConfig;
   };
 }
 
@@ -242,6 +264,22 @@ const DEFAULT_TURRET: TurretConfig = {
   excludedRooms: [],
 };
 
+/** What the safe zone starts as, and what a server that does not send it yet gets. */
+const DEFAULT_ZONE: ZoneConfig = {
+  enabled: true,
+  minIntervalSeconds: 300,
+  maxIntervalSeconds: 600,
+  warningSeconds: 15,
+  shrinkSeconds: 60,
+  holdSeconds: 30,
+  finalRadius: 160,
+  damageIntervalMilliseconds: 1000,
+  damageMass: 4,
+  minPlayers: 2,
+  rooms: [],
+  excludedRooms: [],
+};
+
 /** What a new kind of prize starts as. */
 const DEFAULT_PRIZE: PrizeDefinition = {
   id: "prize",
@@ -341,13 +379,15 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
       lightning: clone(DEFAULT_LIGHTNING),
       meteors: clone(DEFAULT_METEORS),
       turret: clone(DEFAULT_TURRET),
+      zone: clone(DEFAULT_ZONE),
     });
     events.enabled ??= true;
     // Lightning from before storms had no storm: it is shown with the storm defaults, which is what saving it makes it.
     events.lightning = { ...DEFAULT_LIGHTNING, ...events.lightning };
     events.meteors = { ...DEFAULT_METEORS, ...events.meteors };
     events.turret = { ...DEFAULT_TURRET, ...events.turret };
-    for (const event of [events.lightning, events.meteors, events.turret]) {
+    events.zone = { ...DEFAULT_ZONE, ...events.zone };
+    for (const event of [events.lightning, events.meteors, events.turret, events.zone]) {
       event.rooms ??= [];
       event.excludedRooms ??= [];
     }
@@ -416,7 +456,7 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
       kind.excludedRooms = kind.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       if (!kind.grantsPerk?.trim()) delete kind.grantsPerk;
     }
-    for (const event of [body.worldEvents.lightning, body.worldEvents.meteors, body.worldEvents.turret]) {
+    for (const event of [body.worldEvents.lightning, body.worldEvents.meteors, body.worldEvents.turret, body.worldEvents.zone]) {
       event.rooms = event.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       event.excludedRooms = event.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
     }

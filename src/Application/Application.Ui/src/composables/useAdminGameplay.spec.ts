@@ -76,6 +76,20 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
       rooms: [],
       excludedRooms: [],
     },
+    zone: {
+      enabled: true,
+      minIntervalSeconds: 300,
+      maxIntervalSeconds: 600,
+      warningSeconds: 15,
+      shrinkSeconds: 60,
+      holdSeconds: 30,
+      finalRadius: 160,
+      damageIntervalMilliseconds: 1000,
+      damageMass: 4,
+      minPlayers: 2,
+      rooms: [],
+      excludedRooms: [],
+    },
   },
 });
 
@@ -333,6 +347,42 @@ describe("useAdminGameplay", () => {
       await gameplay.load();
 
       expect(gameplay.draft.value!.worldEvents).toEqual(config().worldEvents);
+    });
+
+    it("fills in the zone for a server that does not know it yet", async () => {
+      const { zone: _unknown, ...older } = config().worldEvents;
+      http.get.mockResolvedValue({ ...payload, current: { revision: "r1", config: { ...config(), worldEvents: older } } });
+      const gameplay = create();
+
+      await gameplay.load();
+
+      expect(gameplay.draft.value!.worldEvents.zone).toEqual(config().worldEvents.zone);
+    });
+
+    it("keeps the zone settings the server sent and fills in the rest", async () => {
+      http.get.mockResolvedValue({
+        ...payload,
+        current: { revision: "r1", config: { ...config(), worldEvents: { ...config().worldEvents, zone: { finalRadius: 250, rooms: ["arena"] } } } },
+      });
+      const gameplay = create();
+
+      await gameplay.load();
+
+      expect(gameplay.draft.value!.worldEvents.zone).toEqual({ ...config().worldEvents.zone, finalRadius: 250, rooms: ["arena"] });
+    });
+
+    it("sends the zone settings without blank rooms", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      const zone = gameplay.draft.value!.worldEvents.zone;
+      zone.shrinkSeconds = 90;
+      zone.rooms = ["arena", " "];
+      zone.excludedRooms = ["", "calm "];
+
+      await gameplay.save();
+
+      const sent = (http.put.mock.calls[0][2] as GameplayConfig).worldEvents.zone;
+      expect(sent).toMatchObject({ shrinkSeconds: 90, rooms: ["arena"], excludedRooms: ["calm"] });
     });
 
     it("fills in the turret for a server that does not know it yet", async () => {

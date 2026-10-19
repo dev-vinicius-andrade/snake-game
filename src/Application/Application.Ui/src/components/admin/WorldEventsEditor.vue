@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
-import type { LightningConfig, MeteorConfig, TurretConfig, useAdminGameplay } from "@/composables/useAdminGameplay";
+import type { LightningConfig, MeteorConfig, TurretConfig, ZoneConfig, useAdminGameplay } from "@/composables/useAdminGameplay";
 import { getText } from "@/helpers";
 
 const props = defineProps<{ gameplay: ReturnType<typeof useAdminGameplay> }>();
@@ -43,6 +43,18 @@ const turretFields: Array<{ key: NumberKeys<TurretConfig>; label: string; step?:
   { key: "shotSpeed", label: "turretShotSpeed", step: 0.1 },
   { key: "minPlayers", label: "turretMinPlayers" },
   { key: "rewardMass", label: "turretReward" },
+];
+
+const zoneFields: Array<{ key: NumberKeys<ZoneConfig>; label: string; step?: number }> = [
+  { key: "minIntervalSeconds", label: "zoneMin" },
+  { key: "maxIntervalSeconds", label: "zoneMax" },
+  { key: "warningSeconds", label: "zoneWarning" },
+  { key: "shrinkSeconds", label: "zoneShrink" },
+  { key: "holdSeconds", label: "zoneHold" },
+  { key: "finalRadius", label: "zoneFinalRadius" },
+  { key: "damageIntervalMilliseconds", label: "zoneDamageInterval" },
+  { key: "damageMass", label: "zoneDamageMass" },
+  { key: "minPlayers", label: "zoneMinPlayers" },
 ];
 
 /** The perks the turret can give: none, or any perk of the list. */
@@ -140,6 +152,28 @@ onMounted(() => {
           </div>
           <VCombobox v-model="draft.worldEvents.turret.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.turretRooms' })" />
           <VCombobox v-model="draft.worldEvents.turret.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+        </div>
+
+        <div class="event-card" :class="{ 'is-off': !draft.worldEvents.zone.enabled }" data-event="zone">
+          <div class="event-row">
+            <strong>{{ getText({ key: "admin.gameplay.zoneTitle" }) }}</strong>
+            <VSwitch v-model="draft.worldEvents.zone.enabled" class="switch-field" color="primary" hide-details :label="getText({ key: 'admin.gameplay.zoneOn' })" />
+          </div>
+          <div class="event-help">{{ getText({ key: "admin.gameplay.zoneHelp" }) }}</div>
+          <div class="field-grid">
+            <VTextField
+              v-for="field in zoneFields"
+              :key="field.key"
+              v-model.number="draft.worldEvents.zone[field.key]"
+              type="number"
+              :step="field.step"
+              density="compact"
+              hide-details
+              :label="getText({ key: `admin.gameplay.${field.label}` })"
+            />
+          </div>
+          <VCombobox v-model="draft.worldEvents.zone.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.zoneRooms' })" />
+          <VCombobox v-model="draft.worldEvents.zone.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
         </div>
       </VCardText>
     </VCard>
