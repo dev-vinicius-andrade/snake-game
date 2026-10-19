@@ -73,6 +73,11 @@ export class FakeHubClient implements HubClient {
     this.handlers.get(event)?.forEach((handler) => handler(...args));
   }
 
+  /** The game server telling the player it unlocked achievements (docs/ACHIEVEMENTS.md). */
+  emitAchievementsUnlocked(ids: string[]) {
+    this.emit("AchievementsUnlocked", { ids });
+  }
+
   simulateClose(error?: Error) {
     this.state = "disconnected";
     this.closeHandlers.forEach((handler) => handler(error));

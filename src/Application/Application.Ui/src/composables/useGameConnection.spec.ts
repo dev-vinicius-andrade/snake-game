@@ -107,6 +107,28 @@ describe("useGameConnection room closed", () => {
   });
 });
 
+describe("useGameConnection achievements", () => {
+  it("collects the ids of AchievementsUnlocked in order", async () => {
+    const { client, connection } = await connected();
+
+    client.emitAchievementsUnlocked(["first-blood"]);
+    client.emitAchievementsUnlocked(["hunter", "rampage"]);
+
+    expect(connection.unlocked.value.map((event) => event.ids)).toEqual([["first-blood"], ["hunter", "rampage"]]);
+  });
+
+  it("ignores an event without ids and starts fresh on the next connect", async () => {
+    const { client, connection } = await connected();
+    client.emit("AchievementsUnlocked", {});
+    expect(connection.unlocked.value).toEqual([]);
+    client.emitAchievementsUnlocked(["hunter"]);
+
+    await connection.connect(assignment);
+
+    expect(connection.unlocked.value).toEqual([]);
+  });
+});
+
 describe("useGameConnection server events", () => {
   it("parses Snapshot into the snapshot", async () => {
     const { client, connection } = await connected();

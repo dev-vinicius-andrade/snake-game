@@ -96,3 +96,9 @@ export function formatPlayTime(totalSeconds: number): { hours: number; minutes: 
   const whole = Math.max(0, Math.floor(totalSeconds));
   return { hours: Math.floor(whole / 3600), minutes: Math.floor((whole % 3600) / 60), seconds: whole % 60 };
 }
+
+/** The ids of the hub event `AchievementsUnlocked` ({ ids }); anything odd gives an empty list. */
+export function parseUnlockedIds(raw: unknown): string[] {
+  const list = (typeof raw === "object" && raw !== null ? ((raw as Record<string, unknown>).ids ?? (raw as Record<string, unknown>).Ids) : null) ?? [];
+  return Array.isArray(list) ? list.filter((id): id is string => typeof id === "string" && id.length > 0) : [];
+}

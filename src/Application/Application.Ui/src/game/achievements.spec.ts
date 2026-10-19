@@ -4,6 +4,7 @@ import {
   achievementText,
   buildAchievementViews,
   formatPlayTime,
+  parseUnlockedIds,
   sortAchievements,
   type AchievementDefinition,
 } from "./achievements";
@@ -62,5 +63,13 @@ describe("formatPlayTime", () => {
   it("splits seconds", () => {
     expect(formatPlayTime(3725)).toEqual({ hours: 1, minutes: 2, seconds: 5 });
     expect(formatPlayTime(-4)).toEqual({ hours: 0, minutes: 0, seconds: 0 });
+  });
+});
+
+describe("parseUnlockedIds", () => {
+  it("reads the ids and drops anything else", () => {
+    expect(parseUnlockedIds({ ids: ["a", 3, "", "b"] })).toEqual(["a", "b"]);
+    expect(parseUnlockedIds(null)).toEqual([]);
+    expect(parseUnlockedIds({ ids: "a" })).toEqual([]);
   });
 });

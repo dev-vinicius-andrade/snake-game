@@ -1,4 +1,5 @@
 import { computed, getCurrentScope, onScopeDispose, shallowRef } from "vue";
+import { parseUnlockedIds } from "@/game/achievements";
 import { parseDamage } from "@/game/damage";
 import { recentDamage } from "@/render/damageNumbers";
 import { parseLeaderboard, parseRoomSize, parseSnapshot } from "@/game/snapshot";
@@ -57,6 +58,9 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
   let pingTimer: ReturnType<typeof setInterval> | null = null;
   /** Damage numbers still on their way up the screen, oldest first. */
   const damage = shallowRef<FloatingDamage[]>([]);
+  /** Achievements the server unlocked for this player, one entry per event; a view shows a toast for each and does not need to clear them. */
+  const unlocked = shallowRef<Array<{ seq: number; ids: string[] }>>([]);
+  let unlockedSeq = 0;
 
   let client: HubClient | null = null;
   let session: JoinAssignment | null = null;
@@ -106,6 +110,10 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
           damage.value = [...recentDamage(damage.value, now), { ...event, bornMs: now }];
         }
       },
+      AchievementsUnlocked: (raw: unknown) => {
+        const ids = parseUnlockedIds(raw);
+        if (ids.length > 0) unlocked.value = [...unlocked.value, { seq: ++unlockedSeq, ids }];
+      },
       PlayerDied: (raw: { score?: number } | null) => {
         death.value = { score: typeof raw?.score === "number" ? raw.score : score.value };
       },
@@ -120,6 +128,7 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
     death.value = null;
     roomClosed.value = false;
     damage.value = [];
+    unlocked.value = [];
     ping.value = null;
     error.value = null;
     connectionId.value = null;
@@ -301,6 +310,7 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
     score,
     death,
     damage,
+    unlocked,
     ping,
     roomClosed,
     connectionId,
