@@ -34,7 +34,32 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
   rooms: { emptyPrivateRoomMinutes: 10, maxPrivateRoomMinutes: 0 },
   worldEvents: {
     enabled: true,
-    lightning: { enabled: true, minIntervalSeconds: 30, maxIntervalSeconds: 90, radius: 90, telegraphMilliseconds: 1500, rooms: [], excludedRooms: [] },
+    lightning: {
+      enabled: true,
+      minIntervalSeconds: 45,
+      maxIntervalSeconds: 120,
+      radius: 90,
+      telegraphMilliseconds: 1500,
+      minStrikes: 5,
+      maxStrikes: 12,
+      stormSeconds: 6,
+      aimedShare: 0.25,
+      rooms: [],
+      excludedRooms: [],
+    },
+    meteors: {
+      enabled: true,
+      minIntervalSeconds: 120,
+      maxIntervalSeconds: 300,
+      radius: 130,
+      telegraphMilliseconds: 2000,
+      minMeteors: 6,
+      maxMeteors: 14,
+      rainSeconds: 8,
+      aimedShare: 0.2,
+      rooms: [],
+      excludedRooms: [],
+    },
   },
 });
 
@@ -294,6 +319,33 @@ describe("useAdminGameplay", () => {
       expect(gameplay.draft.value!.worldEvents).toEqual(config().worldEvents);
     });
 
+    it("makes lightning from before storms a storm to edit, with the storm defaults", async () => {
+      const { minStrikes: _a, maxStrikes: _b, stormSeconds: _c, aimedShare: _d, ...single } = config().worldEvents.lightning;
+      http.get.mockResolvedValue({
+        ...payload,
+        current: { revision: "r1", config: { ...config(), worldEvents: { enabled: true, lightning: single } } },
+      });
+      const gameplay = create();
+
+      await gameplay.load();
+
+      expect(gameplay.draft.value!.worldEvents.lightning).toMatchObject({ minStrikes: 5, maxStrikes: 12, stormSeconds: 6, aimedShare: 0.25 });
+      expect(gameplay.draft.value!.worldEvents.meteors).toEqual(config().worldEvents.meteors);
+    });
+
+    it("sends the meteor settings without blank rooms", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      gameplay.draft.value!.worldEvents.meteors.maxMeteors = 20;
+      gameplay.draft.value!.worldEvents.meteors.rooms = ["arena", " "];
+      gameplay.draft.value!.worldEvents.meteors.excludedRooms = ["", "calm "];
+
+      await gameplay.save();
+
+      const sent = http.put.mock.calls[0][2] as GameplayConfig;
+      expect(sent.worldEvents.meteors).toMatchObject({ maxMeteors: 20, rooms: ["arena"], excludedRooms: ["calm"] });
+    });
+
     it("keeps what the server sent and fills in the rest of lightning", async () => {
       http.get.mockResolvedValue({
         ...payload,
@@ -306,6 +358,7 @@ describe("useAdminGameplay", () => {
       expect(gameplay.draft.value!.worldEvents).toEqual({
         enabled: false,
         lightning: { ...config().worldEvents.lightning, radius: 150, rooms: ["ABC234"] },
+        meteors: config().worldEvents.meteors,
       });
     });
 
