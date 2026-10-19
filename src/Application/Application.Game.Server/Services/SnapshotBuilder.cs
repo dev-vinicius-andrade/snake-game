@@ -10,7 +10,8 @@ namespace Application.Game.Server.Services;
 /// </summary>
 public static class SnapshotBuilder
 {
-    public static SnapshotEvent Build(IGameState gameState)
+    /// <param name="now">The moment the snapshot is for; lightning warnings count down to it. Defaults to the clock.</param>
+    public static SnapshotEvent Build(IGameState gameState, DateTimeOffset? now = null)
     {
         ArgumentNullException.ThrowIfNull(gameState);
         return new SnapshotEvent
@@ -19,7 +20,20 @@ public static class SnapshotBuilder
             Snakes = gameState.Players.Values.Where(player => player.Path.Count > 0).Select(ToSnake).ToList(),
             Foods = gameState.Foods.Values.Select(ToFood).ToList(),
             Shots = gameState.Obstacles.Values.Select(ToShot).ToList(),
+            Strikes = ToStrikes(gameState, now ?? DateTimeOffset.UtcNow),
         };
+    }
+
+    private static List<SnapshotStrike>? ToStrikes(IGameState gameState, DateTimeOffset now)
+    {
+        if (gameState.Strikes is not { IsEmpty: false }) return null;
+        return gameState.Strikes.Values.Select(strike => new SnapshotStrike
+        {
+            X = (int)Math.Round(strike.X),
+            Y = (int)Math.Round(strike.Y),
+            R = (int)Math.Round(strike.Radius),
+            T = (int)Math.Max(0, Math.Round((strike.StrikesAt - now).TotalMilliseconds)),
+        }).ToList();
     }
 
     private static SnapshotSnake ToSnake(IPlayer player) => new()

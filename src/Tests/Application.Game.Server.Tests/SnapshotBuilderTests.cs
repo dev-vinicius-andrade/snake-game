@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Application.Game.Server.Services;
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Enums;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 using NSubstitute;
@@ -13,6 +14,7 @@ public sealed class SnapshotBuilderTests
     private readonly Dictionary<Guid, IPlayer> _players = new();
     private readonly Dictionary<Guid, IFood> _foods = new();
     private readonly Dictionary<Guid, IObstacle> _obstacles = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, WorldStrike> _strikes = new();
 
     public SnapshotBuilderTests()
     {
@@ -24,6 +26,7 @@ public sealed class SnapshotBuilderTests
         _state.Players.Returns(_players);
         _state.Foods.Returns(_foods);
         _state.Obstacles.Returns(_obstacles);
+        _state.Strikes.Returns(_strikes);
     }
 
     private static IPointAxis Point(double x, double y)
@@ -174,6 +177,38 @@ public sealed class SnapshotBuilderTests
         var prize = foods.Single(food => food.GetProperty("x").GetInt32() == 30);
         Assert.Equal(20, prize.GetProperty("v").GetInt64());
         Assert.Equal(1, prize.GetProperty("k").GetInt32());
+    }
+
+    [Fact]
+    public void Build_NoLightningWarning_LeavesTheListOut()
+    {
+        Assert.False(Json().TryGetProperty("strikes", out _));
+    }
+
+    [Fact]
+    public void Build_LightningWarning_IsSpotRadiusAndMillisecondsLeft()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        _strikes[Guid.NewGuid()] = new WorldStrike(100.4, 200.6, 90, now.AddMilliseconds(1234));
+
+        var json = JsonDocument.Parse(JsonSerializer.Serialize(SnapshotBuilder.Build(_state, now), Options)).RootElement;
+
+        var strike = json.GetProperty("strikes").EnumerateArray().Single();
+        Assert.Equal(100, strike.GetProperty("x").GetInt32());
+        Assert.Equal(201, strike.GetProperty("y").GetInt32());
+        Assert.Equal(90, strike.GetProperty("r").GetInt32());
+        Assert.Equal(1234, strike.GetProperty("t").GetInt32());
+    }
+
+    [Fact]
+    public void Build_LightningWarningPastItsMoment_NeverSaysNegativeTime()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        _strikes[Guid.NewGuid()] = new WorldStrike(1, 2, 90, now.AddMilliseconds(-50));
+
+        var json = JsonDocument.Parse(JsonSerializer.Serialize(SnapshotBuilder.Build(_state, now), Options)).RootElement;
+
+        Assert.Equal(0, json.GetProperty("strikes")[0].GetProperty("t").GetInt32());
     }
 
     [Fact]

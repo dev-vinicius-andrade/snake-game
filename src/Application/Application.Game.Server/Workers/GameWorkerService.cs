@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using Application.Game.Server.Hubs;
 using Application.Game.Server.Services;
+using Domain.Game.Services;
 using Domain.Game.Simulation;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 using Library.Commons.Game.Domain.Interfaces.Services;
@@ -27,6 +28,8 @@ public class GameWorkerService : BackgroundService
     private readonly ITickRateService _tickRateService;
     private readonly RoomSimulation _roomSimulation;
     private readonly IRoomInputQueue _roomInputQueue;
+    private readonly WorldEventRunner _worldEvents;
+    private readonly TimeProvider _time;
     private readonly ConcurrentDictionary<Guid, FixedTimestepClock> _clocks = new();
     /// <summary>What each room last heard as its ranking, and what each player last heard as their score: said again only when it changes.</summary>
     private readonly ConcurrentDictionary<Guid, string> _lastRanking = new();
@@ -40,8 +43,12 @@ public class GameWorkerService : BackgroundService
         ITrackableIdGeneratorService trackableIdGeneratorService,
         ITickRateService tickRateService,
         RoomSimulation roomSimulation,
-        IRoomInputQueue roomInputQueue)
+        IRoomInputQueue roomInputQueue,
+        WorldEventRunner worldEvents,
+        TimeProvider time)
     {
+        _worldEvents = worldEvents;
+        _time = time;
         _roomInputQueue = roomInputQueue;
         _logger = logger;
         _gameHub = gameHub;
@@ -83,7 +90,10 @@ public class GameWorkerService : BackgroundService
             if (gameState is null || (gameState.Players.Count == 0 && !hasPendingInput)) return;
             var ticks = _clocks.GetOrAdd(roomId, CreateClock).Advance(elapsed);
             if (ticks.Count == 0) return;
-            var diedPlayers = await StepAsync(gameState, ticks, cancellationToken);
+            // Every frame, not once a second: the lightning warning is timed in fractions of a second, and the snakes it
+            // kills are told and removed below, with the ones the simulation killed.
+            var struck = _worldEvents.Update(gameState);
+            var diedPlayers = (await StepAsync(gameState, ticks, cancellationToken)).Concat(struck).ToList();
             await NotifyDamageAsync(gameState);
             await NotifyDiedAsync(diedPlayers);
             if (diedPlayers.Count > 0 || ticks.Any(tick => tick.BroadcastSnapshot))
@@ -126,7 +136,7 @@ public class GameWorkerService : BackgroundService
         var group = _gameHub.Clients.Group(roomId.ToString());
         await SendRankingAsync(roomId, gameState);
         await SendPlayerScoresAsync(gameState);
-        await group.Snapshot(SnapshotBuilder.Build(gameState));
+        await group.Snapshot(SnapshotBuilder.Build(gameState, _time.GetUtcNow()));
     }
 
     private async Task SendRankingAsync(Guid roomId, IGameState gameState)
