@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using Application.Game.Server.Entities.Configurations;
 using Application.Game.Server.Hubs;
 using Application.Game.Server.Services;
+using Application.Game.Server.Stats;
 using Application.Game.Server.Workers;
 using Domain.Game.Extensions;
 using Domain.Game.Rules;
@@ -48,6 +49,7 @@ namespace Application.Game.Server
 
             services.AddManagementApi(appSettings.ManagementApiConfiguration);
             services.AddJoinTickets();
+            services.AddAccountStats(appSettings.ManagementApiConfiguration);
 
             return services;
         }

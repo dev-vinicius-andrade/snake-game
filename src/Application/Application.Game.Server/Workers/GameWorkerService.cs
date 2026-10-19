@@ -165,6 +165,10 @@ public class GameWorkerService : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Removes the snakes that died, after they were told. Removing ends the life: the stats of a signed-in one are reported then, once
+    /// (GameStateService.DisconnectPlayer).
+    /// </summary>
     private async Task RemoveDiedAsync(IGameState gameState, IEnumerable<IPlayer> diedPlayers)
     {
         foreach (var player in diedPlayers)

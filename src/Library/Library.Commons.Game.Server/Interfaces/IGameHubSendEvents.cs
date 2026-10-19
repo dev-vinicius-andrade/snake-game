@@ -18,6 +18,7 @@ public interface IGameHubSendEvents
     Task PlayerDied(PlayerDiedEvent eventArgs);
     Task RoomClosed(RoomClosedEvent eventArgs);
     Task DamageDealt(DamageDealtEvent eventArgs);
+    Task AchievementsUnlocked(AchievementsUnlockedEvent eventArgs);
     Task ScoreUpdated(IList<IScore> score);
     Task PlayerScoreUpdated(long score=0);
 }
