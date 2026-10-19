@@ -253,7 +253,8 @@ public class GameStateService : IGameStateService
         gameState.Foods.Remove(food.Guid);
         player.Score += food.Value;
         player.FoodsEaten += food.FoodsCredit;
-        player.Perks = _perkRules.UnlockedIds(player.FoodsEaten, gameState.Room).ToList();
+        GrantPerk(player, food);
+        player.Perks = _perkRules.UnlockedIds(player.FoodsEaten, gameState.Room, GrantedOf(player)).ToList();
         player.AutoFire = EffectsOf(gameState, player).AutoFire;
         HealBody(player, food.Value);
         ApplyEatingRewards(gameState, player, food);
@@ -496,12 +497,21 @@ public class GameStateService : IGameStateService
     /// </summary>
     private PerkEffects EffectsOf(IGameState gameState, IPlayer player)
     {
-        if (!_perkRules.HasScripts(player.FoodsEaten, gameState.Room)) return _perkRules.EffectsFor(player.FoodsEaten, gameState.Room);
+        if (!_perkRules.HasScripts(player.FoodsEaten, gameState.Room, GrantedOf(player))) return _perkRules.EffectsFor(player.FoodsEaten, gameState.Room, GrantedOf(player));
         var now = _clock.GetUtcNow();
         if (_scriptedEffects.TryGetValue(player.Guid, out var kept) && now - kept.At < ScriptedEffectsLifetime) return kept.Effects;
-        var effects = _perkRules.EffectsFor(player.FoodsEaten, gameState.Room, ContextOf(gameState, player));
+        var effects = _perkRules.EffectsFor(player.FoodsEaten, gameState.Room, ContextOf(gameState, player), GrantedOf(player));
         _scriptedEffects[player.Guid] = (now, effects);
         return effects;
+    }
+
+    private static IReadOnlyCollection<string> GrantedOf(IPlayer player) => player.GrantedPerks.ToArray();
+
+    /// <summary>A prize can give a perk, whatever the foods the snake has eaten. It is kept until the snake dies.</summary>
+    private static void GrantPerk(IPlayer player, IFood food)
+    {
+        if (string.IsNullOrWhiteSpace(food.GrantsPerk) || player.GrantedPerks.Contains(food.GrantsPerk)) return;
+        player.GrantedPerks.Add(food.GrantsPerk);
     }
 
     private static ScriptContext ContextOf(IGameState gameState, IPlayer player)
@@ -518,9 +528,9 @@ public class GameStateService : IGameStateService
     /// <summary>What the scripts of the snake's perks give for eating this: extra mass, and healing in HP.</summary>
     private void ApplyEatingRewards(IGameState gameState, IPlayer player, IFood food)
     {
-        if (!_perkRules.HasScripts(player.FoodsEaten, gameState.Room)) return;
+        if (!_perkRules.HasScripts(player.FoodsEaten, gameState.Room, GrantedOf(player))) return;
         var rewards = _perkRules.RewardsForEating(
-            player.FoodsEaten, gameState.Room, ContextOf(gameState, player), new ScriptFood(food.Value, food.Kind == FoodKind.Prize));
+            player.FoodsEaten, gameState.Room, ContextOf(gameState, player), new ScriptFood(food.Value, food.Kind == FoodKind.Prize), GrantedOf(player));
         player.Score += rewards.Mass;
         if (rewards.Heal <= 0) return;
         var maxHp = _damageCalculator.MaxSegmentHp(Math.Max(player.Path.Count, 1));

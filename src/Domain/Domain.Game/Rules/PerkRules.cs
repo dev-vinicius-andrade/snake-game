@@ -93,31 +93,31 @@ public sealed class PerkRules
     public PerkScript? ScriptOf(string perkId) => _settings.Scripts.GetValueOrDefault(perkId);
 
     /// <summary>True when a script of a perk the snake has works in this room, so its effects must be asked for with a context.</summary>
-    public bool HasScripts(int foodsEaten, IRoom? room) => ScriptedPerks(foodsEaten, room).Any();
+    public bool HasScripts(int foodsEaten, IRoom? room, IReadOnlyCollection<string>? granted = null) => ScriptedPerks(foodsEaten, room, granted).Any();
 
-    private IEnumerable<(PerkDefinition Perk, PerkScript Script)> ScriptedPerks(int foodsEaten, IRoom? room)
+    private IEnumerable<(PerkDefinition Perk, PerkScript Script)> ScriptedPerks(int foodsEaten, IRoom? room, IReadOnlyCollection<string>? granted)
     {
         var settings = _settings;
-        return Unlocked(foodsEaten, room)
+        return Unlocked(foodsEaten, room, granted)
             .Where(perk => perk.HasScript && settings.Scripts.ContainsKey(perk.Id))
             .Select(perk => (perk, settings.Scripts[perk.Id]));
     }
 
     /// <summary>What the perks do for this snake, with what the scripts of its perks add in this room.</summary>
-    public PerkEffects EffectsFor(int foodsEaten, IRoom? room, ScriptContext context)
+    public PerkEffects EffectsFor(int foodsEaten, IRoom? room, ScriptContext context, IReadOnlyCollection<string>? granted = null)
     {
-        var effects = EffectsFor(foodsEaten, room);
-        foreach (var (_, script) in ScriptedPerks(foodsEaten, room))
+        var effects = EffectsFor(foodsEaten, room, granted);
+        foreach (var (_, script) in ScriptedPerks(foodsEaten, room, granted))
             if (script.Modify(context.Snake, context.Room) is { } added)
                 effects = Merge(effects, added);
         return effects;
     }
 
     /// <summary>What the scripts of this snake's perks give for eating, added up.</summary>
-    public ScriptRewards RewardsForEating(int foodsEaten, IRoom? room, ScriptContext context, ScriptFood food)
+    public ScriptRewards RewardsForEating(int foodsEaten, IRoom? room, ScriptContext context, ScriptFood food, IReadOnlyCollection<string>? granted = null)
     {
         var rewards = new ScriptRewards(0, 0);
-        foreach (var (_, script) in ScriptedPerks(foodsEaten, room))
+        foreach (var (_, script) in ScriptedPerks(foodsEaten, room, granted))
             if (script.OnEat(context.Snake, food, context.Room) is { } given)
                 rewards = new ScriptRewards(rewards.Mass + given.Mass, rewards.Heal + given.Heal);
         return rewards;
@@ -140,13 +140,13 @@ public sealed class PerkRules
     };
 
     /// <summary>Ids of the perks earned with <paramref name="foodsEaten"/> foods, in the order they unlock.</summary>
-    public IReadOnlyList<string> UnlockedIds(int foodsEaten, IRoom? room = null)
-        => Unlocked(foodsEaten, room).Select(perk => perk.Id).ToArray();
+    public IReadOnlyList<string> UnlockedIds(int foodsEaten, IRoom? room = null, IReadOnlyCollection<string>? granted = null)
+        => Unlocked(foodsEaten, room, granted).Select(perk => perk.Id).ToArray();
 
     /// <summary>What the perks a snake has do, in the room it plays in.</summary>
-    public PerkEffects EffectsFor(int foodsEaten, IRoom? room = null)
+    public PerkEffects EffectsFor(int foodsEaten, IRoom? room = null, IReadOnlyCollection<string>? granted = null)
     {
-        var unlocked = Entries(Unlocked(foodsEaten, room));
+        var unlocked = Entries(Unlocked(foodsEaten, room, granted));
         if (unlocked.Length == 0) return PerkEffects.None;
         return new PerkEffects
         {
@@ -172,10 +172,13 @@ public sealed class PerkRules
         return Enumerable.Range(0, shots).Select(index => (index - (shots - 1) / 2.0) * spread);
     }
 
-    private IEnumerable<PerkDefinition> Unlocked(int foodsEaten, IRoom? room)
+    /// <summary>The perks a snake has: those its foods earned and those it was given, that work here.</summary>
+    private IEnumerable<PerkDefinition> Unlocked(int foodsEaten, IRoom? room, IReadOnlyCollection<string>? granted = null)
     {
         var settings = _settings;
-        return settings.Enabled ? settings.Perks.Where(perk => perk.FoodsRequired <= foodsEaten && perk.AppliesTo(room)) : [];
+        return settings.Enabled
+            ? settings.Perks.Where(perk => (perk.FoodsRequired <= foodsEaten || granted?.Contains(perk.Id) == true) && perk.AppliesTo(room))
+            : [];
     }
 
     private static PerkEffectEntry[] Entries(IEnumerable<PerkDefinition> perks)

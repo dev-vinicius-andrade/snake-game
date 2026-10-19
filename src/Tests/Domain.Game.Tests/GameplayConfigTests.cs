@@ -22,7 +22,9 @@ public sealed class GameplayConfigTests
         var back = System.Text.Json.JsonSerializer.Deserialize<GameplayConfig>(json, GameplayConfig.Json)!;
         Assert.Equal(GameplayConfig.Defaults.Perks.Perks.Count, back.Perks.Perks.Count);
         Assert.Equal(PerkEffect.Magnet, back.Perks.Perks.First(perk => perk.Id == "magnet").Effects.Single().Effect);
-        Assert.Equal(GameplayConfig.Defaults.Prize, back.Prize);
+        var expected = GameplayConfig.Defaults.Prize.Prizes.Single();
+        var actual = back.Prize.Prizes.Single();
+        Assert.Equal((expected.Id, expected.Value, expected.SpawnIntervalSeconds, expected.Color), (actual.Id, actual.Value, actual.SpawnIntervalSeconds, actual.Color));
     }
 
     [Fact]
@@ -105,5 +107,78 @@ public sealed class GameplayConfigTests
         };
 
         Assert.False(config.Normalized().Perks.Perks.Single().Enabled);
+    }
+
+    [Fact]
+    public void Normalized_TheOldSinglePrizeBecomesAKind()
+    {
+        var config = new GameplayConfig { Prize = new PrizeOptions { Value = 55, SpawnIntervalSeconds = 33 } };
+
+        var kind = Assert.Single(config.Normalized().Prize.Prizes);
+
+        Assert.Equal("prize", kind.Id);
+        Assert.Equal(55, kind.Value);
+        Assert.Equal(33, kind.SpawnIntervalSeconds);
+    }
+
+    [Fact]
+    public void Normalized_AListOfKindsIsKeptAsItIs()
+    {
+        var config = new GameplayConfig { Prize = new PrizeOptions { Prizes = [new() { Id = "a", Name = "A" }, new() { Id = "b", Name = "B" }] } };
+
+        Assert.Equal(new[] { "a", "b" }, config.Normalized().Prize.Prizes.Select(kind => kind.Id));
+    }
+
+    [Fact]
+    public void Defaults_HaveOnePrizeKindWrittenOut()
+    {
+        Assert.Single(GameplayConfig.Defaults.Prize.Prizes);
+    }
+
+    [Fact]
+    public void EnsureValid_AKindThatGrantsAPerkNeedsThatPerkToExist()
+    {
+        var config = new GameplayConfig
+        {
+            Perks = new PerkOptions { Perks = [new() { Id = "real", Name = "Real", FoodsRequired = 5, Effect = PerkEffect.Magnet, Amount = 1 }] },
+            Prize = new PrizeOptions { Prizes = [new() { Id = "gift", Name = "Gift", GrantsPerk = "ghost" }] }
+        };
+
+        var failure = Assert.Throws<ArgumentException>(config.EnsureValid);
+
+        Assert.Contains("gift", failure.Message);
+        Assert.Contains("ghost", failure.Message);
+    }
+
+    [Fact]
+    public void EnsureValid_AKindThatGrantsAnExistingPerkIsFine()
+    {
+        var config = new GameplayConfig
+        {
+            Perks = new PerkOptions { Perks = [new() { Id = "real", Name = "Real", FoodsRequired = 5, Effect = PerkEffect.Magnet, Amount = 1 }] },
+            Prize = new PrizeOptions { Prizes = [new() { Id = "gift", Name = "Gift", GrantsPerk = "real" }] }
+        };
+
+        config.EnsureValid();
+    }
+
+    [Fact]
+    public void EnsureValid_AKindCanGrantAPerkOfTheBuiltInSetWhenNoListWasGiven()
+    {
+        var config = new GameplayConfig { Prize = new PrizeOptions { Prizes = [new() { Id = "gift", Name = "Gift", GrantsPerk = "magnet" }] } };
+
+        config.EnsureValid();
+    }
+
+    [Fact]
+    public void Json_WritesAndReadsTheKinds()
+    {
+        var config = new GameplayConfig { Prize = new PrizeOptions { Prizes = [new() { Id = "gift", Name = "Gift", Color = "#ff00aa", Value = 3, Rooms = ["R1"] }] } };
+
+        var back = System.Text.Json.JsonSerializer.Deserialize<GameplayConfig>(System.Text.Json.JsonSerializer.Serialize(config, GameplayConfig.Json), GameplayConfig.Json)!;
+
+        var kind = Assert.Single(back.Prize.Prizes);
+        Assert.Equal((("gift", "#ff00aa", 3L)), (kind.Id, kind.Color, kind.Value));
+        Assert.Equal(new[] { "R1" }, kind.Rooms);
     }
 }

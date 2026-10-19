@@ -49,16 +49,8 @@ public sealed record PerkDefinition
     /// <summary>True when the perk works in <paramref name="room"/> (null: no room is known).</summary>
     public bool AppliesTo(IRoom? room)
     {
-        if (!Enabled) return false;
-        if (room is not null && ExcludedRooms.Any(entry => Matches(entry, room))) return false;
-        if (Rooms.Count == 0) return !HasScript;
-        return room is not null && Rooms.Any(entry => Matches(entry, room));
+        return Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: HasScript);
     }
-
-    private static bool Matches(string entry, IRoom room)
-        => string.Equals(entry, room.Code, StringComparison.OrdinalIgnoreCase)
-           || string.Equals(entry, room.Name, StringComparison.OrdinalIgnoreCase)
-           || string.Equals(entry, room.Guid.ToString(), StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>Tunable perks. See docs/PERKS.md. Bound from the <c>PerkConfiguration</c> section.</summary>
@@ -95,12 +87,67 @@ public sealed record PerkOptions
     ];
 }
 
-/// <summary>Tunable prize: a rare, valuable item that appears on the map for snakes to fight over.</summary>
+/// <summary>One kind of prize: a rare, valuable item that appears on the map for snakes to fight over.</summary>
+public sealed record PrizeDefinition
+{
+    public string Id { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+
+    /// <summary>A kind that is switched off is kept in the list but never appears.</summary>
+    public bool Enabled { get; init; } = true;
+
+    /// <summary>Seconds from one prize of this kind being taken (or lost) to the next appearing.</summary>
+    public int SpawnIntervalSeconds { get; init; } = 60;
+
+    /// <summary>Seconds the prize stays on the map when nobody takes it.</summary>
+    public int LifetimeSeconds { get; init; } = 45;
+
+    /// <summary>Mass the snake gains by eating it.</summary>
+    public long Value { get; init; } = 20;
+
+    /// <summary>How many foods eating it counts for, toward perks.</summary>
+    public int FoodsCredit { get; init; } = 8;
+
+    /// <summary>Players needed in the room before a prize appears; alone there is nobody to fight with.</summary>
+    public int MinPlayers { get; init; } = 2;
+
+    /// <summary>The id of a perk the snake that eats it gets, whatever the foods it has eaten. Empty: none.</summary>
+    public string? GrantsPerk { get; init; }
+
+    /// <summary>How it looks: six hex digits such as #ffd23f.</summary>
+    public string Color { get; init; } = "#ffd23f";
+
+    /// <summary>The rooms the prize appears in. Empty: every room.</summary>
+    public List<string> Rooms { get; init; } = [];
+
+    /// <summary>Rooms it does not appear in. Wins over <see cref="Rooms"/>.</summary>
+    public List<string> ExcludedRooms { get; init; } = [];
+
+    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
+}
+
+/// <summary>Tunable prizes. See docs/PERKS.md. Bound from the <c>PrizeConfiguration</c> section.</summary>
 public sealed record PrizeOptions
 {
     public const string SectionName = "PrizeConfiguration";
 
+    /// <summary>Turns every prize off with one switch.</summary>
     public bool Enabled { get; init; } = true;
+
+    /// <summary>The kinds of prize. Left empty, the single prize of the fields below is used (older configs).</summary>
+    public List<PrizeDefinition> Prizes { get; init; } = [];
+
+    /// <summary>The kinds in force: the list, or the one the older fields below describe.</summary>
+    public IReadOnlyList<PrizeDefinition> Definitions()
+        => Prizes.Count > 0
+            ? Prizes
+            : [new PrizeDefinition
+            {
+                Id = "prize", Name = "Prize", SpawnIntervalSeconds = SpawnIntervalSeconds, LifetimeSeconds = LifetimeSeconds,
+                Value = Value, FoodsCredit = FoodsCredit, MinPlayers = MinPlayers
+            }];
+
+    // The fields of the single prize of older configs. New ones use Prizes.
 
     /// <summary>Seconds from one prize being taken (or lost) to the next appearing.</summary>
     public int SpawnIntervalSeconds { get; init; } = 60;

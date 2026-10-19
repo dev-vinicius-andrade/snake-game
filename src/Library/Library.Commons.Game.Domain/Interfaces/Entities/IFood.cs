@@ -12,5 +12,9 @@ public interface IFood:ITrackableId
     FoodKind Kind { get; }
     /// <summary>How many foods eating this counts for, toward perks.</summary>
     int FoodsCredit { get; }
+    /// <summary>The kind of prize it is, for a prize.</summary>
+    string? PrizeId { get; }
+    /// <summary>The id of a perk the snake that eats it gets, for a prize that gives one.</summary>
+    string? GrantsPerk { get; }
     
 }

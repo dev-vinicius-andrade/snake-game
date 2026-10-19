@@ -656,4 +656,57 @@ public sealed class PerkRulesTests
             Perks = [new PerkDefinition { Id = "s", FoodsRequired = 1, Script = "function modify( {", Enabled = false }]
         }));
     }
+
+    [Fact]
+    public void Granted_APerkIsHadWithoutTheFoodsWhenItWasGiven()
+    {
+        var rules = new PerkRules(new PerkOptions { Perks = [Multi("big", 50, Entry(PerkEffect.ExtraShots, 2))] });
+
+        Assert.Empty(rules.UnlockedIds(0));
+        Assert.Equal(new[] { "big" }, rules.UnlockedIds(0, null, ["big"]));
+        Assert.Equal(2, rules.EffectsFor(0, null, ["big"]).ExtraShots);
+    }
+
+    [Fact]
+    public void Granted_NotWhenThePerkIsSwitchedOff()
+    {
+        var rules = new PerkRules(new PerkOptions { Perks = [new PerkDefinition { Id = "x", FoodsRequired = 50, Effect = PerkEffect.Magnet, Amount = 9, Enabled = false }] });
+
+        Assert.Empty(rules.UnlockedIds(0, null, ["x"]));
+    }
+
+    [Fact]
+    public void Granted_NotInARoomThePerkIsNotFor()
+    {
+        var rules = new PerkRules(new PerkOptions { Perks = [new PerkDefinition { Id = "x", FoodsRequired = 50, Effect = PerkEffect.Magnet, Amount = 9, Rooms = ["ABC234"] }] });
+
+        Assert.Equal(new[] { "x" }, rules.UnlockedIds(0, Room(code: "ABC234"), ["x"]));
+        Assert.Empty(rules.UnlockedIds(0, Room(code: "OTHER1"), ["x"]));
+    }
+
+    [Fact]
+    public void Granted_APerkThatDoesNotExistIsIgnored()
+    {
+        var rules = new PerkRules(new PerkOptions());
+
+        Assert.Empty(rules.UnlockedIds(0, null, ["ghost"]));
+    }
+
+    [Fact]
+    public void Granted_ListsEachPerkOnce()
+    {
+        var rules = new PerkRules(new PerkOptions { Perks = [Multi("big", 5, Entry(PerkEffect.ExtraShots, 1))] });
+
+        Assert.Equal(new[] { "big" }, rules.UnlockedIds(10, null, ["big", "big"]));
+    }
+
+    [Fact]
+    public void Granted_ScriptsRunForAGrantedPerkToo()
+    {
+        var rules = WithPerks(new PerkDefinition { Id = "s", Name = "s", FoodsRequired = 99, Script = "function modify() { return { extraShots: 2 }; }", Rooms = ["ABC234"] });
+
+        Assert.Equal(2, rules.EffectsFor(0, Room(code: "ABC234"), Here, ["s"]).ExtraShots);
+        Assert.True(rules.HasScripts(0, Room(code: "ABC234"), ["s"]));
+        Assert.False(rules.HasScripts(0, Room(code: "ABC234")));
+    }
 }

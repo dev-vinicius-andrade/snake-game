@@ -10,4 +10,6 @@ internal record Food(Guid Guid) :IFood
     public long Value { get; init; } = 1;
     public FoodKind Kind { get; init; } = FoodKind.Normal;
     public int FoodsCredit { get; init; } = 1;
+    public string? PrizeId { get; init; }
+    public string? GrantsPerk { get; init; }
 }

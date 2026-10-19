@@ -7,14 +7,15 @@ using Library.Commons.Game.Domain.Interfaces.Entities;
 
 namespace Domain.Game.Services;
 
-/// <summary>Puts the prize on the map of a room when it is due and takes it off when nobody claimed it in time.</summary>
+/// <summary>
+/// Puts prizes on the map of a room when they are due and takes them off when nobody claimed them in time. Each kind of prize has
+/// its own timing, and there is at most one of each kind on a map.
+/// </summary>
 public sealed class PrizeSpawner
 {
-    private const string PrizeColor = "#ffd23f";
-
     private readonly PrizeRules _rules;
     private readonly TimeProvider _time;
-    private readonly ConcurrentDictionary<Guid, PrizeState> _states = new();
+    private readonly ConcurrentDictionary<(Guid Room, string Kind), PrizeState> _states = new();
 
     public PrizeSpawner(PrizeRules rules, TimeProvider time)
     {
@@ -31,43 +32,56 @@ public sealed class PrizeSpawner
         var roomId = gameState.Room.Guid;
         if (gameState.Players.Count == 0)
         {
-            RemovePrizes(gameState);
-            _states.TryRemove(roomId, out _);
+            RemovePrizes(gameState, _ => true);
+            ForgetStates(roomId, _ => true);
             return;
         }
 
-        var state = _states.GetValueOrDefault(roomId, PrizeState.None);
-        var step = _rules.Step(state, _time.GetUtcNow(), HasPrize(gameState), gameState.Players.Count);
-        _states[roomId] = step.State;
-        Apply(gameState, step.Action);
+        var active = _rules.Options.Enabled
+            ? _rules.Definitions.Where(definition => definition.AppliesTo(gameState.Room)).ToArray()
+            : [];
+        var activeIds = active.Select(definition => definition.Id).ToHashSet();
+        RemovePrizes(gameState, food => food.PrizeId is null || !activeIds.Contains(food.PrizeId));
+        ForgetStates(roomId, kind => !activeIds.Contains(kind));
+        foreach (var definition in active) Step(gameState, definition);
     }
 
-    private void Apply(IGameState gameState, PrizeAction action)
+    private void Step(IGameState gameState, PrizeDefinition definition)
     {
-        if (action == PrizeAction.Spawn) AddPrize(gameState);
-        else if (action == PrizeAction.Expire) RemovePrizes(gameState);
+        var key = (gameState.Room.Guid, definition.Id);
+        var state = _states.GetValueOrDefault(key, PrizeState.None);
+        var step = _rules.Step(definition, state, _time.GetUtcNow(), HasPrize(gameState, definition.Id), gameState.Players.Count);
+        _states[key] = step.State;
+        if (step.Action == PrizeAction.Spawn) AddPrize(gameState, definition);
+        else if (step.Action == PrizeAction.Expire) RemovePrizes(gameState, food => food.PrizeId == definition.Id);
     }
 
-    private static bool HasPrize(IGameState gameState)
-        => gameState.Foods.Values.Any(food => food.Kind == FoodKind.Prize);
-
-    private static void RemovePrizes(IGameState gameState)
+    private void ForgetStates(Guid roomId, Func<string, bool> forget)
     {
-        var prizes = gameState.Foods.Values.Where(food => food.Kind == FoodKind.Prize).Select(food => food.Guid).ToArray();
+        foreach (var key in _states.Keys.Where(key => key.Room == roomId && forget(key.Kind)).ToArray()) _states.TryRemove(key, out _);
+    }
+
+    private static bool HasPrize(IGameState gameState, string kind)
+        => gameState.Foods.Values.Any(food => food.Kind == FoodKind.Prize && food.PrizeId == kind);
+
+    private static void RemovePrizes(IGameState gameState, Func<IFood, bool> which)
+    {
+        var prizes = gameState.Foods.Values.Where(food => food.Kind == FoodKind.Prize && which(food)).Select(food => food.Guid).ToArray();
         foreach (var id in prizes) gameState.Foods.Remove(id);
     }
 
-    private void AddPrize(IGameState gameState)
+    private static void AddPrize(IGameState gameState, PrizeDefinition definition)
     {
         var room = gameState.Room;
-        var options = _rules.Options;
         var prize = new Food(Guid.NewGuid())
         {
             Position = RandomHelper.RandomPosition(0, room.Width, 0, room.Height),
-            Color = new Color(PrizeColor, PrizeColor),
-            Value = options.Value,
+            Color = new Color(definition.Color, definition.Color),
+            Value = definition.Value,
             Kind = FoodKind.Prize,
-            FoodsCredit = options.FoodsCredit
+            FoodsCredit = definition.FoodsCredit,
+            PrizeId = definition.Id,
+            GrantsPerk = string.IsNullOrWhiteSpace(definition.GrantsPerk) ? null : definition.GrantsPerk,
         };
         gameState.Foods.Add(prize.Guid, prize);
     }

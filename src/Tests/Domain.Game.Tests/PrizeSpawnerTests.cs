@@ -173,4 +173,107 @@ public sealed class PrizeSpawnerTests
         Assert.Equal(99, prize.Value);
         Assert.Equal(2, prize.FoodsCredit);
     }
+
+    private static PrizeDefinition Kind(string id, int interval = 60, long value = 20, string? perk = null, string color = "#ffd23f", params string[] rooms)
+        => new() { Id = id, Name = id, SpawnIntervalSeconds = interval, LifetimeSeconds = 30, Value = value, MinPlayers = 1, GrantsPerk = perk, Color = color, Rooms = rooms.ToList() };
+
+    private PrizeSpawner SpawnerWith(params PrizeDefinition[] kinds)
+    {
+        var rules = new PrizeRules(new PrizeOptions { Prizes = kinds.ToList() });
+        return new PrizeSpawner(rules, _time);
+    }
+
+    [Fact]
+    public void Update_SeveralKindsAppearOnTheirOwnTimes()
+    {
+        AddPlayers(1);
+        var spawner = SpawnerWith(Kind("fast", interval: 10), Kind("slow", interval: 100));
+        spawner.Update(_state);
+
+        _time.Now = _time.Now.AddSeconds(10);
+        spawner.Update(_state);
+        Assert.Equal(new[] { "fast" }, Prizes().Select(food => food.PrizeId).ToArray());
+
+        // The fast one ran out after its 30 seconds; the slow one is due now.
+        _time.Now = _time.Now.AddSeconds(90);
+        spawner.Update(_state);
+        Assert.Equal(new[] { "slow" }, Prizes().Select(food => food.PrizeId).ToArray());
+    }
+
+    [Fact]
+    public void Update_AKindThatGrantsAPerkCarriesItAndItsColour()
+    {
+        AddPlayers(1);
+        var spawner = SpawnerWith(Kind("gift", perk: "magnet", color: "#ff00aa"));
+        spawner.Update(_state);
+
+        _time.Now = _time.Now.AddSeconds(60);
+        spawner.Update(_state);
+
+        var prize = Assert.Single(Prizes());
+        Assert.Equal("magnet", prize.GrantsPerk);
+        Assert.Equal("#ff00aa", prize.Color.FillColor);
+        Assert.Equal("gift", prize.PrizeId);
+    }
+
+    [Fact]
+    public void Update_OnlyOnePrizeOfAKindAtATime_ButDifferentKindsTogether()
+    {
+        AddPlayers(1);
+        var spawner = SpawnerWith(Kind("a", interval: 10), Kind("b", interval: 10));
+        spawner.Update(_state);
+
+        _time.Now = _time.Now.AddSeconds(10);
+        spawner.Update(_state);
+        _time.Now = _time.Now.AddSeconds(5);
+        spawner.Update(_state);
+
+        Assert.Equal(2, Prizes().Length);
+    }
+
+    [Fact]
+    public void Update_AKindForCertainRoomsOnlyAppearsThere()
+    {
+        AddPlayers(1);
+        var spawner = SpawnerWith(Kind("here", interval: 10, rooms: _state.Room.Guid.ToString()), Kind("there", interval: 10, rooms: Guid.NewGuid().ToString()));
+        spawner.Update(_state);
+
+        _time.Now = _time.Now.AddSeconds(10);
+        spawner.Update(_state);
+
+        Assert.Equal(new[] { "here" }, Prizes().Select(food => food.PrizeId).ToArray());
+    }
+
+    [Fact]
+    public void Update_AKindThatIsSwitchedOffOrRemovedTakesItsPrizeOffTheMap()
+    {
+        AddPlayers(1);
+        var rules = new PrizeRules(new PrizeOptions { Prizes = [Kind("a", interval: 10), Kind("b", interval: 10)] });
+        var spawner = new PrizeSpawner(rules, _time);
+        spawner.Update(_state);
+        _time.Now = _time.Now.AddSeconds(10);
+        spawner.Update(_state);
+        Assert.Equal(2, Prizes().Length);
+
+        rules.Reconfigure(new PrizeOptions { Prizes = [Kind("a", interval: 10)] });
+        spawner.Update(_state);
+
+        Assert.Equal(new[] { "a" }, Prizes().Select(food => food.PrizeId).ToArray());
+    }
+
+    [Fact]
+    public void Update_AllPrizesOffTakesThemAllOffTheMap()
+    {
+        AddPlayers(1);
+        var rules = new PrizeRules(new PrizeOptions { Prizes = [Kind("a", interval: 10)] });
+        var spawner = new PrizeSpawner(rules, _time);
+        spawner.Update(_state);
+        _time.Now = _time.Now.AddSeconds(10);
+        spawner.Update(_state);
+
+        rules.Reconfigure(new PrizeOptions { Enabled = false, Prizes = [Kind("a", interval: 10)] });
+        spawner.Update(_state);
+
+        Assert.Empty(Prizes());
+    }
 }

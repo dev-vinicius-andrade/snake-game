@@ -26,6 +26,9 @@ public interface IPlayer : IId, ITrackableId
     int FoodsEaten { get; set; }
     /// <summary>Ids of the perks the snake has, in the order they were earned.</summary>
     IList<string> Perks { get; set; }
+    /// <summary>Ids of perks the snake was given, for example by a prize, whatever the foods it has eaten. Lost with the snake.</summary>
+    [JsonIgnore]
+    IList<string> GrantedPerks { get; set; }
     /// <summary>True when a perk lets the snake keep shooting while the shoot control is held.</summary>
     bool AutoFire { get; set; }
     /// <summary>Shots of a burst still to fire.</summary>

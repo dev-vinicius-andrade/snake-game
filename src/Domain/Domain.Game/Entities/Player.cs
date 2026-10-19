@@ -20,6 +20,8 @@ internal record Player(Guid Guid, string Name) : IPlayer
     public IList<double> SegmentHealth { get; set; } = new List<double>();
     public int FoodsEaten { get; set; }
     public IList<string> Perks { get; set; } = new List<string>();
+    [JsonIgnore]
+    public IList<string> GrantedPerks { get; set; } = new List<string>();
     public bool AutoFire { get; set; }
     [JsonIgnore]
     public int BurstRemaining { get; set; }

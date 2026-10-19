@@ -142,11 +142,11 @@ public sealed class GameStateServiceTests
         return shot;
     }
 
-    private void AddFood(double x, double y, long value, FoodKind kind = FoodKind.Normal, int credit = 1)
+    private void AddFood(double x, double y, long value, FoodKind kind = FoodKind.Normal, int credit = 1, string? grants = null)
     {
         var food = new Food(Guid.NewGuid())
         {
-            Position = At(x, y), Color = new Color("#00ff00", "#00ff00"), Value = value, Kind = kind, FoodsCredit = credit
+            Position = At(x, y), Color = new Color("#00ff00", "#00ff00"), Value = value, Kind = kind, FoodsCredit = credit, GrantsPerk = grants
         };
         _state.Foods.Add(food.Guid, food);
     }
@@ -1189,5 +1189,44 @@ public sealed class GameStateServiceTests
         await service.CheckObstacleCollision(_state, armored);
 
         Assert.Equal((1 - plain.SegmentHealth[2]) / 2, 1 - armored.SegmentHealth[2], 6);
+    }
+
+    [Fact]
+    public async Task CheckFoodCollision_APrizeThatGrantsAPerk_GivesItWhateverTheFoods()
+    {
+        var player = AddPlayer("a", 500, 500, score: 5);
+        AddFood(500, 500, 10, FoodKind.Prize, credit: 0, grants: "twin");
+
+        await _service.CheckFoodCollision(_state, player);
+
+        Assert.Contains("twin", player.GrantedPerks);
+        Assert.Contains("twin", player.Perks);
+        Assert.Equal(0, player.FoodsEaten);
+        await _service.Shoot(_state, _room, player);
+        Assert.Equal(2, _state.Obstacles.Count);
+    }
+
+    [Fact]
+    public async Task CheckFoodCollision_APerkIsGrantedOnce()
+    {
+        var player = AddPlayer("a", 500, 500);
+        AddFood(500, 500, 1, FoodKind.Prize, credit: 0, grants: "twin");
+        await _service.CheckFoodCollision(_state, player);
+        AddFood(500, 500, 1, FoodKind.Prize, credit: 0, grants: "twin");
+
+        await _service.CheckFoodCollision(_state, player);
+
+        Assert.Single(player.GrantedPerks);
+    }
+
+    [Fact]
+    public async Task CheckFoodCollision_APrizeWithoutAGrantGivesNoPerk()
+    {
+        var player = AddPlayer("a", 500, 500);
+        AddFood(500, 500, 1, FoodKind.Prize, credit: 0);
+
+        await _service.CheckFoodCollision(_state, player);
+
+        Assert.Empty(player.GrantedPerks);
     }
 }

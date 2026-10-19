@@ -36,7 +36,8 @@ public sealed record GameplayConfig
         Perks = Perks with
         {
             Perks = Perks.Perks.Select(perk => perk with { Effects = perk.AllEffects().ToList(), Effect = null, Amount = 0 }).ToList()
-        }
+        },
+        Prize = Prize with { Prizes = Prize.Definitions().ToList() }
     };
 
     /// <summary>Throws when the perks or the prize could not run.</summary>
@@ -44,7 +45,16 @@ public sealed record GameplayConfig
     {
         _ = new PerkRules(Perks);
         _ = new PrizeRules(Prize);
+        EnsurePerksGrantedExist();
         _ = new RoomLifetimeSettings(Rooms);
+    }
+
+    /// <summary>A prize can only give a perk that is in the list (the built-in set when no list was given).</summary>
+    private void EnsurePerksGrantedExist()
+    {
+        var known = (Perks.Perks.Count > 0 ? Perks.Perks : PerkOptions.BuiltIn).Select(perk => perk.Id).ToHashSet();
+        foreach (var prize in Prize.Definitions().Where(prize => !string.IsNullOrWhiteSpace(prize.GrantsPerk) && !known.Contains(prize.GrantsPerk!)))
+            throw new ArgumentException($"Prize '{prize.Id}' gives the perk '{prize.GrantsPerk}', which does not exist.");
     }
 }
 
