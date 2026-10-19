@@ -30,7 +30,7 @@ const food = (x: number, y: number, kind: "normal" | "prize" = "prize"): FoodSna
   kind,
 });
 
-const frame = (snakes: SnakeSnapshot[], foods: FoodSnapshot[]): GameSnapshot => ({ room, snakes, foods, shots: [], strikes: [], boss: null });
+const frame = (snakes: SnakeSnapshot[], foods: FoodSnapshot[]): GameSnapshot => ({ room, snakes, foods, shots: [], strikes: [], boss: null, zone: null });
 
 describe("prizeCompass", () => {
   it("points at the prize and says how far it is", () => {

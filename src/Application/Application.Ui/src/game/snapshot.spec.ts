@@ -75,6 +75,48 @@ describe("parseSnapshot", () => {
     expect(parseSnapshot(raw)!.strikes).toEqual([{ guid: "3,4", kind: "lightning", position: { x: 3, y: 4 }, radius: 50, msLeft: 0 }]);
   });
 
+  it("has no zone when the server sends none", () => {
+    expect(parseSnapshot(fixture)!.zone).toBeNull();
+  });
+
+  it("reads the safe zone: where, how far it reaches now and at the end, the phase and the time left in it", () => {
+    const raw = clone(fixture) as any;
+    raw.zone = { x: 300, y: 400, r: 812, f: 160, p: 1, t: 4321 };
+
+    expect(parseSnapshot(raw)!.zone).toEqual({
+      position: { x: 300, y: 400 },
+      radius: 812,
+      finalRadius: 160,
+      phase: "closing",
+      msLeft: 4321,
+    });
+  });
+
+  it("names the phases of the zone", () => {
+    const raw = clone(fixture) as any;
+    const phases = [0, 1, 2, 7, undefined].map((p) => {
+      raw.zone = { x: 1, y: 2, r: 100, f: 50, p, t: 10 };
+      return parseSnapshot(raw)!.zone!.phase;
+    });
+
+    expect(phases).toEqual(["warning", "closing", "holding", "warning", "warning"]);
+  });
+
+  it("ignores a zone that is not usable", () => {
+    const raw = clone(fixture) as any;
+    for (const zone of ["nope", { x: 1 }, { x: 1, y: 2, r: 0, f: 50, p: 1, t: 1 }, { x: "1", y: 2, r: 5, f: 50, p: 1, t: 1 }]) {
+      raw.zone = zone;
+      expect(parseSnapshot(raw)!.zone).toBeNull();
+    }
+  });
+
+  it("falls back to the radius it has when it does not say where it ends, and to no time left", () => {
+    const raw = clone(fixture) as any;
+    raw.zone = { x: 1, y: 2, r: 100, p: 2 };
+
+    expect(parseSnapshot(raw)!.zone).toMatchObject({ finalRadius: 100, msLeft: 0 });
+  });
+
   it("has no boss when the server sends none", () => {
     expect(parseSnapshot(fixture)!.boss).toBeNull();
   });

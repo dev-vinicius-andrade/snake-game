@@ -10,6 +10,7 @@ import type {
   SnakeDirection,
   SnakeSnapshot,
   StrikeSnapshot,
+  ZoneSnapshot,
 } from "@/types/game";
 
 type Dictionary = Record<string, unknown>;
@@ -123,6 +124,20 @@ function parseBoss(boss: unknown): BossSnapshot | null {
   };
 }
 
+const ZONE_PHASES = ["warning", "closing", "holding"] as const;
+
+/** The safe zone: where (`x`, `y`), how far it reaches now (`r`) and at the end (`f`), the phase (`p`: 0, 1, 2) and the time left in it (`t`). */
+function parseZone(zone: unknown): ZoneSnapshot | null {
+  if (!isDictionary(zone) || !isFinite(zone.x) || !isFinite(zone.y) || !isFinite(zone.r) || zone.r <= 0) return null;
+  return {
+    position: { x: zone.x, y: zone.y },
+    radius: zone.r,
+    finalRadius: isFinite(zone.f) && zone.f > 0 ? zone.f : zone.r,
+    phase: ZONE_PHASES[isFinite(zone.p) ? Math.floor(zone.p) : 0] ?? "warning",
+    msLeft: isFinite(zone.t) ? Math.max(0, zone.t) : 0,
+  };
+}
+
 export function parseRoomSize(raw: unknown): RoomDimensions | null {
   if (!isDictionary(raw) || !isFinite(raw.width) || !isFinite(raw.height)) return null;
   return raw.width > 0 && raw.height > 0 ? { width: raw.width, height: raw.height } : null;
@@ -142,6 +157,7 @@ export function parseSnapshot(raw: unknown): GameSnapshot | null {
     shots: asList(raw.shots).map(parseShot).filter((s): s is ShotSnapshot => s !== null),
     strikes: asList(raw.strikes).map(parseStrike).filter((s): s is StrikeSnapshot => s !== null),
     boss: parseBoss(raw.boss),
+    zone: parseZone(raw.zone),
   };
 }
 

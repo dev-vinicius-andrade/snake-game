@@ -278,6 +278,12 @@ export const messages = {
     prize: "Prêmio",
     lightning: { warning: "Raio a caminho!", danger: "Raio! Saia do círculo!" },
     boss: { name: "Torre" },
+    zone: {
+      warning: "Zona segura em {seconds}s: vá para o círculo",
+      closing: "A zona segura está fechando: fique dentro",
+      holding: "Fique dentro do círculo",
+      outside: "Fora da zona segura! Você está perdendo massa: entre!",
+    },
     meteor: { warning: "Meteoros a caminho!", danger: "Meteoro! Saia do círculo!" },
     mouseAimOn: "Mira com o mouse: ligada",
     mouseAimOff: "Mira com o mouse: desligada",

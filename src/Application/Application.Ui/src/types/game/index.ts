@@ -85,6 +85,21 @@ export interface BossSnapshot {
   arms: number;
 }
 
+export type ZonePhase = "warning" | "closing" | "holding";
+
+/** The safe zone: a circle snakes had better be in. It first only shows where it will end up, then closes in on it. */
+export interface ZoneSnapshot {
+  /** The middle of it, in world units. */
+  position: GamePoint;
+  /** How far from the middle it reaches now. While it only warns it covers the whole room. */
+  radius: number;
+  /** How far it will reach when it has closed. */
+  finalRadius: number;
+  phase: ZonePhase;
+  /** Milliseconds left in the phase when the snapshot was sent. */
+  msLeft: number;
+}
+
 export type DamageKind = "hit" | "broke" | "kill";
 
 /** A shot did damage: sent to the shooter and to the snake that was hit. */
@@ -122,6 +137,8 @@ export interface GameSnapshot {
   strikes: StrikeSnapshot[];
   /** The boss in the room, or null. */
   boss: BossSnapshot | null;
+  /** The safe zone of the room, or null. */
+  zone: ZoneSnapshot | null;
 }
 
 export interface LeaderboardEntry {

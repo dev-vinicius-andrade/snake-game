@@ -1,4 +1,4 @@
-import type { BossSnapshot, FloatingDamage, FoodSnapshot, GamePoint, GameSnapshot, RoomDimensions, ShotSnapshot, SnakeSnapshot } from "@/types/game";
+import type { BossSnapshot, ZoneSnapshot, FloatingDamage, FoodSnapshot, GamePoint, GameSnapshot, RoomDimensions, ShotSnapshot, SnakeSnapshot } from "@/types/game";
 import { GLYPH_HEIGHT, GLYPH_WIDTH, damageColor as damageNumberColor, damageLabel, damagePosition, glyphFor, isVisible } from "./damageNumbers";
 import { armPixels, hpBarPixels } from "./boss";
 import { discPoints, discRows, ringPoints, type StrikeRing, type StrikeFlash, type StrikeView } from "./strikes";
@@ -273,6 +273,29 @@ function drawStrikeFlash(painter: Painter, view: StrikeView, pixelSize: number) 
     else drawLightningFlash(painter, flash, pixelSize);
 }
 
+export const ZONE_RING_COLOR = "#5fd0ff";
+export const ZONE_FINAL_COLOR = "#2a8fb5";
+export const ZONE_DANGER_COLOR = "#6b1d2a";
+/** How many rows of pixels the danger tint reaches outside the edge, and how far from the edge it starts. */
+const ZONE_DANGER_FROM = 2;
+const ZONE_DANGER_TO = 5;
+
+/**
+ * The safe zone. While it warns only the safe spot is marked, a dashed circle: the zone itself covers the whole room. Once it
+ * closes its edge is a ring, the ground just outside it is tinted in dots, and the spot where it will end up stays marked.
+ */
+function drawZone(painter: Painter, zone: ZoneSnapshot, pixelSize: number) {
+  ringPoints(zone.position, zone.finalRadius, pixelSize).forEach((point, index) => {
+    if (index % 2 === 0) painter.block(ZONE_FINAL_COLOR, point, 1);
+  });
+  if (zone.phase === "warning") return;
+  for (let row = ZONE_DANGER_FROM; row <= ZONE_DANGER_TO; row++)
+    ringPoints(zone.position, zone.radius + row * pixelSize, pixelSize).forEach((point, index) => {
+      if ((index + row) % 2 === 0) painter.block(ZONE_DANGER_COLOR, point, 1);
+    });
+  ringPoints(zone.position, zone.radius, pixelSize).forEach((point) => painter.block(ZONE_RING_COLOR, point, 1));
+}
+
 export const BOSS_BODY_COLOR = "#3b2f4a";
 const BOSS_CORE_COLOR = "#ff9ab0";
 export const BOSS_BARREL_COLOR = "#c9b6e8";
@@ -374,6 +397,7 @@ export function drawFrame(ctx: PixelContext, snapshot: GameSnapshot, options: Re
 
   if (options.strikes) drawStrikeWarning(painter, options.strikes, pixelSize, options.timeMs ?? 0);
   snapshot.foods.forEach((food) => drawFood(painter, food, options.timeMs ?? 0));
+  if (snapshot.zone) drawZone(painter, snapshot.zone, pixelSize);
   if (snapshot.boss) drawBoss(painter, snapshot.boss, pixelSize);
   snapshot.shots.forEach((shot) => drawShot(painter, shot, snapshot.boss?.guid));
   const living = snapshot.snakes.filter((snake) => snake.isAlive);

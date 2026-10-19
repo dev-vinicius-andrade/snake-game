@@ -35,7 +35,7 @@ function snake(headX: number, headY: number, overrides: Partial<SnakeSnapshot> =
   };
 }
 
-const frame = (parts: Partial<GameSnapshot>): GameSnapshot => ({ room, snakes: [], foods: [], shots: [], strikes: [], boss: null, ...parts });
+const frame = (parts: Partial<GameSnapshot>): GameSnapshot => ({ room, snakes: [], foods: [], shots: [], strikes: [], boss: null, zone: null, ...parts });
 
 describe("bossCompass", () => {
   it("is null without a boss", () => {

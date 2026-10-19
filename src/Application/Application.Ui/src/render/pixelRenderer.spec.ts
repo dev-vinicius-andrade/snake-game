@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { BossSnapshot, FloatingDamage, FoodSnapshot, GameSnapshot, ShotSnapshot, SnakeSnapshot } from "@/types/game";
+import type { BossSnapshot, FloatingDamage, FoodSnapshot, GameSnapshot, ShotSnapshot, SnakeSnapshot, ZoneSnapshot } from "@/types/game";
 import {
   BOSS_BAR_GOOD_COLOR,
+  ZONE_DANGER_COLOR,
+  ZONE_FINAL_COLOR,
+  ZONE_RING_COLOR,
   BOSS_BAR_HURT_COLOR,
   BOSS_BAR_LOW_COLOR,
   BOSS_BARREL_COLOR,
@@ -57,7 +60,7 @@ function snake(overrides: Partial<SnakeSnapshot> = {}): SnakeSnapshot {
 }
 
 function snapshot(parts: Partial<GameSnapshot> = {}): GameSnapshot {
-  return { room, snakes: [], foods: [], shots: [], strikes: [], boss: null, ...parts };
+  return { room, snakes: [], foods: [], shots: [], strikes: [], boss: null, zone: null, ...parts };
 }
 
 const food = (value = 1, x = 100, y = 50): FoodSnapshot => ({
@@ -401,6 +404,71 @@ describe("drawFrame", () => {
       drawFrame(ctx, snapshot(), { strikes: view, timeMs: 0 });
 
       expect(styled(LIGHTNING_RING_COLOR).length).toBeGreaterThan(40);
+    });
+  });
+
+  describe("safe zone", () => {
+    const zone = (overrides: Partial<ZoneSnapshot> = {}): ZoneSnapshot => ({
+      position: { x: 960, y: 540 },
+      radius: 300,
+      finalRadius: 160,
+      phase: "closing",
+      msLeft: 10000,
+      ...overrides,
+    });
+    const styled = (style: string) => ctx.calls.filter((call) => call.style === style);
+    const distance = (call: { x: number; y: number }) => Math.hypot(call.x * 5 - 960, call.y * 5 - 540);
+
+    it("draws nothing without a zone", () => {
+      drawFrame(ctx, snapshot());
+
+      expect(styled(ZONE_RING_COLOR)).toHaveLength(0);
+      expect(styled(ZONE_FINAL_COLOR)).toHaveLength(0);
+    });
+
+    it("only marks the safe spot while it warns: a dashed circle at the final radius, no ring and no danger", () => {
+      drawFrame(ctx, snapshot({ zone: zone({ phase: "warning", radius: 700 }) }), { timeMs: 0 });
+
+      const marks = styled(ZONE_FINAL_COLOR);
+      expect(marks.length).toBeGreaterThan(20);
+      marks.forEach((call) => expect(Math.abs(distance(call) - 160)).toBeLessThanOrEqual(8));
+      expect(styled(ZONE_RING_COLOR)).toHaveLength(0);
+      expect(styled(ZONE_DANGER_COLOR)).toHaveLength(0);
+    });
+
+    it("draws the edge of the zone while it closes, with the final circle inside it", () => {
+      drawFrame(ctx, snapshot({ zone: zone() }), { timeMs: 0 });
+
+      const ring = styled(ZONE_RING_COLOR);
+      expect(ring.length).toBeGreaterThan(100);
+      ring.forEach((call) => expect(Math.abs(distance(call) - 300)).toBeLessThanOrEqual(8));
+      expect(styled(ZONE_FINAL_COLOR).length).toBeGreaterThan(20);
+    });
+
+    it("tints the ground just outside the edge as danger, in dots, and never inside", () => {
+      drawFrame(ctx, snapshot({ zone: zone() }), { timeMs: 0 });
+
+      const danger = styled(ZONE_DANGER_COLOR);
+      expect(danger.length).toBeGreaterThan(100);
+      danger.forEach((call) => {
+        expect(distance(call)).toBeGreaterThan(300);
+        expect(distance(call)).toBeLessThan(300 + 40);
+      });
+    });
+
+    it("keeps the edge at the final radius while it holds, and needs no second circle", () => {
+      drawFrame(ctx, snapshot({ zone: zone({ phase: "holding", radius: 160 }) }), { timeMs: 0 });
+
+      const ring = styled(ZONE_RING_COLOR);
+      expect(ring.length).toBeGreaterThan(20);
+      ring.forEach((call) => expect(Math.abs(distance(call) - 160)).toBeLessThanOrEqual(8));
+    });
+
+    it("draws the zone under the snakes", () => {
+      drawFrame(ctx, snapshot({ zone: zone(), snakes: [snake({ path: [{ x: 960, y: 240 }] })] }), { timeMs: 0 });
+
+      const styles = ctx.calls.map((call) => call.style);
+      expect(styles.lastIndexOf(ZONE_RING_COLOR)).toBeLessThan(styles.lastIndexOf(headColor("#00ff00")));
     });
   });
 
