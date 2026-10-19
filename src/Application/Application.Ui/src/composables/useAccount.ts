@@ -92,7 +92,7 @@ export interface Availability {
   username: string;
 }
 
-const axiosHttp: AccountHttp = {
+export const axiosHttp: AccountHttp = {
   async request({ method, url, body, token }) {
     const response = await axios.request({
       method,
@@ -112,6 +112,26 @@ function defaultStorage(): AccountStorage | undefined {
     return undefined;
   }
 }
+
+/** The device token kept by a past sign in, or null. Other composables (join, profile) read it from here. */
+export function readStoredAccountToken(storage: AccountStorage | undefined = defaultStorage()): string | null {
+  try {
+    return storage?.getItem(ACCOUNT_TOKEN_STORAGE_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearStoredAccountToken(storage: AccountStorage | undefined = defaultStorage()) {
+  try {
+    storage?.removeItem(ACCOUNT_TOKEN_STORAGE_KEY);
+  } catch {
+    // Nothing to clear without storage.
+  }
+}
+
+/** True after the manager refused the stored token (a join or the profile said invalidToken); cleared by the next sign in. */
+export const tokenRejected = shallowRef(false);
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
@@ -185,6 +205,7 @@ export function useAccount(options: UseAccountOptions = {}) {
     if (typeof issued !== "string" || !issued) throw new AccountError("unavailable");
     account.value = toInfo(data);
     writeToken(issued);
+    tokenRejected.value = false;
     error.value = null;
     status.value = "signedIn";
   }
