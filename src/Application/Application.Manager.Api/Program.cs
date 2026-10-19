@@ -1,4 +1,5 @@
 
+using Application.Manager.Api.Accounts;
 using Application.Manager.Api.Entities.Configurations;
 using Application.Manager.Api.Hubs;
 using Application.Manager.Api.Gameplay;
@@ -58,6 +59,7 @@ namespace Application.Manager.Api
             services.AddSingleton<RoomAdminService>();
             services.AddSingleton(provider => new GameplayConfigStore(
                 configuration["GameplayConfiguration:StorePath"], provider.GetRequiredService<ILoggerFactory>().CreateLogger<GameplayConfigStore>()));
+            services.AddAccounts(configuration);
             services.AddHostedService<RoomRegistryPruneService>();
             
 
