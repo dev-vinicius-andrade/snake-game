@@ -1,0 +1,55 @@
+name: Release
+
+# Makes the next version number and deploys it. Run it from the Actions tab, on main.
+#   patch (the default): 1.0.4 -> 1.0.5, for every ordinary change
+#   minor: 1.0.4 -> 1.1.0, for something new      major: 1.0.4 -> 2.0.0, for a break
+# Or skip this and tag by hand: git tag v1.0.5 && git push origin v1.0.5 (deploy.yml starts on its own).
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version goes up
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+    steps:
+      - name: Only from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Release from main, not from ${{ github.ref_name }}."
+          exit 1
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: next
+        run: |
+          version=$(git tag -l 'v*' | bash deploy/homelab/ci/next-version.sh "${{ inputs.bump }}")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Next version: $version"
+
+      - name: Create the tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ steps.next.outputs.version }}" -m "Release ${{ steps.next.outputs.version }}"
+          git push origin "v${{ steps.next.outputs.version }}"
+
+  deploy:
+    name: Deploy
+    needs: tag
+    uses: ./.github/workflows/deploy.yml
+    with:
+      version: ${{ needs.tag.outputs.version }}
+    secrets: inherit

@@ -48,8 +48,13 @@ load_env_file() { # file
 }
 load_env_file "${ENV_FILE:-$HERE/.env}"
 
-# Kube context to deploy to. Override with KUBE_CONTEXT=<name> (see `kubectl config get-contexts`).
+# Kube context to deploy to. Override with KUBE_CONTEXT=<name> (see `kubectl config get-contexts`). KUBE_CONTEXT=in-cluster
+# is for a pod (a CI runner): kubectl and helm then use the pod's own service account and no context at all.
 CONTEXT="${KUBE_CONTEXT:-home-lab-main}"
+# Builds and pushes with podman, or with docker where there is no podman (CONTAINER_TOOL overrides).
+CONTAINER_TOOL=${CONTAINER_TOOL:-$(command -v podman >/dev/null 2>&1 && echo podman || echo docker)}
+# The release being deployed, such as 1.4.2. Optional. Images also get it as a tag and the workloads as a label.
+VERSION=${VERSION:-}
 NS=home-apps
 INFRA_NS=infrastructure
 REPO=$(cd "$HERE/../.." && pwd)
@@ -89,27 +94,37 @@ GAME_TAG=$(image_tag "" "${GAME_SOURCES[@]}")
 UI_TAG=$(image_tag "$MANAGER_URL" "${UI_SOURCES[@]}")
 
 # Every kubectl / helm call names the context: the shared kubeconfig's current context can point anywhere.
-kube() { kubectl --context "$CONTEXT" -n "$NS" "$@"; }
-infra() { kubectl --context "$CONTEXT" -n "$INFRA_NS" "$@"; }
-helm_install() { helm --kube-context "$CONTEXT" -n "$NS" upgrade --install "$@" --wait --timeout 10m; }
+k() { if [ "$CONTEXT" = in-cluster ]; then kubectl "$@"; else kubectl --context "$CONTEXT" "$@"; fi; }
+kube() { k -n "$NS" "$@"; }
+infra() { k -n "$INFRA_NS" "$@"; }
+helm_install() {
+  if [ "$CONTEXT" = in-cluster ]; then helm -n "$NS" upgrade --install "$@" --wait --timeout 10m
+  else helm --kube-context "$CONTEXT" -n "$NS" upgrade --install "$@" --wait --timeout 10m; fi
+}
 step() { printf '\n==> %s\n' "$*"; }
 random_secret() { head -c 24 /dev/urandom | base64 | tr -d '/+=\n' | cut -c1-32; }
 secret_value() { # namespace secret key -> decoded value, empty when missing
-  kubectl --context "$CONTEXT" -n "$1" get secret "$2" -o "jsonpath={.data['$3']}" 2>/dev/null | base64 -d 2>/dev/null || true
+  k -n "$1" get secret "$2" -o "jsonpath={.data['$3']}" 2>/dev/null | base64 -d 2>/dev/null || true
 }
 
 step "Checks (context $CONTEXT, namespaces $NS and $INFRA_NS, registry $REGISTRY)"
-kubectl config get-contexts "$CONTEXT" >/dev/null 2>&1 || {
-  echo "error: kube context '$CONTEXT' does not exist. Set KUBE_CONTEXT to one of:" >&2
-  kubectl config get-contexts -o name >&2
-  exit 1
-}
-kubectl --context "$CONTEXT" cluster-info >/dev/null
-# Credentials are stored under the key given to `podman login`: the host, or host/project (robot accounts).
-podman login --get-login "${REGISTRY%%/*}" >/dev/null 2>&1 \
-  || podman login --get-login "$REGISTRY" >/dev/null 2>&1 \
-  || { echo "Not logged in to ${REGISTRY%%/*} or $REGISTRY: run podman login $REGISTRY"; exit 1; }
-kubectl --context "$CONTEXT" apply -f "$HERE/manifests/namespaces.yaml" >/dev/null
+if [ "$CONTEXT" != in-cluster ]; then
+  kubectl config get-contexts "$CONTEXT" >/dev/null 2>&1 || {
+    echo "error: kube context '$CONTEXT' does not exist. Set KUBE_CONTEXT to one of:" >&2
+    kubectl config get-contexts -o name >&2
+    exit 1
+  }
+  k cluster-info >/dev/null
+fi
+if [ "$CONTAINER_TOOL" = podman ]; then
+  # Credentials are stored under the key given to `podman login`: the host, or host/project (robot accounts).
+  podman login --get-login "${REGISTRY%%/*}" >/dev/null 2>&1 \
+    || podman login --get-login "$REGISTRY" >/dev/null 2>&1 \
+    || { echo "Not logged in to ${REGISTRY%%/*} or $REGISTRY: run podman login $REGISTRY"; exit 1; }
+fi
+# The namespaces are made once. A pod that only has rights inside them can look them up but not create them.
+k get namespace "$NS" >/dev/null 2>&1 && k get namespace "$INFRA_NS" >/dev/null 2>&1 \
+  || k apply -f "$HERE/manifests/namespaces.yaml" >/dev/null
 kube get secret cr-homel4b >/dev/null 2>&1 \
   || { echo "Missing Secret cr-homel4b in $NS: see deploy/homelab/README.md"; exit 1; }
 # Pods can only pull with a docker-registry Secret; any other type leaves them in ImagePullBackOff.
@@ -125,13 +140,17 @@ fi
 
 # ── Images ────────────────────────────────────────────────────────────────────
 in_registry() { # name tag
-  podman search --list-tags --limit 10000 --format '{{.Tag}}' "$REGISTRY/$1" 2>/dev/null | grep -qx -- "$2"
+  if [ "$CONTAINER_TOOL" = podman ]; then
+    podman search --list-tags --limit 10000 --format '{{.Tag}}' "$REGISTRY/$1" 2>/dev/null | grep -qx -- "$2"
+  else
+    "$CONTAINER_TOOL" manifest inspect "$REGISTRY/$1:$2" >/dev/null 2>&1
+  fi
 }
 
 push() { # image: the registry sometimes answers a layer upload with 500; retry before giving up
   local attempt
   for attempt in 1 2 3; do
-    podman push -q "$1" && return
+    "$CONTAINER_TOOL" push -q "$1" && return
     [ "$attempt" -lt 3 ] && { echo "push failed (attempt $attempt), retrying in 10 s" >&2; sleep 10; }
   done
   return 1
@@ -146,8 +165,18 @@ build_push() { # name tag dockerfile context [podman build args...]
     echo "unchanged, already in the registry: not rebuilt"
     return
   fi
-  podman build --network host -q -t "$image" -f "$dockerfile" "$@" "$context" | tail -1
+  "$CONTAINER_TOOL" build --network host -q -t "$image" -f "$dockerfile" "$@" "$context" | tail -1
   push "$image"
+}
+
+# The image that is deployed also gets the release version as a tag, so the registry reads as a list of releases. The workloads
+# keep running the source tag: a release that did not change an image does not restart it.
+tag_version() { # name tag
+  [ -n "$VERSION" ] || return 0
+  local source="$REGISTRY/$1:$2" release="$REGISTRY/$1:$VERSION"
+  "$CONTAINER_TOOL" image inspect "$source" >/dev/null 2>&1 || "$CONTAINER_TOOL" pull -q "$source" >/dev/null
+  "$CONTAINER_TOOL" tag "$source" "$release"
+  push "$release"
 }
 
 if [ "${SKIP_BUILD:-0}" != "1" ]; then
@@ -155,6 +184,9 @@ if [ "${SKIP_BUILD:-0}" != "1" ]; then
   build_push snake-game-server "$GAME_TAG" "$SRC/Application/Application.Game.Server/Dockerfile" "$SRC"
   build_push snake-ui "$UI_TAG" "$SRC/Application/Application.Ui/Dockerfile" "$SRC/Application/Application.Ui" \
     --build-arg "VITE_MANAGER_URL=$MANAGER_URL"
+  tag_version snake-manager "$MANAGER_TAG"
+  tag_version snake-game-server "$GAME_TAG"
+  tag_version snake-ui "$UI_TAG"
 fi
 
 # ── Infrastructure: RabbitMQ and Redis (an existing Service of that name is left alone) ─────────────────────────────
@@ -167,7 +199,7 @@ for service in rabbitmq redis; do
   if infra get service "$service" >/dev/null 2>&1; then
     echo "$service already exists in $INFRA_NS: left as it is"
   else
-    kubectl --context "$CONTEXT" apply -f "$HERE/manifests/$service.yaml"
+    k apply -f "$HERE/manifests/$service.yaml"
   fi
 done
 infra rollout status statefulset/rabbitmq --timeout 5m
@@ -196,7 +228,8 @@ install() { # release name values-file tag host [extra helm args...]
   shift 5
   helm_install "$release" "$CHART" -f "$HERE/values/$values.yaml" \
     --set-string "image.repository=$REGISTRY/$image" --set-string "image.tag=$tag" --set-string "ingress.host=$host" --set "ingress.enabled=$INGRESS" \
-    --set-string "ingress.className=$INGRESS_CLASS" --set-string "ingress.clusterIssuer=$CLUSTER_ISSUER" "$@"
+    --set-string "ingress.className=$INGRESS_CLASS" --set-string "ingress.clusterIssuer=$CLUSTER_ISSUER" \
+    ${VERSION:+--set-string "appVersion=$VERSION"} "$@"
 }
 # Only the site is reached from outside; it passes /api and /game on, so the other two get no ingress of their own.
 install snake-manager snake-manager manager "$MANAGER_TAG" "" --set "ingress.enabled=false"
@@ -218,5 +251,6 @@ kube get pods
 echo
 echo "Site   https://$UI_HOST"
 echo "Admin  https://$UI_HOST/admin"
-echo "Admin key:  kubectl --context $CONTEXT -n $NS get secret snake-secrets -o go-template='{{index .data \"admin-key\"}}' | base64 -d"
+[ -z "$VERSION" ] || echo "Version $VERSION"
+echo "Admin key:  kubectl ${CONTEXT:+--context $CONTEXT }-n $NS get secret snake-secrets -o go-template='{{index .data \"admin-key\"}}' | base64 -d"
 echo "Manager https://$UI_HOST/api   Game server https://$UI_HOST/game"

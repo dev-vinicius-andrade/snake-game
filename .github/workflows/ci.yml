@@ -1,0 +1,52 @@
+name: CI
+
+# Builds and tests every commit and every pull request. Nothing here reaches the cluster: deploying is deploy.yml, on a tag.
+on:
+  push:
+    branches: ['**']
+    paths-ignore: ['**/*.md', 'docs/**']
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dotnet:
+    name: Server tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet test src/SnakeGame.sln --verbosity minimal
+
+  ui:
+    name: Site build and tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Application/Application.Ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/Application/Application.Ui/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+  deploy-scripts:
+    name: Deploy scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash deploy/homelab/ci/next-version.test.sh
+      - run: bash deploy/homelab/ci/deploy.test.sh

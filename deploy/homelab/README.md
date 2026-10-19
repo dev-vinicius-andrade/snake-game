@@ -104,6 +104,8 @@ path needs inbound 443 to reach the cluster, so it is off by default. With `TUNN
 
 ## Deploy
 
+**From GitHub Actions:** releases (version tags) deploy themselves from a runner in the cluster; see [docs/CI.md](../../docs/CI.md). The rest of this section is the same script run by hand.
+
 Settings can sit in `deploy/homelab/.env` instead of the command line: copy [.env.example](.env.example) to `.env` and fill
 it in (`REGISTRY`, `KUBE_CONTEXT`, `PUBLIC_HOST`, ...). The file is not committed, and a variable set in the shell wins
 over it. Then just run `./deploy/homelab/deploy.sh`.

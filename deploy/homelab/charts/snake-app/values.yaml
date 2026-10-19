@@ -2,6 +2,9 @@
 
 replicaCount: 1
 
+# The release being deployed, shown as a label on the Deployment. Not on the pods: a new number alone restarts nothing.
+appVersion: ""
+
 # Recreate: never two pods at once. The game server keeps its rooms in memory, so a second pod would split the players.
 strategy: Recreate
 

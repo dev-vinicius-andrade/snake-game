@@ -6,6 +6,9 @@ metadata:
   labels:
     app: {{ .Release.Name }}
     app.kubernetes.io/part-of: snake-game
+    {{- with .Values.appVersion }}
+    app.kubernetes.io/version: {{ . | quote }}
+    {{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}
   revisionHistoryLimit: 3

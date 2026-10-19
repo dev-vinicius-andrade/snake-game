@@ -1,0 +1,23 @@
+# Values for the GitHub Actions runner scale set (Actions Runner Controller). Install once, see docs/CI.md:
+#   helm install snake-deploy oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set \
+#     --version 0.15.0 -n arc-runners -f deploy/homelab/ci/runner/runner-values.yaml
+#
+# The release name, snake-deploy, is the label the workflow asks for: `runs-on: snake-deploy`.
+githubConfigUrl: https://github.com/dev-vinicius-andrade/snake-game
+
+# A Secret in arc-runners that lets the controller register runners: a GitHub App (github_app_id,
+# github_app_installation_id, github_app_private_key) or a token (github_token). See docs/CI.md.
+githubConfigSecret: github-runner-auth
+
+# No runner sits idle: a pod starts when a deploy begins and goes away after it. One at a time, as deploys must not overlap.
+minRunners: 0
+maxRunners: 1
+
+# The runner gets a Docker daemon of its own (a sidecar), which builds and pushes the images. Nothing is shared with the node.
+containerMode:
+  type: dind
+
+template:
+  spec:
+    serviceAccountName: snake-deploy-runner
+    automountServiceAccountToken: true

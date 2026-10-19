@@ -1,0 +1,65 @@
+# What the deploy runner may do in the cluster. The runner pod runs as this ServiceAccount, and deploy.sh (KUBE_CONTEXT=in-cluster)
+# uses its token: no kubeconfig is stored anywhere.
+#
+# Inside home-apps and infrastructure it gets the built-in "admin" role (secrets, deployments, volumes, ingresses...), and nowhere
+# else. The only thing it may do cluster wide is look up the two namespaces.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: arc-runners
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: snake-deploy-runner
+  namespace: arc-runners
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: snake-deploy-runner
+  namespace: home-apps
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+  - kind: ServiceAccount
+    name: snake-deploy-runner
+    namespace: arc-runners
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: snake-deploy-runner
+  namespace: infrastructure
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+  - kind: ServiceAccount
+    name: snake-deploy-runner
+    namespace: arc-runners
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: snake-deploy-namespaces
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: snake-deploy-namespaces
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: snake-deploy-namespaces
+subjects:
+  - kind: ServiceAccount
+    name: snake-deploy-runner
+    namespace: arc-runners

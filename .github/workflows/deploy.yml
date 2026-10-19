@@ -1,0 +1,108 @@
+name: Deploy
+
+# Deploys a release to the home lab cluster, from a runner that lives in the cluster (see docs/CI.md).
+#   - a tag vX.Y.Z pushed by hand deploys that release
+#   - the Release workflow creates the tag itself and calls this one (a tag pushed with the workflow token starts nothing)
+#   - Run workflow, with a version that already exists, deploys that release again: a rollback
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  workflow_call:
+    inputs:
+      version:
+        description: Version to deploy, such as 1.4.2
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing version to deploy, such as 1.4.2
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+# One deploy at a time, and a running deploy is never cut short.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ${{ vars.REGISTRY || 'cr.homel4b.dev/home-apps' }}
+  PUBLIC_HOST: ${{ vars.PUBLIC_HOST || 'snake.web.games.andradev.io' }}
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - id: version
+        run: |
+          raw="${{ inputs.version || github.ref_name }}"
+          version="${raw#v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'$raw' is not a version like 1.4.2 or v1.4.2"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy ${{ needs.version.outputs.version }}
+    needs: [ci, version]
+    # The name of the runner scale set in the cluster (docs/CI.md).
+    runs-on: snake-deploy
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.version.outputs.version }}
+          fetch-depth: 0
+
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.0
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+
+      - name: Tools the deploy script uses
+        run: |
+          if ! command -v envsubst >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq gettext-base
+          fi
+
+      # The runner has the right to read this Secret already; nothing about the registry is stored in GitHub.
+      - name: Log in to the registry
+        run: |
+          mkdir -p ~/.docker
+          kubectl -n home-apps get secret cr-homel4b -o 'jsonpath={.data.\.dockerconfigjson}' | base64 -d > ~/.docker/config.json
+          chmod 600 ~/.docker/config.json
+
+      - name: Deploy
+        env:
+          KUBE_CONTEXT: in-cluster
+          CONTAINER_TOOL: docker
+          ENV_FILE: /dev/null
+        run: ./deploy/homelab/deploy.sh
+
+      - name: Release notes
+        if: github.event_name == 'push' || github.event_name == 'workflow_call'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
+          name: v${{ needs.version.outputs.version }}
+          generate_release_notes: true
+          body: |
+            Deployed to https://${{ env.PUBLIC_HOST }}
+
+            Images: `${{ env.REGISTRY }}/snake-ui:${{ needs.version.outputs.version }}`,
+            `snake-manager:${{ needs.version.outputs.version }}`, `snake-game-server:${{ needs.version.outputs.version }}`.
