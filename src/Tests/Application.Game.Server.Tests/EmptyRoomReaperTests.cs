@@ -1,4 +1,5 @@
 using Application.Game.Server.Services;
+using Domain.Game.Rules;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 using Library.Commons.Game.Domain.Interfaces.Services;
 using NSubstitute;
@@ -13,12 +14,13 @@ public sealed class EmptyRoomReaperTests
     private readonly IPlayerRoomService _playerRooms = Substitute.For<IPlayerRoomService>();
     private readonly IRoomCloser _closer = Substitute.For<IRoomCloser>();
     private readonly EmptyRoomReaper _reaper;
+    private readonly RoomLifetimeSettings _settings = new(new RoomLifetimeOptions { EmptyPrivateRoomMinutes = 10 });
     private readonly List<IRoom> _roomList = new();
 
     public EmptyRoomReaperTests()
     {
         _rooms.GetRooms().Returns(_ => _roomList);
-        _reaper = new EmptyRoomReaper(_rooms, _playerRooms, _closer, _clock, Ttl);
+        _reaper = new EmptyRoomReaper(_rooms, _playerRooms, _closer, _clock, _settings);
     }
 
     private IRoom AddRoom(bool isPrivate = true, int players = 0, DateTimeOffset? createdAt = null)
@@ -142,6 +144,66 @@ public sealed class EmptyRoomReaperTests
         await _reaper.SweepAsync();
 
         await _closer.Received(1).CloseAsync(other.Guid, Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>());
+    }
+    [Fact]
+    public async Task SweepAsync_APrivateRoomOlderThanTheMaxAge_IsClosedEvenWithPlayers()
+    {
+        _settings.Reconfigure(new RoomLifetimeOptions { EmptyPrivateRoomMinutes = 10, MaxPrivateRoomMinutes = 60 });
+        var room = AddRoom(players: 3);
+        _clock.Advance(TimeSpan.FromMinutes(61));
+
+        await _reaper.SweepAsync();
+
+        await _closer.Received(1).CloseAsync(room.Guid, Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SweepAsync_AYoungerRoomWithPlayers_IsKeptUnderAMaxAge()
+    {
+        _settings.Reconfigure(new RoomLifetimeOptions { EmptyPrivateRoomMinutes = 10, MaxPrivateRoomMinutes = 60 });
+        AddRoom(players: 3);
+        _clock.Advance(TimeSpan.FromMinutes(59));
+
+        await _reaper.SweepAsync();
+
+        await _closer.DidNotReceiveWithAnyArgs().CloseAsync(default, default, default);
+    }
+
+    [Fact]
+    public async Task SweepAsync_WithoutAMaxAge_ARoomWithPlayersLivesAsLongAsItLikes()
+    {
+        AddRoom(players: 3);
+        _clock.Advance(TimeSpan.FromDays(30));
+
+        await _reaper.SweepAsync();
+
+        await _closer.DidNotReceiveWithAnyArgs().CloseAsync(default, default, default);
+    }
+
+    [Fact]
+    public async Task SweepAsync_APublicRoomIsNotTouchedByTheMaxAge()
+    {
+        _settings.Reconfigure(new RoomLifetimeOptions { MaxPrivateRoomMinutes = 5 });
+        AddRoom(isPrivate: false, players: 1);
+        _clock.Advance(TimeSpan.FromHours(3));
+
+        await _reaper.SweepAsync();
+
+        await _closer.DidNotReceiveWithAnyArgs().CloseAsync(default, default, default);
+    }
+
+    [Fact]
+    public async Task SweepAsync_ChangingTheLimitTakesEffectOnTheNextSweep()
+    {
+        var room = AddRoom();
+        _clock.Advance(TimeSpan.FromMinutes(4));
+        await _reaper.SweepAsync();
+        await _closer.DidNotReceiveWithAnyArgs().CloseAsync(default, default, default);
+
+        _settings.Reconfigure(new RoomLifetimeOptions { EmptyPrivateRoomMinutes = 3 });
+        await _reaper.SweepAsync();
+
+        await _closer.Received(1).CloseAsync(room.Guid, Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>());
     }
 }
 

@@ -7,7 +7,7 @@ namespace Application.Game.Server.Services;
 /// Puts the gameplay config the manager serves onto the running rules. A revision is applied once; a config that does not
 /// hold up is refused whole, so the rules never end up half changed.
 /// </summary>
-public sealed class GameplayApplier(PerkRules perks, PrizeRules prize, Serilog.ILogger? logger = null)
+public sealed class GameplayApplier(PerkRules perks, PrizeRules prize, RoomLifetimeSettings roomLifetime, Serilog.ILogger? logger = null)
 {
     /// <summary>The revision now in force, or null while the server runs on its own settings.</summary>
     public string? Revision { get; private set; }
@@ -22,6 +22,7 @@ public sealed class GameplayApplier(PerkRules perks, PrizeRules prize, Serilog.I
             document.Config.EnsureValid();
             perks.Reconfigure(document.Config.Perks);
             prize.Reconfigure(document.Config.Prize);
+            roomLifetime.Reconfigure(document.Config.Rooms);
         }
         catch (ArgumentException exception)
         {

@@ -39,6 +39,7 @@ public static class DependencyInjection
         services.AddSingleton(prizeOptions ?? new PrizeOptions());
         services.AddSingleton<PerkRules>();
         services.AddSingleton<PrizeRules>();
+        services.AddSingleton<RoomLifetimeSettings>();
         services.AddSingleton<PrizeSpawner>();
         services.AddSingleton<DamageCalculator>();
         services.AddSingleton<BodyHealer>();

@@ -95,4 +95,15 @@ public sealed class GameplayConfigTests
         Assert.Equal(new[] { "R1" }, perk.Rooms);
         Assert.Equal("x", perk.Script);
     }
+
+    [Fact]
+    public void Normalized_KeepsWhetherAPerkIsOn()
+    {
+        var config = new GameplayConfig
+        {
+            Perks = new PerkOptions { Perks = [new() { Id = "a", Name = "A", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 1, Enabled = false }] }
+        };
+
+        Assert.False(config.Normalized().Perks.Perks.Single().Enabled);
+    }
 }

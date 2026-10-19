@@ -8,11 +8,12 @@ public sealed class GameplayApplierTests
 {
     private readonly PerkRules _perks = new(new PerkOptions());
     private readonly PrizeRules _prize = new(new PrizeOptions());
+    private readonly RoomLifetimeSettings _lifetime = new();
     private readonly GameplayApplier _applier;
 
     public GameplayApplierTests()
     {
-        _applier = new GameplayApplier(_perks, _prize);
+        _applier = new GameplayApplier(_perks, _prize, _lifetime);
     }
 
     private static string Document(string revision, GameplayConfig config)
@@ -86,5 +87,27 @@ public sealed class GameplayApplierTests
         _applier.Apply(Document("r2", Config(foods: 0)));
 
         Assert.True(_applier.Apply(Document("r2", Config())));
+    }
+
+    [Fact]
+    public void Apply_SwitchesTheRoomLifetimeToo()
+    {
+        var config = Config() with { Rooms = new RoomLifetimeOptions { EmptyPrivateRoomMinutes = 4, MaxPrivateRoomMinutes = 120 } };
+
+        _applier.Apply(Document("r1", config));
+
+        Assert.Equal(TimeSpan.FromMinutes(4), _lifetime.EmptyFor);
+        Assert.Equal(TimeSpan.FromMinutes(120), _lifetime.MaxAge);
+    }
+
+    [Fact]
+    public void Apply_RoomLifetimeThatCannotWorkRefusesTheWholeConfig()
+    {
+        _applier.Apply(Document("r1", Config(prizeValue: 77)));
+
+        var applied = _applier.Apply(Document("r2", Config(prizeValue: 5) with { Rooms = new RoomLifetimeOptions { EmptyPrivateRoomMinutes = 0 } }));
+
+        Assert.False(applied);
+        Assert.Equal(77, _prize.Options.Value);
     }
 }

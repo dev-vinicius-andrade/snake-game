@@ -11,6 +11,7 @@ public sealed record GameplayConfig
 {
     public PerkOptions Perks { get; init; } = new();
     public PrizeOptions Prize { get; init; } = new();
+    public RoomLifetimeOptions Rooms { get; init; } = new();
 
     /// <summary>How the config is written and read: camel case names, and effects by name.</summary>
     public static JsonSerializerOptions Json { get; } = new()
@@ -43,6 +44,7 @@ public sealed record GameplayConfig
     {
         _ = new PerkRules(Perks);
         _ = new PrizeRules(Prize);
+        _ = new RoomLifetimeSettings(Rooms);
     }
 }
 

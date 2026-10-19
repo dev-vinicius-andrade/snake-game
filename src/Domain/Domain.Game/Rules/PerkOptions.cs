@@ -16,6 +16,9 @@ public sealed record PerkDefinition
     public string Name { get; init; } = string.Empty;
     public int FoodsRequired { get; init; }
 
+    /// <summary>A perk that is switched off is kept in the list but nobody gets it.</summary>
+    public bool Enabled { get; init; } = true;
+
     /// <summary>Everything the perk does. Several effects can be combined in one perk.</summary>
     public List<PerkEffectEntry> Effects { get; init; } = [];
 
@@ -46,6 +49,7 @@ public sealed record PerkDefinition
     /// <summary>True when the perk works in <paramref name="room"/> (null: no room is known).</summary>
     public bool AppliesTo(IRoom? room)
     {
+        if (!Enabled) return false;
         if (room is not null && ExcludedRooms.Any(entry => Matches(entry, room))) return false;
         if (Rooms.Count == 0) return !HasScript;
         return room is not null && Rooms.Any(entry => Matches(entry, room));

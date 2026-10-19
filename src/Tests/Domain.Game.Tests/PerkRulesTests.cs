@@ -613,4 +613,47 @@ public sealed class PerkRulesTests
             Perks = [new PerkDefinition { Id = "a", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 1, ExcludedRooms = [""] }]
         }));
     }
+
+    [Fact]
+    public void Enabled_ASwitchedOffPerkIsNeverUnlocked()
+    {
+        var rules = new PerkRules(new PerkOptions
+        {
+            Perks =
+            [
+                new PerkDefinition { Id = "off", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 99, Enabled = false },
+                new PerkDefinition { Id = "on", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 1 },
+            ]
+        });
+
+        Assert.Equal(new[] { "on" }, rules.UnlockedIds(100));
+        Assert.Equal(1, rules.EffectsFor(100).MagnetRadius);
+    }
+
+    [Fact]
+    public void Enabled_APerkIsOnUnlessSaidOtherwise()
+    {
+        Assert.True(new PerkDefinition().Enabled);
+    }
+
+    [Fact]
+    public void Enabled_ASwitchedOffPerkWithAScriptIsNotCalled()
+    {
+        var rules = new PerkRules(new PerkOptions
+        {
+            Perks = [new PerkDefinition { Id = "s", FoodsRequired = 1, Script = "function modify() { return { extraShots: 4 }; }", Rooms = ["ABC234"], Enabled = false }]
+        });
+
+        Assert.False(rules.HasScripts(1, Room(code: "ABC234")));
+        Assert.Equal(0, rules.EffectsFor(1, Room(code: "ABC234"), Here).ExtraShots);
+    }
+
+    [Fact]
+    public void Enabled_AValidationStillCoversASwitchedOffPerk()
+    {
+        Assert.Throws<ArgumentException>(() => new PerkRules(new PerkOptions
+        {
+            Perks = [new PerkDefinition { Id = "s", FoodsRequired = 1, Script = "function modify( {", Enabled = false }]
+        }));
+    }
 }

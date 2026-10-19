@@ -85,7 +85,8 @@ namespace Application.Game.Server
             services.AddFoodConfiguration(configuration);
             services.AddSnakeConfiguration(configuration,$"{ServerConfiguration.SectionName}:{SnakeConfiguration.SectionName}");
             services.AddSingleton<GameplayApplier>(provider => new GameplayApplier(
-                provider.GetRequiredService<PerkRules>(), provider.GetRequiredService<PrizeRules>(), provider.GetRequiredService<Serilog.ILogger>()));
+                provider.GetRequiredService<PerkRules>(), provider.GetRequiredService<PrizeRules>(), provider.GetRequiredService<RoomLifetimeSettings>(),
+                provider.GetRequiredService<Serilog.ILogger>()));
             services.AddHostedService<GameplaySyncWorkerService>();
             services.AddHostedService<FoodGeneratorWorkerService>();
             services.AddSingleton<JoinRequestHandler>();
@@ -96,7 +97,8 @@ namespace Application.Game.Server
             services.AddSingleton(TimeProvider.System);
             services.AddSingleton<EmptyRoomReaper>(provider => new EmptyRoomReaper(
                 provider.GetRequiredService<IRoomsService>(), provider.GetRequiredService<IPlayerRoomService>(),
-                provider.GetRequiredService<IRoomCloser>(), provider.GetRequiredService<TimeProvider>()));
+                provider.GetRequiredService<IRoomCloser>(), provider.GetRequiredService<TimeProvider>(),
+                provider.GetRequiredService<RoomLifetimeSettings>()));
             services.AddHostedService<EmptyRoomReaperWorkerService>();
             services.AddHostedService<EventbusWorkerService>();
             services.AddHostedService<RoomHeartbeatWorkerService>();
