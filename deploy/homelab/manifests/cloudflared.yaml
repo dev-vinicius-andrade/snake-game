@@ -12,7 +12,7 @@ metadata:
     app.kubernetes.io/part-of: snake-game
 spec:
   # Two connectors for one tunnel: a restart or a lost node never takes the site down.
-  replicas: 2
+  replicas: 1
   revisionHistoryLimit: 3
   selector:
     matchLabels:

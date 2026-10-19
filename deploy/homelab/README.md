@@ -15,7 +15,7 @@ so nothing has to be open on the router.
 | Site (Vue, nginx) and the front door | `snake-ui` | `home-apps`, release `snake-ui` | https://snake.andradev.io |
 | Manager api + manager hub + admin api | `snake-manager` | `home-apps`, release `snake-manager` | https://snake.andradev.io/api (admin api: `/api/admin`) |
 | Game server (game hub, rooms in memory) | `snake-game-server` | `home-apps`, release `snake-game`, **1 replica** | https://snake.andradev.io/game |
-| Cloudflare Tunnel connector (2 replicas) | `cloudflare/cloudflared` | `home-apps`, Deployment `cloudflared` | — |
+| Cloudflare Tunnel connector (1 replica) | `cloudflare/cloudflared` | `home-apps`, Deployment `cloudflared` | — |
 | RabbitMQ 3.13 (2 Gi volume) | `rabbitmq:3.13-management-alpine` | `infrastructure`, StatefulSet `rabbitmq` | `rabbitmq.infrastructure.svc.cluster.local:5672` |
 | Redis 7 (cache, no persistence) | `redis:7-alpine` | `infrastructure`, Deployment `redis` | `redis.infrastructure.svc.cluster.local:6379` |
 
