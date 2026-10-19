@@ -180,10 +180,21 @@ public sealed class PerkRules
     public IReadOnlyList<string> UnlockedIds(int foodsEaten, IRoom? room = null, IReadOnlyCollection<string>? granted = null)
         => Unlocked(foodsEaten, room, granted).Select(perk => perk.Id).ToArray();
 
+    /// <summary>The tier each perk a snake has is at, 1 for the first, in the order of <see cref="UnlockedIds"/>.</summary>
+    public IReadOnlyList<int> TiersFor(int foodsEaten, IRoom? room = null, IReadOnlyCollection<string>? granted = null)
+        => Unlocked(foodsEaten, room, granted).Select(perk => TierOf(perk, foodsEaten).Number).ToArray();
+
+    /// <summary>The tier a perk is at for these foods, and what it multiplies its amounts by. A perk that was given is at least at the first.</summary>
+    private static (int Number, double Multiplier) TierOf(PerkDefinition perk, int foodsEaten)
+    {
+        var reached = perk.TiersInOrder().Where(tier => tier.FoodsRequired <= foodsEaten).ToArray();
+        return reached.Length == 0 ? (1, 1) : (reached.Length, reached[^1].Multiplier);
+    }
+
     /// <summary>What the perks a snake has do, in the room it plays in.</summary>
     public PerkEffects EffectsFor(int foodsEaten, IRoom? room = null, IReadOnlyCollection<string>? granted = null)
     {
-        var unlocked = Entries(Unlocked(foodsEaten, room, granted));
+        var unlocked = Entries(Unlocked(foodsEaten, room, granted), foodsEaten);
         if (unlocked.Length == 0) return PerkEffects.None;
         return new PerkEffects
         {
@@ -218,8 +229,23 @@ public sealed class PerkRules
             : [];
     }
 
-    private static PerkEffectEntry[] Entries(IEnumerable<PerkDefinition> perks)
-        => perks.SelectMany(perk => perk.AllEffects()).ToArray();
+    /// <summary>Most a ratio effect (armor, reload, deep lungs) can be after a tier scaled it: a perk can never make a snake immune.</summary>
+    private const double MaxScaledRatio = 0.95;
+
+    /// <summary>The effects of the perks, each scaled by the tier its perk is at. Switches have no strength to scale.</summary>
+    private static PerkEffectEntry[] Entries(IEnumerable<PerkDefinition> perks, int foodsEaten)
+        => perks.SelectMany(perk => Scaled(perk, TierOf(perk, foodsEaten).Multiplier)).ToArray();
+
+    private static IEnumerable<PerkEffectEntry> Scaled(PerkDefinition perk, double multiplier)
+    {
+        if (multiplier == 1) return perk.AllEffects();
+        return perk.AllEffects().Select(entry => entry.Effect switch
+        {
+            PerkEffect.AutoFire or PerkEffect.PiercingShot => entry,
+            PerkEffect.FasterReload or PerkEffect.EfficientBoost or PerkEffect.Armor => entry with { Amount = Math.Min(MaxScaledRatio, entry.Amount * multiplier) },
+            _ => entry with { Amount = entry.Amount * multiplier }
+        });
+    }
 
     private static bool Has(IEnumerable<PerkEffectEntry> entries, PerkEffect effect)
         => entries.Any(entry => entry.Effect == effect);
@@ -253,12 +279,28 @@ public sealed class PerkRules
         if (effects.Count == 0 && !perk.HasScript)
             throw new ArgumentException($"Perk '{perk.Id}' needs at least one effect, or a script.", nameof(perk));
         foreach (var entry in effects) EnsureValid(perk, entry);
+        EnsureValidTiers(perk);
         if (perk.Rooms.Concat(perk.ExcludedRooms).Any(string.IsNullOrWhiteSpace))
             throw new ArgumentException($"Perk '{perk.Id}' has a blank room.", nameof(perk));
         if (!string.IsNullOrWhiteSpace(perk.Icon) && (perk.Icon.Length > 40 || !IconName.IsMatch(perk.Icon)))
             throw new ArgumentException($"Perk '{perk.Id}' icon must be a Material Design Icons name such as mdi-shield.", nameof(perk));
         if (perk.Description is { Length: > MaxDescriptionLength })
             throw new ArgumentException($"Perk '{perk.Id}' description is too long: at most {MaxDescriptionLength} characters.", nameof(perk));
+    }
+
+    private static void EnsureValidTiers(PerkDefinition perk)
+    {
+        if (perk.Tiers.Count + 1 > PerkDefinition.MaxTiers)
+            throw new ArgumentException($"Perk '{perk.Id}' has too many tiers: at most {PerkDefinition.MaxTiers}, the first included.", nameof(perk));
+        foreach (var tier in perk.Tiers)
+        {
+            if (tier.FoodsRequired <= perk.FoodsRequired)
+                throw new ArgumentOutOfRangeException(nameof(perk), tier.FoodsRequired, $"Perk '{perk.Id}': a tier must ask for more than the {perk.FoodsRequired} foods of the first.");
+            if (!(tier.Multiplier > 0 && tier.Multiplier <= 10))
+                throw new ArgumentOutOfRangeException(nameof(perk), tier.Multiplier, $"Perk '{perk.Id}': a tier must multiply by more than 0 and at most 10.");
+        }
+        if (perk.Tiers.Zip(perk.Tiers.Skip(1), (before, after) => after.FoodsRequired <= before.FoodsRequired).Any(notIncreasing => notIncreasing))
+            throw new ArgumentException($"Perk '{perk.Id}': each tier must ask for more foods than the one before.", nameof(perk));
     }
 
     private static void EnsureValid(PerkDefinition perk, PerkEffectEntry entry)
