@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { useScrollLock, useStorage } from "@vueuse/core";
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import InviteBadge from "@/components/rooms/InviteBadge.vue";
 import type { JoinTarget } from "@/composables/useManagerJoin";
+import AchievementToast from "@/components/game/AchievementToast.vue";
 import GameStage from "@/components/game/GameStage.vue";
 import TouchControls from "@/components/game/TouchControls.vue";
 import PerkList from "@/components/game/PerkList.vue";
@@ -11,6 +12,8 @@ import BossHint from "@/components/game/BossHint.vue";
 import ZoneHint from "@/components/game/ZoneHint.vue";
 import StrikeHint from "@/components/game/StrikeHint.vue";
 import PrizeHint from "@/components/game/PrizeHint.vue";
+import { readStoredAccountToken, tokenRejected, useAccount } from "@/composables/useAccount";
+import { useAchievementToasts } from "@/composables/useAchievementToasts";
 import { useEyeControl } from "@/composables/useEyeControl";
 import { useGameConnection } from "@/composables/useGameConnection";
 import { usePerkCatalog } from "@/composables/usePerkCatalog";
@@ -38,6 +41,7 @@ const game = useGameConnection({ pingIntervalMs: 2000 });
 const ownAutoFire = () => !!game.snapshot.value?.snakes.find((snake) => snake.guid === game.self.value?.guid)?.autoFire;
 const session = useSnakeSession({ joiner: useManagerJoin(), game, autoFire: ownAutoFire });
 
+const toasts = useAchievementToasts({ events: game.unlocked });
 const perkCatalog = usePerkCatalog();
 const stage = ref<InstanceType<typeof GameStage> | null>(null);
 const ownSnake = computed(() => game.snapshot.value?.snakes.find((snake) => snake.guid === game.self.value?.guid) ?? null);
@@ -95,7 +99,12 @@ function enableEyeControl() {
   return eye.enable();
 }
 
-const nickname = computed(() => playerStore.data?.nickname?.trim() ?? "");
+const accounts = useAccount();
+/** A signed-in player joins under the account name (the manager sets it anyway); a guest under the nickname. */
+const nickname = computed(() => accounts.account.value?.display ?? playerStore.data?.nickname?.trim() ?? "");
+
+// The manager refused the token on join: this view is a guest from now on.
+watch(tokenRejected, (rejected) => rejected && void accounts.logout());
 
 /** A host or a friend arrives with the room id and the invite code in the address. */
 const inviteCode = computed(() => (typeof route.query.code === "string" ? route.query.code : ""));
@@ -105,7 +114,7 @@ const joinTarget = computed<JoinTarget | undefined>(() => {
 });
 
 function play() {
-  return session.start(nickname.value, joinTarget.value);
+  return session.start(nickname.value || "Player", joinTarget.value);
 }
 
 async function leave() {
@@ -120,8 +129,14 @@ onMounted(() => {
   scrollLock.value = true;
   void perkCatalog.load();
   void aim.start();
-  return nickname.value ? play() : router.replace({ name: "home" });
+  return start();
 });
+
+async function start() {
+  // Find out who the stored token belongs to; a refused token is forgotten and the player is a guest again.
+  if (readStoredAccountToken()) await accounts.loadMe();
+  return nickname.value || readStoredAccountToken() ? play() : router.replace({ name: "home" });
+}
 onBeforeUnmount(() => {
   scrollLock.value = false;
   void session.stop();
@@ -143,6 +158,7 @@ onBeforeUnmount(() => {
       @toggle-details="showDetails = !showDetails"
     />
     <PerkList :perks="ownSnake?.perks ?? []" :tiers="ownSnake?.perkTiers" :catalog="perkCatalog.perks.value" />
+    <AchievementToast :id="toasts.current.value" />
     <PrizeHint :compass="compass" />
     <StrikeHint :warning="strikes" />
     <BossHint :compass="boss" />
