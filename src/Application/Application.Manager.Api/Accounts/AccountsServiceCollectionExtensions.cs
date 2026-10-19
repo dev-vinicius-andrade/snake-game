@@ -7,7 +7,10 @@ public static class AccountsServiceCollectionExtensions
     /// <summary>The JSON file accounts are kept in. Empty or missing: memory only, gone at restart (like the gameplay config store).</summary>
     public const string StorePathKey = "AccountsConfiguration:StorePath";
 
-    /// <summary>Everything <see cref="AccountService"/> needs, as singletons.</summary>
+    /// <summary>The JSON file stats and unlocked achievements are kept in. Empty or missing: memory only, gone at restart.</summary>
+    public const string StatsPathKey = "AccountsConfiguration:StatsPath";
+
+    /// <summary>Everything <see cref="AccountService"/> and <see cref="AchievementService"/> need, as singletons.</summary>
     public static IServiceCollection AddAccounts(this IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -27,6 +30,13 @@ public static class AccountsServiceCollectionExtensions
             provider.GetRequiredService<SecretHasher>(),
             provider.GetRequiredService<TimeProvider>(),
             provider.GetService<ILogger<AccountService>>()));
+        services.AddSingleton<IStatsStore>(provider =>
+            new FileStatsStore(configuration[StatsPathKey], provider.GetService<ILoggerFactory>()?.CreateLogger<FileStatsStore>()));
+        services.AddSingleton(provider => new AchievementService(
+            provider.GetRequiredService<IAccountStore>(),
+            provider.GetRequiredService<IStatsStore>(),
+            provider.GetRequiredService<TimeProvider>(),
+            logger: provider.GetService<ILogger<AchievementService>>()));
         return services;
     }
 }

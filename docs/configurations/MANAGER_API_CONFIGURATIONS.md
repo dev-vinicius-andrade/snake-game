@@ -134,6 +134,7 @@ appsettings, not inside `AppSettings`.
 | Property | Description | Default Value | Required |
 | --- | --- | --- | --- |
 | StorePath | The JSON file the accounts are kept in (env `AccountsConfiguration__StorePath`). Empty: memory only, the accounts are gone at restart | "" | false |
+| StatsPath | The JSON file the players' stats and unlocked achievements are kept in (env `AccountsConfiguration__StatsPath`, see [ACHIEVEMENTS.md](../ACHIEVEMENTS.md)). Empty: memory only, the stats are gone at restart | "" | false |
 
 
 
