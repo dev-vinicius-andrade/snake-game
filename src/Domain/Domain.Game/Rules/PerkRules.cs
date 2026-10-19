@@ -64,11 +64,16 @@ public sealed class PerkRules
     /// <summary>Time between the shots of a burst.</summary>
     public int BurstIntervalMilliseconds => _settings.Options.BurstIntervalMilliseconds;
 
+    /// <summary>How many foods killing another snake counts for toward perks and their tiers.</summary>
+    public int KillFoodsCredit => _settings.Options.KillFoodsCredit;
+
     private static Settings Build(PerkOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
         if (options.ShotSpreadDegrees is <= 0 or >= 90)
             throw new ArgumentOutOfRangeException(nameof(options), options.ShotSpreadDegrees, "Shot spread must be in (0, 90).");
+        if (options.KillFoodsCredit is < 0 or > 1000)
+            throw new ArgumentOutOfRangeException(nameof(options), options.KillFoodsCredit, "The credit for a kill must be 0 to 1000 foods.");
         if (options.BurstIntervalMilliseconds < 1)
             throw new ArgumentOutOfRangeException(nameof(options), options.BurstIntervalMilliseconds, "Burst interval must be at least 1 ms.");
         var perks = Validated(options.Perks.Count == 0 ? PerkOptions.BuiltIn : options.Perks)

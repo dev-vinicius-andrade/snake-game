@@ -160,6 +160,10 @@ public record SnapshotSnake
     [JsonPropertyName("perks")]
     public List<string>? Perks { get; set; }
 
+    /// <summary>The tier of each of <c>perks</c>, in the same order. Left out while every perk is at the first.</summary>
+    [JsonPropertyName("pt")]
+    public List<int>? PerkTiers { get; set; }
+
     /// <summary>x0, y0, x1, y1, ... of the body segments, tail first and the head last, to a tenth of a unit.</summary>
     [JsonPropertyName("path")]
     public List<double> Path { get; set; } = new();

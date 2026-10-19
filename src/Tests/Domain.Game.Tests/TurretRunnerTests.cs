@@ -93,6 +93,14 @@ public sealed class TurretRunnerTests
     }
 
     [Fact]
+    public void Update_TheTurretCarriesTheFoodsCreditOfItsKill()
+    {
+        Appeared(Options(turret => turret with { FoodsCredit = 9 }));
+
+        Assert.Equal(9, _state.Boss!.FoodsCredit);
+    }
+
+    [Fact]
     public void Update_TooFewPlayers_HasNoBoss()
     {
         _state.Players.Remove(_state.Players.Keys.First());

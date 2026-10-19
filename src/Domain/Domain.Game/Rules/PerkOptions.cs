@@ -94,6 +94,9 @@ public sealed record PerkOptions
     /// <summary>Time between the shots of a burst.</summary>
     public int BurstIntervalMilliseconds { get; init; } = 80;
 
+    /// <summary>How many foods killing another snake counts for toward perks and their tiers.</summary>
+    public int KillFoodsCredit { get; init; } = 3;
+
     /// <summary>Left empty, the built-in perks are used. Configuration lists add to a default list, so none is preset here.</summary>
     public List<PerkDefinition> Perks { get; init; } = [];
 

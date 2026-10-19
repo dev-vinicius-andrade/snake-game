@@ -152,6 +152,7 @@ public sealed class WorldEventRules
         if (!(Math.Abs(turret.SpinDegrees) <= 360)) throw OutOfRange("Turret", turret.SpinDegrees, "the spin must be from -360 to 360 degrees");
         if (!(turret.ShotSpeed >= 0.1 && turret.ShotSpeed <= 3)) throw OutOfRange("Turret", turret.ShotSpeed, "the shot speed must be 0.1 to 3");
         if (turret.MinPlayers < 1) throw OutOfRange("Turret", turret.MinPlayers, "at least 1 player is needed");
+        if (turret.FoodsCredit is < 0 or > 1000) throw OutOfRange("Turret", turret.FoodsCredit, "the foods credit must be 0 to 1000");
         if (turret.RewardMass is < 0 or > 1000) throw OutOfRange("Turret", turret.RewardMass, "the reward must be 0 to 1000 mass");
         if (turret.Rooms.Concat(turret.ExcludedRooms).Any(string.IsNullOrWhiteSpace)) throw new ArgumentException("Turret has a blank room.", nameof(turret));
     }

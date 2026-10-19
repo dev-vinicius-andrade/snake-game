@@ -124,6 +124,28 @@ public sealed class SnapshotBuilderTests
     }
 
     [Fact]
+    public void Build_PerkTiersComeAlongsideThePerks_WhenAnyIsAboveTheFirst()
+    {
+        var player = AddPlayer("ana", (1, 2), (3, 4));
+        player.Perks.Returns(new List<string> { "magnet", "swift" });
+        player.PerkTiers.Returns(new List<int> { 2, 1 });
+
+        var snake = Json().GetProperty("snakes")[0];
+
+        Assert.Equal(new[] { 2, 1 }, snake.GetProperty("pt").EnumerateArray().Select(n => n.GetInt32()));
+    }
+
+    [Fact]
+    public void Build_PerkTiersAreLeftOutWhileEveryPerkIsAtTheFirst()
+    {
+        var player = AddPlayer("ana", (1, 2), (3, 4));
+        player.Perks.Returns(new List<string> { "magnet" });
+        player.PerkTiers.Returns(new List<int> { 1 });
+
+        Assert.False(Json().GetProperty("snakes")[0].TryGetProperty("pt", out _));
+    }
+
+    [Fact]
     public void Build_LeavesOutWhatIsPlainSoItCostsNothing()
     {
         AddPlayer("ana", (1, 2), (3, 4));

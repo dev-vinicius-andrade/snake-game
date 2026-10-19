@@ -268,11 +268,28 @@ public class GameStateService : IGameStateService
         player.Score += food.Value;
         player.FoodsEaten += food.FoodsCredit;
         GrantPerk(player, food);
-        player.Perks = _perkRules.UnlockedIds(player.FoodsEaten, gameState.Room, GrantedOf(player)).ToList();
-        player.AutoFire = EffectsOf(gameState, player).AutoFire;
+        RefreshPerks(gameState, player);
         HealBody(player, food.Value);
         ApplyEatingRewards(gameState, player, food);
 
+    }
+
+    /// <summary>Works out again which perks a snake has, at which tiers, for the foods it has eaten and what it was given.</summary>
+    private void RefreshPerks(IGameState gameState, IPlayer player)
+    {
+        player.Perks = _perkRules.UnlockedIds(player.FoodsEaten, gameState.Room, GrantedOf(player)).ToList();
+        player.PerkTiers = _perkRules.TiersFor(player.FoodsEaten, gameState.Room, GrantedOf(player)).ToList();
+        _scriptedEffects.TryRemove(player.Guid, out _);
+        player.AutoFire = EffectsOf(gameState, player).AutoFire;
+    }
+
+    /// <summary>Foods that something the snake did counts for, toward its perks. They can lift a perk to a higher tier.</summary>
+    private void CreditFoods(IGameState gameState, IPlayer player, int foods)
+    {
+        if (foods <= 0) return;
+        player.FoodsEaten += foods;
+        RefreshPerks(gameState, player);
+        UpdatePlayer(player);
     }
 
     private bool PlayerCurrentPositionCollideWithFood(IFood food, IPlayer player)
@@ -521,15 +538,14 @@ public class GameStateService : IGameStateService
             .ToArray();
         foreach (var drop in _deathDropRules.Plan(boss.RewardMass, ring)) AddPellet(gameState, drop, new Color(BossRewardColor, BossRewardColor));
         if (boss.LastHitBy is not { } killerId || !gameState.Players.TryGetValue(killerId, out var killer) || !killer.IsAlive) return;
-        GrantBossPerk(gameState, killer, boss.GrantsPerk);
+        GrantBossPerk(gameState, killer, boss);
     }
 
-    private void GrantBossPerk(IGameState gameState, IPlayer killer, string? perk)
+    private void GrantBossPerk(IGameState gameState, IPlayer killer, WorldBoss boss)
     {
-        if (string.IsNullOrWhiteSpace(perk)) return;
-        if (!killer.GrantedPerks.Contains(perk)) killer.GrantedPerks.Add(perk);
-        killer.Perks = _perkRules.UnlockedIds(killer.FoodsEaten, gameState.Room, GrantedOf(killer)).ToList();
-        killer.AutoFire = EffectsOf(gameState, killer).AutoFire;
+        if (!string.IsNullOrWhiteSpace(boss.GrantsPerk) && !killer.GrantedPerks.Contains(boss.GrantsPerk)) killer.GrantedPerks.Add(boss.GrantsPerk);
+        killer.FoodsEaten += Math.Max(0, boss.FoodsCredit);
+        RefreshPerks(gameState, killer);
         UpdatePlayer(killer);
     }
 
@@ -704,6 +720,7 @@ public class GameStateService : IGameStateService
     {
         if (killerId == victim.Guid || !gameState.Players.TryGetValue(killerId, out var killer) || !killer.IsAlive) return;
         LifeOf(killer).Kills++;
+        CreditFoods(gameState, killer, _perkRules.KillFoodsCredit);
         _scriptedEffects.TryRemove(killer.Guid, out _);
         if (!_perkRules.HasScripts(killer.FoodsEaten, gameState.Room, GrantedOf(killer))) return;
         var rewards = _perkRules.RewardsForKilling(

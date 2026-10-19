@@ -58,7 +58,7 @@ public sealed class TurretRunner
                 gameState.Boss = new WorldBoss
                 {
                     Id = Guid.NewGuid(), X = step.State.X, Y = step.State.Y, Size = turret.Size, Hp = turret.HitPoints, MaxHp = turret.HitPoints,
-                    Angle = step.State.Angle, Arms = turret.Arms, ShotSpeed = turret.ShotSpeed, RewardMass = turret.RewardMass,
+                    Angle = step.State.Angle, Arms = turret.Arms, ShotSpeed = turret.ShotSpeed, RewardMass = turret.RewardMass, FoodsCredit = turret.FoodsCredit,
                     GrantsPerk = string.IsNullOrWhiteSpace(turret.GrantsPerk) ? null : turret.GrantsPerk
                 };
                 break;

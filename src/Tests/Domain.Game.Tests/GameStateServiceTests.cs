@@ -1776,4 +1776,119 @@ public sealed class GameStateServiceTests
 
         Assert.Empty(_state.Hits);
     }
+
+    // Perk tiers, and what kills and bosses are worth toward them.
+
+    private GameStateService WithTiers(int killCredit = 3)
+        => Build(new PerkRules(new PerkOptions
+        {
+            KillFoodsCredit = killCredit,
+            Perks =
+            [
+                new()
+                {
+                    Id = "magnet", Name = "Magnet", FoodsRequired = 2, Effect = PerkEffect.Magnet, Amount = 60,
+                    Tiers = [new PerkTier { FoodsRequired = 6, Multiplier = 2 }]
+                }
+            ]
+        }));
+
+    [Fact]
+    public async Task CheckFoodCollision_TellsWhichTierEachPerkIsAt()
+    {
+        var service = WithTiers();
+        var player = AddPlayer("a", 500, 500);
+        player.FoodsEaten = 5;
+        AddFood(player.CurrentPosition.X, player.CurrentPosition.Y, 1);
+
+        await service.CheckFoodCollision(_state, player);
+
+        Assert.Equal(["magnet"], player.Perks);
+        Assert.Equal([2], player.PerkTiers);
+    }
+
+    [Fact]
+    public async Task CheckFoodCollision_BelowTheSecondTier_IsTheFirst()
+    {
+        var service = WithTiers();
+        var player = AddPlayer("a", 500, 500);
+        player.FoodsEaten = 2;
+        AddFood(player.CurrentPosition.X, player.CurrentPosition.Y, 1);
+
+        await service.CheckFoodCollision(_state, player);
+
+        Assert.Equal([1], player.PerkTiers);
+    }
+
+    [Fact]
+    public async Task ResolveSnakeCollisions_TheSnakeThatWasRunIntoGetsCreditForTheKill_TowardItsPerks()
+    {
+        var service = WithTiers(killCredit: 4);
+        var wall = AddPlayer("wall", 500, 500, score: 0);
+        wall.FoodsEaten = 3;
+        var intruder = AddPlayer("intruder", 900, 900, length: 8, score: 2);
+        intruder.CurrentPosition = At(wall.Path[2].X, 505);
+        intruder.Path[^1] = intruder.CurrentPosition;
+
+        await service.ResolveSnakeCollisions(_state);
+
+        Assert.Equal(7, wall.FoodsEaten);
+        Assert.Equal([2], wall.PerkTiers);
+        Assert.Equal(["magnet"], wall.Perks);
+    }
+
+    [Fact]
+    public async Task CheckObstacleCollision_ShootingAHeadAlsoGivesCreditForTheKill()
+    {
+        var service = WithTiers(killCredit: 4);
+        var target = AddPlayer("target", 500, 500, length: 11, score: 5);
+        var shooter = AddPlayer("shooter", 1500, 100);
+        AddShot(shooter, target.CurrentPosition.X, 500);
+
+        await service.CheckObstacleCollision(_state, target);
+
+        Assert.Equal(4, shooter.FoodsEaten);
+    }
+
+    [Fact]
+    public async Task ResolveSnakeCollisions_NoCreditForAKillOfItself()
+    {
+        var service = WithTiers(killCredit: 4);
+        var snake = AddPlayer("snake", 500, 500, length: 8, score: 2);
+        snake.CurrentPosition = At(snake.Path[2].X, 505);
+        snake.Path[^1] = snake.CurrentPosition;
+
+        await service.ResolveSnakeCollisions(_state);
+
+        Assert.Equal(0, snake.FoodsEaten);
+    }
+
+    [Fact]
+    public async Task ResolveBossHits_TheSnakeThatBringsTheBossDown_GetsItsCreditTowardItsPerks()
+    {
+        var service = WithTiers();
+        var boss = AddBoss(800, 400, hp: 1);
+        var shooter = AddPlayer("shooter", 100, 100);
+        shooter.FoodsEaten = 1;
+        AddShot(shooter, 810, 410);
+        _state.Boss = new WorldBoss { Id = boss.Id, X = 800, Y = 400, Size = 60, Hp = 1, MaxHp = 1, Arms = 4, FoodsCredit = 6 };
+
+        await service.ResolveBossHits(_state);
+
+        Assert.Equal(7, shooter.FoodsEaten);
+        Assert.Equal([2], shooter.PerkTiers);
+    }
+
+    [Fact]
+    public async Task ResolveBossHits_ABossThatIsOnlyHurt_GivesNoCredit()
+    {
+        var service = WithTiers();
+        _state.Boss = new WorldBoss { Id = Guid.NewGuid(), X = 800, Y = 400, Size = 60, Hp = 3, MaxHp = 3, Arms = 4, FoodsCredit = 6 };
+        var shooter = AddPlayer("shooter", 100, 100);
+        AddShot(shooter, 810, 410);
+
+        await service.ResolveBossHits(_state);
+
+        Assert.Equal(0, shooter.FoodsEaten);
+    }
 }

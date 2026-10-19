@@ -31,6 +31,9 @@ public sealed class WorldBoss
     /// <summary>Mass that falls as food where it is brought down.</summary>
     public long RewardMass { get; init; }
 
+    /// <summary>How many foods bringing it down counts for toward the perks of the snake that does.</summary>
+    public int FoodsCredit { get; init; }
+
     /// <summary>The perk the snake that brings it down gets, if any.</summary>
     public string? GrantsPerk { get; init; }
 

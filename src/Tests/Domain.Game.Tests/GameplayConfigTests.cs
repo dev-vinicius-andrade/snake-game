@@ -105,6 +105,50 @@ public sealed class GameplayConfigTests
     }
 
     [Fact]
+    public void Json_PerkTiersAreWrittenAndReadBack()
+    {
+        var config = GameplayConfig.Defaults with
+        {
+            Perks = new PerkOptions
+            {
+                KillFoodsCredit = 5,
+                Perks = [new PerkDefinition { Id = "m", Name = "M", FoodsRequired = 3, Effect = PerkEffect.Magnet, Amount = 10, Tiers = [new PerkTier { FoodsRequired = 9, Multiplier = 1.5 }] }]
+            }
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(config, GameplayConfig.Json);
+        var back = System.Text.Json.JsonSerializer.Deserialize<GameplayConfig>(json, GameplayConfig.Json)!;
+
+        Assert.Contains("\"tiers\"", json);
+        Assert.Equal(5, back.Perks.KillFoodsCredit);
+        Assert.Equal((9, 1.5), (back.Perks.Perks[0].Tiers[0].FoodsRequired, back.Perks.Perks[0].Tiers[0].Multiplier));
+        back.EnsureValid();
+    }
+
+    [Fact]
+    public void Defaults_TheBuiltInPerksHaveTiers_AndStayValid()
+    {
+        var defaults = GameplayConfig.Defaults;
+
+        Assert.Contains(defaults.Perks.Perks, perk => perk.Tiers.Count > 0);
+        defaults.EnsureValid();
+    }
+
+    [Fact]
+    public void EnsureValid_RefusesAPerkTierThatCannotWork()
+    {
+        var config = new GameplayConfig
+        {
+            Perks = new PerkOptions
+            {
+                Perks = [new PerkDefinition { Id = "m", Name = "M", FoodsRequired = 3, Effect = PerkEffect.Magnet, Amount = 10, Tiers = [new PerkTier { FoodsRequired = 2, Multiplier = 1.5 }] }]
+            }
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(config.EnsureValid);
+    }
+
+    [Fact]
     public void Defaults_HaveAShrinkingZoneOn()
     {
         var zone = GameplayConfig.Defaults.WorldEvents.Zone;

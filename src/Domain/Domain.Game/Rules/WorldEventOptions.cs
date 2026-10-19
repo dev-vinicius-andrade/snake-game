@@ -198,6 +198,9 @@ public sealed record TurretOptions
     /// <summary>The id of a perk the snake that brings it down gets, whatever the foods it has eaten. Empty: none.</summary>
     public string? GrantsPerk { get; init; }
 
+    /// <summary>How many foods bringing it down counts for toward the perks (and their tiers) of the snake that does it.</summary>
+    public int FoodsCredit { get; init; } = 15;
+
     /// <summary>The rooms it appears in. Empty: every room.</summary>
     public List<string> Rooms { get; init; } = [];
 

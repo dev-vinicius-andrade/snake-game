@@ -82,6 +82,7 @@ public static class SnapshotBuilder
         Color = player.BackgroundColor.FillColor,
         Direction = DirectionName(player.CurrentDirection),
         Perks = player.Perks.Count == 0 ? null : player.Perks.ToList(),
+        PerkTiers = player.PerkTiers.Any(tier => tier > 1) ? player.PerkTiers.ToList() : null,
         Path = player.Path.SelectMany(point => new[] { Tenth(point.X), Tenth(point.Y) }).ToList(),
         Health = HealthPercents(player.SegmentHealth),
     };
