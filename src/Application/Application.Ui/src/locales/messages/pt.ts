@@ -234,6 +234,7 @@ export const messages = {
     ping: "Ping",
     perks: "Poderes",
     prize: "Prêmio",
+    lightning: { warning: "Raio a caminho!", danger: "Raio! Saia do círculo!" },
     mouseAimOn: "Mira com o mouse: ligada",
     mouseAimOff: "Mira com o mouse: desligada",
     eye: {

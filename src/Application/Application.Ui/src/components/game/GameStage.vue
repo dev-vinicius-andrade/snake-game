@@ -3,6 +3,7 @@ import { useElementSize } from "@vueuse/core";
 import { computed, ref, watch } from "vue";
 import { useCanvasRenderer } from "@/composables/useCanvasRenderer";
 import { followCamera, viewLayout, type Camera } from "@/render/camera";
+import { LightningTracker } from "@/render/lightning";
 import { DEFAULT_HEAD_SIZE } from "@/render/pixelRenderer";
 import { CameraSmoother } from "@/render/cameraSmoothing";
 import { SnapshotBuffer } from "@/render/snapshotBuffer";
@@ -35,9 +36,19 @@ function target(snapshot: GameSnapshot): GamePoint {
 const buffer = new SnapshotBuffer({ jitterCorrection: 0.1 });
 /** The camera follows the snake a little behind, so quickly turning left and right does not shake the screen. */
 const smoother = new CameraSmoother();
+/** Lightning warnings are shown as they arrive, not a moment in the past: the countdown is the server's, not the snakes' motion. */
+const lightning = new LightningTracker();
 watch(
   () => props.snapshot,
-  (snapshot) => (snapshot ? buffer.push(snapshot, performance.now()) : buffer.clear()),
+  (snapshot) => {
+    if (snapshot) {
+      buffer.push(snapshot, performance.now());
+      lightning.observe(snapshot.strikes, performance.now());
+    } else {
+      buffer.clear();
+      lightning.clear();
+    }
+  },
   { immediate: true }
 );
 
@@ -70,7 +81,14 @@ useCanvasRenderer(canvas, () => {
   const frame = currentFrame();
   return {
     snapshot: frame?.snapshot ?? null,
-    options: { selfGuid: props.selfGuid, timeMs: performance.now(), damage: props.damage, origin: frame?.camera?.origin, view: frame?.camera?.view },
+    options: {
+      selfGuid: props.selfGuid,
+      timeMs: performance.now(),
+      damage: props.damage,
+      lightning: lightning.view(performance.now()),
+      origin: frame?.camera?.origin,
+      view: frame?.camera?.view,
+    },
   };
 });
 </script>

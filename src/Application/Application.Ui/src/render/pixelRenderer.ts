@@ -1,5 +1,6 @@
 import type { FloatingDamage, FoodSnapshot, GamePoint, GameSnapshot, RoomDimensions, ShotSnapshot, SnakeSnapshot } from "@/types/game";
 import { GLYPH_HEIGHT, GLYPH_WIDTH, damageColor as damageNumberColor, damageLabel, damagePosition, glyphFor, isVisible } from "./damageNumbers";
+import { discPoints, ringPoints, type LightningView } from "./lightning";
 import { DAMAGE_COLOR, contrastColor, headColor, lightenColor, segmentColor, shadeColor } from "./segmentColor";
 
 /** The 2D canvas methods the renderer needs, so it can be tested without a browser. */
@@ -33,6 +34,8 @@ export interface RenderOptions {
   timeMs?: number;
   /** Damage numbers on their way up the screen. Drawn only with `timeMs`. */
   damage?: FloatingDamage[];
+  /** Lightning warnings and flashes. The warning is drawn under the snakes, the flash over everything. */
+  lightning?: LightningView;
 }
 
 const BACKGROUND = "#16161d";
@@ -165,6 +168,46 @@ function drawDamage(painter: Painter, damage: FloatingDamage, selfGuid: string |
     );
 }
 
+export const LIGHTNING_EDGE_COLOR = "#7a6a1f";
+export const LIGHTNING_RING_COLOR = "#ffe14d";
+const LIGHTNING_MARK_COLOR = "#b39b2a";
+export const LIGHTNING_FLASH_COLOR = "#ffffff";
+const LIGHTNING_AFTERGLOW_COLOR = "#9fc4ff";
+/** Past this much of the warning the ring flickers, faster than it can be ignored. */
+const LIGHTNING_URGENT_FROM = 0.75;
+const LIGHTNING_FLICKER_MS = 90;
+/** A flash is solid until this age, then every other pixel, then only the rim. */
+const FLASH_SOLID_UNTIL = 0.4;
+const FLASH_THIN_UNTIL = 0.75;
+
+function drawLightningWarning(painter: Painter, view: LightningView, pixelSize: number, timeMs: number) {
+  const urgent = Math.floor(timeMs / LIGHTNING_FLICKER_MS) % 2 === 1;
+  for (const ring of view.rings) {
+    // Where it will strike: a dashed rim, and a mark in the middle.
+    ringPoints(ring.center, ring.radius, pixelSize).forEach((point, index) => {
+      if (index % 2 === 0) painter.block(LIGHTNING_EDGE_COLOR, point, 1);
+    });
+    painter.block(LIGHTNING_MARK_COLOR, ring.center, 1);
+    if (ring.progress <= 0) continue;
+    const color = ring.progress >= LIGHTNING_URGENT_FROM && urgent ? LIGHTNING_FLASH_COLOR : LIGHTNING_RING_COLOR;
+    ringPoints(ring.center, Math.max(ring.radius * ring.progress, pixelSize), pixelSize).forEach((point) => painter.block(color, point, 1));
+  }
+}
+
+function drawLightningFlash(painter: Painter, view: LightningView, pixelSize: number) {
+  for (const flash of view.flashes) {
+    if (flash.age < FLASH_SOLID_UNTIL) {
+      discPoints(flash.center, flash.radius, pixelSize).forEach((point) => painter.block(LIGHTNING_FLASH_COLOR, point, 1));
+    } else if (flash.age < FLASH_THIN_UNTIL) {
+      discPoints(flash.center, flash.radius, pixelSize)
+        .filter((point) => (Math.floor(point.x / pixelSize) + Math.floor(point.y / pixelSize)) % 2 === 0)
+        .forEach((point) => painter.block(LIGHTNING_AFTERGLOW_COLOR, point, 1));
+    } else {
+      ringPoints(flash.center, flash.radius, pixelSize).forEach((point) => painter.block(LIGHTNING_AFTERGLOW_COLOR, point, 1));
+    }
+  }
+}
+
 function drawShot(painter: Painter, shot: ShotSnapshot) {
   painter.block(SHOT_COLOR, shot.position, SHOT_PIXELS);
 }
@@ -237,12 +280,14 @@ export function drawFrame(ctx: PixelContext, snapshot: GameSnapshot, options: Re
   ctx.fillRect(0, 0, options.view?.width ?? room.width, options.view?.height ?? room.height);
   if (options.view) drawGrid(ctx, options.view, origin, pixelSize);
 
+  if (options.lightning) drawLightningWarning(painter, options.lightning, pixelSize, options.timeMs ?? 0);
   snapshot.foods.forEach((food) => drawFood(painter, food, options.timeMs ?? 0));
   snapshot.shots.forEach((shot) => drawShot(painter, shot));
   const living = snapshot.snakes.filter((snake) => snake.isAlive);
   const others = living.filter((snake) => snake.guid !== options.selfGuid);
   const own = living.filter((snake) => snake.guid === options.selfGuid);
   [...others, ...own].forEach((snake) => drawSnake(painter, snake, segmentPixels, damageTint, snapshot.room));
+  if (options.lightning) drawLightningFlash(painter, options.lightning, pixelSize);
   const now = options.timeMs;
   if (now !== undefined)
     (options.damage ?? []).filter((entry) => isVisible(entry, now)).forEach((entry) => drawDamage(painter, entry, options.selfGuid, now, pixelSize));

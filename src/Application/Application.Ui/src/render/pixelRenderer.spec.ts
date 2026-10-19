@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { FloatingDamage, FoodSnapshot, GameSnapshot, ShotSnapshot, SnakeSnapshot } from "@/types/game";
-import { drawFrame, logicalSize, type PixelContext } from "./pixelRenderer";
+import { LIGHTNING_EDGE_COLOR, LIGHTNING_FLASH_COLOR, LIGHTNING_RING_COLOR, drawFrame, logicalSize, type PixelContext } from "./pixelRenderer";
 import { contrastColor, headColor, segmentColor, shadeColor } from "./segmentColor";
 
 class RecordingContext implements PixelContext {
@@ -245,6 +245,68 @@ describe("drawFrame", () => {
 
     const blocks = ctx.calls.filter((call) => call.w === 3);
     expect(blocks[blocks.length - 1].style).toBe(headColor("#0000ff"));
+  });
+
+  describe("lightning", () => {
+    const centre = { x: 500, y: 400 };
+    const at = (call: { x: number; y: number }) => ({ x: call.x * 5, y: call.y * 5 });
+    const distance = (call: { x: number; y: number }) => Math.hypot(at(call).x - centre.x, at(call).y - centre.y);
+    const styled = (style: string) => ctx.calls.filter((call) => call.style === style);
+
+    it("draws nothing for lightning without a view", () => {
+      drawFrame(ctx, snapshot());
+
+      expect(ctx.calls).toHaveLength(1);
+    });
+
+    it("marks where the strike will reach, and grows a ring toward it", () => {
+      drawFrame(ctx, snapshot(), { lightning: { rings: [{ center: centre, radius: 90, progress: 0.5 }], flashes: [] }, timeMs: 0 });
+
+      const edge = styled(LIGHTNING_EDGE_COLOR);
+      const ring = styled(LIGHTNING_RING_COLOR);
+      expect(edge.length).toBeGreaterThan(20);
+      expect(ring.length).toBeGreaterThan(10);
+      edge.forEach((call) => expect(Math.abs(distance(call) - 90)).toBeLessThanOrEqual(8));
+      ring.forEach((call) => expect(Math.abs(distance(call) - 45)).toBeLessThanOrEqual(8));
+      expect(edge.every((call) => call.w === 1 && call.h === 1)).toBe(true);
+    });
+
+    it("flickers between yellow and white when the strike is close", () => {
+      const close = { rings: [{ center: centre, radius: 90, progress: 0.95 }], flashes: [] };
+
+      drawFrame(ctx, snapshot(), { lightning: close, timeMs: 0 });
+      expect(styled(LIGHTNING_RING_COLOR).length).toBeGreaterThan(0);
+      expect(styled(LIGHTNING_FLASH_COLOR)).toHaveLength(0);
+
+      ctx.calls = [];
+      drawFrame(ctx, snapshot(), { lightning: close, timeMs: 100 });
+      expect(styled(LIGHTNING_FLASH_COLOR).length).toBeGreaterThan(0);
+      expect(styled(LIGHTNING_RING_COLOR)).toHaveLength(0);
+    });
+
+    it("fills the struck circle with a flash that thins out as it ages", () => {
+      drawFrame(ctx, snapshot(), { lightning: { rings: [], flashes: [{ center: centre, radius: 90, age: 0 }] } });
+      const fresh = styled(LIGHTNING_FLASH_COLOR).length;
+      ctx.calls = [];
+      drawFrame(ctx, snapshot(), { lightning: { rings: [], flashes: [{ center: centre, radius: 90, age: 0.6 }] } });
+      const fading = ctx.calls.slice(1).length;
+
+      expect(fresh).toBeGreaterThan(Math.PI * 18 * 18 * 0.9);
+      expect(fading).toBeGreaterThan(0);
+      expect(fading).toBeLessThan(fresh);
+    });
+
+    it("draws the warning under the snakes and the flash over them", () => {
+      drawFrame(ctx, snapshot({ snakes: [snake({ path: [{ x: 500, y: 400 }] })] }), {
+        lightning: { rings: [{ center: centre, radius: 90, progress: 0.5 }], flashes: [{ center: centre, radius: 90, age: 0 }] },
+        timeMs: 0,
+      });
+
+      const styles = ctx.calls.map((call) => call.style);
+      const head = styles.lastIndexOf(headColor("#00ff00"));
+      expect(styles.indexOf(LIGHTNING_EDGE_COLOR)).toBeLessThan(head);
+      expect(styles.lastIndexOf(LIGHTNING_FLASH_COLOR)).toBeGreaterThan(head);
+    });
   });
 
   it("does not mutate the snapshot", () => {
