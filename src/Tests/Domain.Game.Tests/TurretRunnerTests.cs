@@ -1,3 +1,4 @@
+using Library.Commons.Game.Domain.Entities;
 using Domain.Game.Entities;
 using Domain.Game.Rules;
 using Domain.Game.Services;
@@ -98,6 +99,41 @@ public sealed class TurretRunnerTests
         Appeared(Options(turret => turret with { FoodsCredit = 9 }));
 
         Assert.Equal(9, _state.Boss!.FoodsCredit);
+    }
+
+    [Fact]
+    public void Update_ARoomThatSwitchedTheTurretOff_HasNone()
+    {
+        _room.Gameplay.Returns(new RoomGameplay { Turret = FeaturePreset.Off });
+        var runner = Runner();
+        runner.Update(_state);
+
+        Pass(runner, 100);
+
+        Assert.Null(_state.Boss);
+    }
+
+    [Fact]
+    public void Update_ARoomThatPickedTheTurretWild_GetsATougherOne()
+    {
+        _room.Gameplay.Returns(new RoomGameplay { Turret = FeaturePreset.Wild });
+
+        Appeared(Options());
+
+        Assert.True(_state.Boss!.Hp > 20);
+        Assert.True(_state.Boss!.Arms > 4);
+    }
+
+    [Fact]
+    public void Update_ARoomThatPickedTheTurretOn_HasOneWhereTheAdminSwitchedItOff()
+    {
+        _room.Gameplay.Returns(new RoomGameplay { Turret = FeaturePreset.Normal });
+        var runner = Runner(Options(turret => turret with { Enabled = false }));
+        runner.Update(_state);
+
+        Pass(runner, 30);
+
+        Assert.NotNull(_state.Boss);
     }
 
     [Fact]

@@ -1,3 +1,5 @@
+using Library.Commons.Game.Domain.Entities;
+
 namespace Domain.Game.Rules;
 
 /// <summary>A spot that is marked, and when it is struck.</summary>
@@ -107,8 +109,25 @@ public sealed class WorldEventRules
         _random = random ?? Random.Shared.NextDouble;
     }
 
-    /// <summary>The options in use.</summary>
+    /// <summary>The options in use: what the administrator set for every room.</summary>
     public WorldEventOptions Options => _options;
+
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<RoomGameplay, Tuple<WorldEventOptions, WorldEventOptions>> _perRoom = new();
+
+    /// <summary>
+    /// The options for one room: the administrator's, with what whoever made the room picked put over them (see
+    /// <see cref="WorldEventPresets"/>). Worked out once for as long as neither the choices nor the administrator's options change.
+    /// </summary>
+    public WorldEventOptions OptionsFor(Library.Commons.Game.Domain.Interfaces.Entities.IRoom? room)
+    {
+        var admin = _options;
+        var gameplay = room.GameplayOf();
+        if (gameplay.IsDefault) return admin;
+        if (_perRoom.TryGetValue(gameplay, out var cached) && ReferenceEquals(cached.Item1, admin)) return cached.Item2;
+        var resolved = WorldEventPresets.Apply(admin, gameplay);
+        _perRoom.AddOrUpdate(gameplay, Tuple.Create(admin, resolved));
+        return resolved;
+    }
 
     /// <summary>Switches to other options while the game runs. Options that do not hold up are refused and the old ones stay.</summary>
     public void Reconfigure(WorldEventOptions options) => _options = Validated(options);
@@ -184,9 +203,10 @@ public sealed class WorldEventRules
     /// is one the event is for, and whether anyone is in it, is for the caller to decide: when not, it forgets the state.
     /// </summary>
     /// <param name="heads">Where the living snakes' heads are, for the strikes that are aimed.</param>
-    public StormStep Step(WorldEventKind kind, StormState state, DateTimeOffset now, double roomWidth, double roomHeight, IReadOnlyList<Point> heads)
+    /// <param name="forRoom">The options of the room (see <see cref="OptionsFor"/>); the administrator's when left out.</param>
+    public StormStep Step(WorldEventKind kind, StormState state, DateTimeOffset now, double roomWidth, double roomHeight, IReadOnlyList<Point> heads, WorldEventOptions? forRoom = null)
     {
-        var options = _options;
+        var options = forRoom ?? _options;
         var settings = options.Of(kind);
         if (!options.Enabled || !settings.Enabled) return new StormStep(StormState.None, [], []);
         if (!state.InProgress)
@@ -238,9 +258,9 @@ public sealed class WorldEventRules
     /// room is for the caller to say through <paramref name="players"/>; whether the turret was brought down, through
     /// <see cref="TurretKilled"/>.
     /// </summary>
-    public TurretStep TurretStep(TurretState state, DateTimeOffset now, double roomWidth, double roomHeight, int players)
+    public TurretStep TurretStep(TurretState state, DateTimeOffset now, double roomWidth, double roomHeight, int players, WorldEventOptions? forRoom = null)
     {
-        var options = _options;
+        var options = forRoom ?? _options;
         var turret = options.Turret;
         if (!options.Enabled || !turret.Enabled) return new TurretStep(TurretState.None, TurretAction.None, []);
         if (!state.IsActive) return TurretWaiting(turret, state, now, roomWidth, roomHeight, players);
@@ -269,7 +289,7 @@ public sealed class WorldEventRules
     }
 
     /// <summary>What the room is left with when its turret was brought down: the next one scheduled.</summary>
-    public TurretState TurretKilled(DateTimeOffset now) => TurretScheduled(_options.Turret, now);
+    public TurretState TurretKilled(DateTimeOffset now, WorldEventOptions? forRoom = null) => TurretScheduled((forRoom ?? _options).Turret, now);
 
     private TurretState TurretScheduled(TurretOptions turret, DateTimeOffset now)
         => TurretState.None with { NextSpawnAt = now.AddSeconds(turret.MinIntervalSeconds + (turret.MaxIntervalSeconds - turret.MinIntervalSeconds) * _random()) };
@@ -282,9 +302,9 @@ public sealed class WorldEventRules
     /// Moves the safe zone of a room on. Call as often as the damage needs to be timed (every frame is fine). Whether anyone is in
     /// the room is for the caller to say through <paramref name="players"/>.
     /// </summary>
-    public ZoneStep ZoneStep(ZoneState state, DateTimeOffset now, double roomWidth, double roomHeight, int players)
+    public ZoneStep ZoneStep(ZoneState state, DateTimeOffset now, double roomWidth, double roomHeight, int players, WorldEventOptions? forRoom = null)
     {
-        var options = _options;
+        var options = forRoom ?? _options;
         var zone = options.Zone;
         if (!options.Enabled || !zone.Enabled) return new ZoneStep(ZoneState.None, ZoneAction.None, 0);
         if (!state.IsActive) return ZoneWaiting(zone, state, now, roomWidth, roomHeight, players);
@@ -292,7 +312,7 @@ public sealed class WorldEventRules
         if (now < state.NextDamageAt) return new ZoneStep(state, ZoneAction.None, 0);
 
         var next = state with { NextDamageAt = now.AddMilliseconds(zone.DamageIntervalMilliseconds) };
-        return new ZoneStep(next, ZoneAction.Damage, RadiusAt(state, now));
+        return new ZoneStep(next, ZoneAction.Damage, RadiusAt(state, now, options));
     }
 
     private ZoneStep ZoneWaiting(ZoneOptions zone, ZoneState state, DateTimeOffset now, double width, double height, int players)
@@ -326,9 +346,9 @@ public sealed class WorldEventRules
         };
 
     /// <summary>How far from its middle the zone reaches: all of the room while warning, closing evenly, then the final radius.</summary>
-    public double RadiusAt(ZoneState state, DateTimeOffset now)
+    public double RadiusAt(ZoneState state, DateTimeOffset now, WorldEventOptions? forRoom = null)
     {
-        var final = _options.Zone.FinalRadius;
+        var final = (forRoom ?? _options).Zone.FinalRadius;
         return PhaseOf(state, now) switch
         {
             ZonePhase.Warning => state.StartRadius,

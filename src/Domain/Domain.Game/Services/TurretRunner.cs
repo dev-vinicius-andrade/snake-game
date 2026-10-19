@@ -34,7 +34,7 @@ public sealed class TurretRunner
     {
         ArgumentNullException.ThrowIfNull(gameState);
         var room = gameState.Room;
-        var options = _rules.Options;
+        var options = _rules.OptionsFor(room);
         if (gameState.Players.Count == 0 || !options.Enabled || !options.Turret.AppliesTo(room))
         {
             _states.TryRemove(room.Guid, out _);
@@ -44,8 +44,8 @@ public sealed class TurretRunner
 
         var now = _time.GetUtcNow();
         var state = _states.GetValueOrDefault(room.Guid, TurretState.None);
-        if (state.IsActive && gameState.Boss is null) state = _rules.TurretKilled(now);
-        var step = _rules.TurretStep(state, now, room.Width, room.Height, gameState.Players.Count);
+        if (state.IsActive && gameState.Boss is null) state = _rules.TurretKilled(now, options);
+        var step = _rules.TurretStep(state, now, room.Width, room.Height, gameState.Players.Count, options);
         _states[room.Guid] = step.State;
         Act(gameState, options.Turret, step);
     }

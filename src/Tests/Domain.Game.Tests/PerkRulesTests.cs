@@ -354,6 +354,35 @@ public sealed class PerkRulesTests
     }
 
     [Fact]
+    public void Gameplay_ARoomWithPerksSwitchedOff_HasNoPerksAtAll()
+    {
+        var rules = new PerkRules(new PerkOptions
+        {
+            Perks = [new PerkDefinition { Id = "magnet", Name = "Magnet", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 50 }]
+        });
+        var room = Room();
+        room.Gameplay.Returns(new Library.Commons.Game.Domain.Entities.RoomGameplay { Perks = Library.Commons.Game.Domain.Entities.FeaturePreset.Off });
+
+        Assert.Empty(rules.UnlockedIds(100, room));
+        Assert.Equal(0, rules.EffectsFor(100, room).MagnetRadius);
+        Assert.Empty(rules.TiersFor(100, room));
+        Assert.Equal(["magnet"], rules.UnlockedIds(100, Room()));
+    }
+
+    [Fact]
+    public void Gameplay_ARoomThatPickedPerksOn_HasThemWhateverElse()
+    {
+        var rules = new PerkRules(new PerkOptions
+        {
+            Perks = [new PerkDefinition { Id = "magnet", Name = "Magnet", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 50 }]
+        });
+        var room = Room();
+        room.Gameplay.Returns(new Library.Commons.Game.Domain.Entities.RoomGameplay { Perks = Library.Commons.Game.Domain.Entities.FeaturePreset.Wild });
+
+        Assert.Equal(["magnet"], rules.UnlockedIds(100, room));
+    }
+
+    [Fact]
     public void Rooms_APerkWithRoomsOnlyWorksInThoseRooms_ByCodeNameOrGuid()
     {
         var guid = Guid.NewGuid();

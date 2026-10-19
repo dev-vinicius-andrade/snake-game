@@ -281,6 +281,48 @@ public sealed class WorldEventRunnerTests
     }
 
     [Fact]
+    public void Update_ARoomThatSwitchedLightningOff_HasNone_WhateverTheAdminSays()
+    {
+        AddPlayer();
+        _room.Gameplay.Returns(new RoomGameplay { Lightning = FeaturePreset.Off });
+        var runner = Runner(Options(meteors: OneMeteor()), random: 0);
+        runner.Update(_state);
+
+        Pass(runner, 30);
+
+        Assert.All(_state.Strikes.Values, strike => Assert.Equal(WorldStrikeKind.Meteor, strike.Kind));
+        Assert.Single(_state.Strikes);
+    }
+
+    [Fact]
+    public void Update_ARoomThatPickedLightningWild_GetsMoreStrikesOfItThanTheAdminAsked()
+    {
+        AddPlayer();
+        _room.Gameplay.Returns(new RoomGameplay { Lightning = FeaturePreset.Wild });
+        var runner = Runner(Options(), random: 0);
+        runner.Update(_state);
+
+        Pass(runner, 30);
+        Pass(runner, 0.1);
+
+        // The admin asked for exactly 3 strikes, all at once; wild makes it 5 and brings the wait down, so it is due sooner.
+        Assert.True(_state.Strikes.Count > 3);
+    }
+
+    [Fact]
+    public void Update_ARoomThatPickedLightningOn_HasItEvenWhereTheAdminSwitchedItOff()
+    {
+        AddPlayer();
+        _room.Gameplay.Returns(new RoomGameplay { Lightning = FeaturePreset.Normal });
+        var runner = Runner(Options(lightning => lightning with { Enabled = false }), random: 0);
+        runner.Update(_state);
+
+        Pass(runner, 30);
+
+        Assert.Equal(3, _state.Strikes.Count);
+    }
+
+    [Fact]
     public void Update_OneKindSwitchedOff_LeavesTheOthersWarningsUp()
     {
         AddPlayer();

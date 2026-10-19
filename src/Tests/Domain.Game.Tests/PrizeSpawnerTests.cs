@@ -51,6 +51,32 @@ public sealed class PrizeSpawnerTests
     }
 
     [Fact]
+    public void Update_ARoomWithPrizesSwitchedOff_GetsNone_AndLosesTheOnesItHad()
+    {
+        AddPlayers(2);
+        _spawner.Update(_state);
+        Pass(60);
+        Assert.Single(Prizes());
+
+        _state.Room.Gameplay.Returns(new Library.Commons.Game.Domain.Entities.RoomGameplay { Prizes = Library.Commons.Game.Domain.Entities.FeaturePreset.Off });
+        Pass(1);
+
+        Assert.Empty(Prizes());
+        Pass(300);
+        Assert.Empty(Prizes());
+    }
+
+    [Fact]
+    public void Drop_ARoomWithPrizesSwitchedOff_DropsNothing()
+    {
+        AddPlayers(2);
+        _state.Room.Gameplay.Returns(new Library.Commons.Game.Domain.Entities.RoomGameplay { Prizes = Library.Commons.Game.Domain.Entities.FeaturePreset.Off });
+
+        Assert.False(_spawner.Drop(_state, "prize"));
+        Assert.Empty(Prizes());
+    }
+
+    [Fact]
     public void Update_BeforeTheFirstInterval_PutsNothingOnTheMap()
     {
         AddPlayers(2);

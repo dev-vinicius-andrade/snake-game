@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Domain.Game.Entities;
 using Domain.Game.Helpers;
 using Domain.Game.Rules;
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Enums;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 
@@ -37,7 +38,7 @@ public sealed class PrizeSpawner
             return;
         }
 
-        var active = _rules.Options.Enabled
+        var active = _rules.Options.Enabled && !gameState.Room.GameplayOf().PrizesOff
             ? _rules.Definitions.Where(definition => definition.AppliesTo(gameState.Room)).ToArray()
             : [];
         var activeIds = active.Select(definition => definition.Id).ToHashSet();
@@ -54,7 +55,7 @@ public sealed class PrizeSpawner
     {
         ArgumentNullException.ThrowIfNull(gameState);
         var definition = _rules.Definitions.FirstOrDefault(candidate => candidate.Id == kind);
-        if (definition is null || !_rules.Options.Enabled || !definition.AppliesTo(gameState.Room) || HasPrize(gameState, kind)) return false;
+        if (definition is null || !_rules.Options.Enabled || gameState.Room.GameplayOf().PrizesOff || !definition.AppliesTo(gameState.Room) || HasPrize(gameState, kind)) return false;
         AddPrize(gameState, definition);
         _states[(gameState.Room.Guid, kind)] = new PrizeState(null, _time.GetUtcNow().AddSeconds(definition.LifetimeSeconds));
         return true;

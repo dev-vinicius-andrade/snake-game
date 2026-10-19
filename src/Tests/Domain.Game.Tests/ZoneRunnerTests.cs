@@ -103,6 +103,39 @@ public sealed class ZoneRunnerTests
     }
 
     [Fact]
+    public void Update_ARoomThatSwitchedTheZoneOff_HasNone()
+    {
+        _room.Gameplay.Returns(new RoomGameplay { Zone = FeaturePreset.Off });
+        var runner = Runner();
+        runner.Update(_state);
+
+        Pass(runner, 100);
+
+        Assert.Null(_state.Zone);
+    }
+
+    [Fact]
+    public void Update_ARoomThatPickedTheZoneWild_ClosesSoonerToASmallerCircle()
+    {
+        _room.Gameplay.Returns(new RoomGameplay { Zone = FeaturePreset.Wild });
+        Begun(Options());
+
+        Assert.True(_state.Zone!.FinalRadius < 100);
+    }
+
+    [Fact]
+    public void Update_ARoomThatPickedTheZoneOn_HasOneWhereTheAdminSwitchedItOff()
+    {
+        _room.Gameplay.Returns(new RoomGameplay { Zone = FeaturePreset.Normal });
+        var runner = Runner(Options(zone => zone with { Enabled = false }));
+        runner.Update(_state);
+
+        Pass(runner, 30);
+
+        Assert.NotNull(_state.Zone);
+    }
+
+    [Fact]
     public void Update_TooFewPlayers_HasNoZone()
     {
         _state.Players.Remove(_state.Players.Keys.First());

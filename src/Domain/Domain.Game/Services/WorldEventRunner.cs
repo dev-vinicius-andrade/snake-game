@@ -51,7 +51,7 @@ public sealed class WorldEventRunner
     private IReadOnlyList<IPlayer> Run(IGameState gameState, WorldEventKind kind)
     {
         var room = gameState.Room;
-        var options = _rules.Options;
+        var options = _rules.OptionsFor(room);
         if (gameState.Players.Count == 0 || !options.Enabled || !options.Of(kind).AppliesTo(room))
         {
             Forget(gameState, kind);
@@ -60,7 +60,7 @@ public sealed class WorldEventRunner
 
         var storm = _storms.GetOrAdd((room.Guid, kind), _ => new Storm());
         var heads = gameState.Players.Values.Where(player => player.IsAlive).Select(player => new Point(player.CurrentPosition.X, player.CurrentPosition.Y)).ToArray();
-        var step = _rules.Step(kind, storm.State, _time.GetUtcNow(), room.Width, room.Height, heads);
+        var step = _rules.Step(kind, storm.State, _time.GetUtcNow(), room.Width, room.Height, heads, options);
         storm.State = step.State;
         foreach (var strike in step.Started) Mark(gameState, storm, strike, kind);
         return step.Fired.SelectMany(strike => Strike(gameState, storm, strike)).ToList();

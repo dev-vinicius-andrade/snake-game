@@ -34,7 +34,7 @@ public sealed class ZoneRunner
     {
         ArgumentNullException.ThrowIfNull(gameState);
         var room = gameState.Room;
-        var options = _rules.Options;
+        var options = _rules.OptionsFor(room);
         if (gameState.Players.Count == 0 || !options.Enabled || !options.Zone.AppliesTo(room))
         {
             _states.TryRemove(room.Guid, out _);
@@ -43,11 +43,11 @@ public sealed class ZoneRunner
         }
 
         var now = _time.GetUtcNow();
-        var step = _rules.ZoneStep(_states.GetValueOrDefault(room.Guid, ZoneState.None), now, room.Width, room.Height, gameState.Players.Count);
+        var step = _rules.ZoneStep(_states.GetValueOrDefault(room.Guid, ZoneState.None), now, room.Width, room.Height, gameState.Players.Count, options);
         _states[room.Guid] = step.State;
         var state = step.State;
         gameState.Zone = state.IsActive
-            ? new WorldZone(state.X, state.Y, _rules.RadiusAt(state, now), options.Zone.FinalRadius, ToPhase(_rules.PhaseOf(state, now)), _rules.PhaseEnd(state, now))
+            ? new WorldZone(state.X, state.Y, _rules.RadiusAt(state, now, options), options.Zone.FinalRadius, ToPhase(_rules.PhaseOf(state, now)), _rules.PhaseEnd(state, now))
             : null;
         return step.Action == ZoneAction.Damage
             ? _gameStates.ApplyZoneDamage(gameState, state.X, state.Y, step.Radius, options.Zone.DamageMass)

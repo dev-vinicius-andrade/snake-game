@@ -1,4 +1,5 @@
 using Domain.Game.Scripting;
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 
 namespace Domain.Game.Rules;
@@ -155,7 +156,7 @@ public sealed class PerkRules
     public IReadOnlyList<string> TickRoom(IRoom room, ScriptRoom view, ScriptStates states)
     {
         var settings = _settings;
-        if (!settings.Enabled) return [];
+        if (!settings.Enabled || room.GameplayOf().PerksOff) return [];
         return settings.Perks
             .Where(perk => perk.HasScript && perk.AppliesTo(room) && settings.Scripts.TryGetValue(perk.Id, out var script) && script.HasOnTick)
             .SelectMany(perk => settings.Scripts[perk.Id].OnTick(view, states.Of(perk.Id))?.DropPrizes ?? [])
@@ -229,7 +230,7 @@ public sealed class PerkRules
     private IEnumerable<PerkDefinition> Unlocked(int foodsEaten, IRoom? room, IReadOnlyCollection<string>? granted = null)
     {
         var settings = _settings;
-        return settings.Enabled
+        return settings.Enabled && !room.GameplayOf().PerksOff
             ? settings.Perks.Where(perk => (perk.FoodsRequired <= foodsEaten || granted?.Contains(perk.Id) == true) && perk.AppliesTo(room))
             : [];
     }
