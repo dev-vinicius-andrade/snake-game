@@ -143,18 +143,6 @@ onMounted(() => {
         </div>
       </VCardText>
     </VCard>
-
-    <div v-if="errorText" class="text-error mb-2" role="alert">{{ errorText }}</div>
-    <div v-else-if="gameplay.status.value === 'saved' && !gameplay.dirty.value" class="text-success mb-2" role="status">
-      {{ getText({ key: "admin.gameplay.saved" }) }}
-    </div>
-    <div v-else-if="gameplay.dirty.value" class="mb-2" role="status">{{ getText({ key: "admin.gameplay.unsaved" }) }}</div>
-
-    <div class="d-flex flex-wrap ga-2">
-      <VBtn color="primary" :disabled="!gameplay.dirty.value" @click="gameplay.save">{{ getText({ key: "admin.gameplay.save" }) }}</VBtn>
-      <VBtn :disabled="!gameplay.dirty.value" @click="gameplay.revert">{{ getText({ key: "admin.gameplay.revert" }) }}</VBtn>
-      <VBtn @click="gameplay.useDefaults">{{ getText({ key: "admin.gameplay.defaults" }) }}</VBtn>
-    </div>
   </div>
   <div v-else-if="errorText" class="text-error" role="alert">{{ errorText }}</div>
 </template>
@@ -186,7 +174,7 @@ onMounted(() => {
 }
 .field-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 8px;
   align-items: center;
   margin-top: 8px;

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, reactive } from "vue";
+import { computed, defineAsyncComponent, onMounted, reactive, ref } from "vue";
 import type { ScriptCheck, useAdminGameplay } from "@/composables/useAdminGameplay";
 import { getText } from "@/helpers";
 import { PERK_EFFECTS, PERK_ICON_CHOICES, perkIconOf } from "@/game/perkInfo";
 import { SCRIPT_TEMPLATES } from "@/game/scriptTemplates";
+import WorldEventsEditor from "./WorldEventsEditor.vue";
 
 /** The code editor is big, so it is loaded only when a script is opened. */
 const ScriptEditor = defineAsyncComponent(() => import("./ScriptEditor.vue"));
@@ -11,6 +12,23 @@ const ScriptEditor = defineAsyncComponent(() => import("./ScriptEditor.vue"));
 const props = defineProps<{ gameplay: ReturnType<typeof useAdminGameplay> }>();
 const gameplay = props.gameplay;
 const draft = gameplay.draft;
+
+/** The part of the gameplay config on show. Each is its own tab, so nothing needs a long scroll. */
+type Section = "perks" | "prizes" | "events" | "rooms";
+const section = ref<Section>("perks");
+
+/** Perks start closed and open one at a time as wanted: indexes of the open ones. */
+const openPerks = ref<number[]>([]);
+
+function addPerk() {
+  gameplay.addPerk();
+  openPerks.value = [...openPerks.value, (draft.value?.perks.perks.length ?? 1) - 1];
+}
+
+function removePerk(index: number) {
+  gameplay.removePerk(index);
+  openPerks.value = openPerks.value.filter((open) => open !== index).map((open) => (open > index ? open - 1 : open));
+}
 
 /** What the last check of each perk's script said, by perk id. */
 const checks = reactive<Record<string, ScriptCheck>>({});
@@ -54,7 +72,28 @@ onMounted(() => {
 
 <template>
   <div v-if="draft" class="gameplay">
-    <VCard variant="outlined" class="mb-4">
+    <div class="save-bar">
+      <div v-if="errorText" class="text-error mb-2" role="alert">{{ errorText }}</div>
+      <div v-else-if="gameplay.status.value === 'saved' && !gameplay.dirty.value" class="text-success mb-2" role="status">
+        {{ getText({ key: "admin.gameplay.saved" }) }}
+      </div>
+      <div v-else-if="gameplay.dirty.value" class="mb-2" role="status">{{ getText({ key: "admin.gameplay.unsaved" }) }}</div>
+
+      <div class="d-flex flex-wrap ga-2">
+        <VBtn color="primary" :disabled="!gameplay.dirty.value" @click="gameplay.save">{{ getText({ key: "admin.gameplay.save" }) }}</VBtn>
+        <VBtn :disabled="!gameplay.dirty.value" @click="gameplay.revert">{{ getText({ key: "admin.gameplay.revert" }) }}</VBtn>
+        <VBtn @click="gameplay.useDefaults">{{ getText({ key: "admin.gameplay.defaults" }) }}</VBtn>
+      </div>
+    </div>
+
+    <VTabs v-model="section" density="compact" class="mb-4" show-arrows>
+      <VTab value="perks">{{ getText({ key: "admin.gameplay.perksTitle" }) }}</VTab>
+      <VTab value="prizes">{{ getText({ key: "admin.gameplay.prizeTitle" }) }}</VTab>
+      <VTab value="events">{{ getText({ key: "admin.gameplay.worldEventsTitle" }) }}</VTab>
+      <VTab value="rooms">{{ getText({ key: "admin.gameplay.roomsTitle" }) }}</VTab>
+    </VTabs>
+
+    <VCard v-show="section === 'perks'" variant="outlined" class="mb-4">
       <VCardTitle>{{ getText({ key: "admin.gameplay.perksTitle" }) }}</VCardTitle>
       <VCardText>
         <VRow dense>
@@ -69,13 +108,22 @@ onMounted(() => {
           </VCol>
         </VRow>
 
-        <div v-for="(perk, index) in draft.perks.perks" :key="index" class="perk-card" :class="{ 'is-off': !perk.enabled }">
+        <VExpansionPanels v-model="openPerks" multiple class="perk-panels">
+          <VExpansionPanel v-for="(perk, index) in draft.perks.perks" :key="index" :value="index" :class="{ 'is-off': !perk.enabled }">
+            <VExpansionPanelTitle>
+              <VIcon size="small" class="mr-2">{{ perkIconOf(perk) }}</VIcon>
+              <strong>{{ perk.name || perk.id }}</strong>
+              <span class="perk-sub">{{ perk.id }} · {{ perk.foodsRequired }}</span>
+              <VChip v-if="!perk.enabled" size="x-small" label color="warning" class="ml-2">{{ getText({ key: "admin.perkOff" }) }}</VChip>
+              <VChip v-if="perk.script?.trim()" size="x-small" label class="ml-2">{{ getText({ key: "admin.scripted" }) }}</VChip>
+            </VExpansionPanelTitle>
+            <VExpansionPanelText>
           <div class="perk-row">
             <VSwitch v-model="perk.enabled" color="primary" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkEnabled' })" class="switch-field" />
             <VTextField v-model="perk.id" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkId' })" />
             <VTextField v-model="perk.name" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkName' })" />
             <VTextField v-model.number="perk.foodsRequired" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkFoods' })" />
-            <VBtn size="small" variant="text" color="error" @click="gameplay.removePerk(index)">{{ getText({ key: "admin.gameplay.removePerk" }) }}</VBtn>
+            <VBtn size="small" variant="text" color="error" @click="removePerk(index)">{{ getText({ key: "admin.gameplay.removePerk" }) }}</VBtn>
           </div>
 
           <template v-for="(entry, effectIndex) in perk.effects" :key="effectIndex">
@@ -171,13 +219,15 @@ onMounted(() => {
               </div>
             </template>
           </div>
-        </div>
+            </VExpansionPanelText>
+          </VExpansionPanel>
+        </VExpansionPanels>
 
-        <VBtn class="mt-2" size="small" @click="gameplay.addPerk">{{ getText({ key: "admin.gameplay.addPerk" }) }}</VBtn>
+        <VBtn class="mt-2" size="small" @click="addPerk">{{ getText({ key: "admin.gameplay.addPerk" }) }}</VBtn>
       </VCardText>
     </VCard>
 
-    <VCard variant="outlined" class="mb-4">
+    <VCard v-show="section === 'prizes'" variant="outlined" class="mb-4">
       <VCardTitle>{{ getText({ key: "admin.gameplay.prizeTitle" }) }}</VCardTitle>
       <VCardText>
         <VSwitch v-model="draft.prize.enabled" color="primary" hide-details :label="getText({ key: 'admin.gameplay.prizeOn' })" />
@@ -215,29 +265,9 @@ onMounted(() => {
       </VCardText>
     </VCard>
 
-    <VCard variant="outlined" class="mb-4">
-      <VCardTitle>{{ getText({ key: "admin.gameplay.worldEventsTitle" }) }}</VCardTitle>
-      <VCardText>
-        <VSwitch v-model="draft.worldEvents.enabled" color="primary" hide-details :label="getText({ key: 'admin.gameplay.worldEventsOn' })" />
-        <div class="perk-card" :class="{ 'is-off': !draft.worldEvents.lightning.enabled }">
-          <div class="perk-row">
-            <strong>{{ getText({ key: "admin.gameplay.lightningTitle" }) }}</strong>
-            <VSwitch v-model="draft.worldEvents.lightning.enabled" class="switch-field" color="primary" hide-details :label="getText({ key: 'admin.gameplay.lightningOn' })" />
-          </div>
-          <div class="perk-help">{{ getText({ key: "admin.gameplay.lightningHelp" }) }}</div>
-          <div class="field-grid">
-            <VTextField v-model.number="draft.worldEvents.lightning.minIntervalSeconds" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.lightningMin' })" />
-            <VTextField v-model.number="draft.worldEvents.lightning.maxIntervalSeconds" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.lightningMax' })" />
-            <VTextField v-model.number="draft.worldEvents.lightning.radius" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.lightningRadius' })" />
-            <VTextField v-model.number="draft.worldEvents.lightning.telegraphMilliseconds" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.lightningTelegraph' })" />
-          </div>
-          <VCombobox v-model="draft.worldEvents.lightning.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.lightningRooms' })" />
-          <VCombobox v-model="draft.worldEvents.lightning.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
-        </div>
-      </VCardText>
-    </VCard>
+    <WorldEventsEditor v-show="section === 'events'" :gameplay="gameplay" />
 
-    <VCard variant="outlined" class="mb-4">
+    <VCard v-show="section === 'rooms'" variant="outlined" class="mb-4">
       <VCardTitle>{{ getText({ key: "admin.gameplay.roomsTitle" }) }}</VCardTitle>
       <VCardText>
         <div class="field-grid">
@@ -246,18 +276,6 @@ onMounted(() => {
         </div>
       </VCardText>
     </VCard>
-
-    <div v-if="errorText" class="text-error mb-2" role="alert">{{ errorText }}</div>
-    <div v-else-if="gameplay.status.value === 'saved' && !gameplay.dirty.value" class="text-success mb-2" role="status">
-      {{ getText({ key: "admin.gameplay.saved" }) }}
-    </div>
-    <div v-else-if="gameplay.dirty.value" class="mb-2" role="status">{{ getText({ key: "admin.gameplay.unsaved" }) }}</div>
-
-    <div class="d-flex flex-wrap ga-2">
-      <VBtn color="primary" :disabled="!gameplay.dirty.value" @click="gameplay.save">{{ getText({ key: "admin.gameplay.save" }) }}</VBtn>
-      <VBtn :disabled="!gameplay.dirty.value" @click="gameplay.revert">{{ getText({ key: "admin.gameplay.revert" }) }}</VBtn>
-      <VBtn @click="gameplay.useDefaults">{{ getText({ key: "admin.gameplay.defaults" }) }}</VBtn>
-    </div>
   </div>
   <div v-else-if="errorText" class="text-error" role="alert">{{ errorText }}</div>
 </template>
@@ -308,13 +326,39 @@ onMounted(() => {
   font-size: 12px;
   color: var(--snake-amber);
 }
+.save-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 0;
+  margin-bottom: 8px;
+  background: var(--snake-surface);
+  border-bottom: 1px solid var(--snake-line);
+}
+.perk-panels :deep(.v-expansion-panel) {
+  background: transparent;
+  border: 1px solid var(--snake-line);
+  margin-bottom: 8px;
+}
+.perk-panels :deep(.v-expansion-panel.is-off) {
+  opacity: 0.6;
+}
+.perk-sub {
+  margin-left: 12px;
+  opacity: 0.7;
+  font-size: 12px;
+}
 .perk-card.is-off {
   opacity: 0.55;
 }
 /* Fields side by side as far as the screen allows, then onto more lines: nothing is squeezed. */
 .field-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 8px;
   align-items: center;
   margin-top: 8px;
