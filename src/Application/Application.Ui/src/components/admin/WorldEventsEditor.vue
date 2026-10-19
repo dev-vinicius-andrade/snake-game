@@ -7,7 +7,7 @@ const props = defineProps<{ gameplay: ReturnType<typeof useAdminGameplay> }>();
 const gameplay = props.gameplay;
 const draft = gameplay.draft;
 
-type NumberKeys<T> = { [Key in keyof T]: T[Key] extends number ? Key : never }[keyof T];
+type NumberKeys<T> = { [Key in keyof T]-?: T[Key] extends number ? Key : never }[keyof T];
 
 /** The numbers of each event, in the order they are shown, with the text that labels them. */
 const lightningFields: Array<{ key: NumberKeys<LightningConfig>; label: string; step?: number }> = [
