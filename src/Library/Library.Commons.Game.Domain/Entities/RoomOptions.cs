@@ -13,4 +13,7 @@ public sealed record RoomOptions
 
     /// <summary>Zero or less means the server default. It is capped to what the server allows.</summary>
     public int MaxPlayers { get; init; }
+
+    /// <summary>What the host picked for the gameplay of the room. Null: the default.</summary>
+    public RoomGameplay? Gameplay { get; init; }
 }

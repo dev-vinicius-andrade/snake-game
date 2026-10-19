@@ -7,4 +7,6 @@ public class RoomCreatePayload
     public string? Name { get; set; }
     public string Code { get; set; } = null!;
     public int MaxPlayers { get; set; }
+    /// <summary>What the host picked for the gameplay of the room. Null: the default.</summary>
+    public RoomGameplay? Gameplay { get; set; }
 }

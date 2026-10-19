@@ -46,6 +46,7 @@ public class RoomsService : IRoomsService
             Code = code,
             IsPrivate = options?.IsPrivate ?? false,
             MaxPlayers = LimitMaxPlayers(options?.MaxPlayers ?? 0),
+            Gameplay = options?.Gameplay ?? new RoomGameplay(),
         };
 
         var added = _rooms.TryAdd(roomId, room);

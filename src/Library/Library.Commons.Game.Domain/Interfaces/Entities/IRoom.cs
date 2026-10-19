@@ -15,4 +15,7 @@ public interface IRoom : ITrackableId
     int MaxPlayers { get; set; }
 
     DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>What this room does differently from the default gameplay. Replaced as a whole when it changes.</summary>
+    Library.Commons.Game.Domain.Entities.RoomGameplay Gameplay { get; set; }
 }

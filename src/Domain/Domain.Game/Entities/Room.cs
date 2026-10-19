@@ -1,3 +1,4 @@
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 
 namespace Domain.Game.Entities;
@@ -11,4 +12,5 @@ internal record Room(Guid Guid) :IRoom
     public bool IsPrivate { get; set; }
     public int MaxPlayers { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public RoomGameplay Gameplay { get; set; } = new();
 }

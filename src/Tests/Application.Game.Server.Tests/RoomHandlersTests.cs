@@ -93,6 +93,18 @@ public sealed class RoomCreateRequestHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_GivesTheRoomTheGameplayTheHostPicked()
+    {
+        _rooms.IsAvailable().Returns(true);
+        _rooms.CreateRoom(Arg.Any<RoomOptions>()).Returns(_room);
+        var payload = new RoomCreatePayload { RequesterId = "c1", Code = "ABC234", Gameplay = new RoomGameplay { Zone = FeaturePreset.Off } };
+
+        await _handler.HandleAsync(payload);
+
+        _rooms.Received(1).CreateRoom(Arg.Is<RoomOptions>(o => o.Gameplay!.Zone == FeaturePreset.Off));
+    }
+
+    [Fact]
     public async Task HandleAsync_NoCapacity_PutsTheMessageBackForAnotherServer()
     {
         _rooms.IsAvailable().Returns(false);

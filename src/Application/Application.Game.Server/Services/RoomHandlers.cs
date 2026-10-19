@@ -53,6 +53,7 @@ public sealed class RoomCreateRequestHandler(IRoomsService rooms, IManagementApi
                 Name = payload.Name,
                 Code = payload.Code,
                 MaxPlayers = payload.MaxPlayers,
+                Gameplay = payload.Gameplay,
             });
             await management.RoomCreatedAsync(payload.RequesterId, room);
             return MessageDisposition.Acknowledge;

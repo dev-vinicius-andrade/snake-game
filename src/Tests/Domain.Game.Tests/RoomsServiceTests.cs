@@ -41,6 +41,22 @@ public sealed class RoomsServiceTests
     }
 
     [Fact]
+    public void CreateRoom_WithoutGameplay_InheritsTheDefault()
+    {
+        Assert.True(_rooms.CreateRoom().Gameplay.IsDefault);
+    }
+
+    [Fact]
+    public void CreateRoom_KeepsTheGameplayTheHostPicked()
+    {
+        var picked = new RoomGameplay { Turret = FeaturePreset.Off, Lightning = FeaturePreset.Wild };
+
+        var room = _rooms.CreateRoom(new RoomOptions { IsPrivate = true, Gameplay = picked });
+
+        Assert.Equal(picked, room.Gameplay);
+    }
+
+    [Fact]
     public void CreateRoom_StampsTheCreationTime()
     {
         var before = DateTimeOffset.UtcNow;
