@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { resolveManagerUrl } from "@/config/env";
 import { getText } from "@/helpers";
+import { isGuestNicknameAllowed } from "@/game/accountName";
 import { isValidInviteCode, normalizeInviteCode } from "@/game/invite";
 import { usePlayerStore } from "@/store/usePlayerStore";
 
@@ -24,7 +25,8 @@ const nickname = computed({
   get: () => playerStore.data?.nickname ?? "",
   set: (value) => playerStore.setNickname(value),
 });
-const canJoin = computed(() => state.value === "ready" && nickname.value.trim().length > 0);
+const nicknameAllowed = computed(() => isGuestNicknameAllowed(nickname.value));
+const canJoin = computed(() => state.value === "ready" && nickname.value.trim().length > 0 && nicknameAllowed.value);
 const players = computed(() => {
   if (!preview.value) return "";
   const key = preview.value.maxPlayers > 0 ? "rooms.players" : "rooms.playersOpen";
@@ -65,6 +67,7 @@ onMounted(load);
               v-model="nickname"
               :label="getText({ key: 'variations.nickname.Text' })"
               variant="outlined"
+              :error-messages="nicknameAllowed ? '' : getText({ key: 'account.guestNickname' })"
               @keyup.enter="canJoin && join()"
             />
           </template>
