@@ -776,4 +776,42 @@ public sealed class PerkRulesTests
         Assert.False(plain.Invulnerable);
         Assert.False(plain.FreeShots);
     }
+
+    [Theory]
+    [InlineData("mdi-shield")]
+    [InlineData("mdi-lightning-bolt")]
+    [InlineData("mdi-numeric-5-circle")]
+    [InlineData(null)]
+    [InlineData("")]
+    public void Constructor_AValidIconOrNone_IsAccepted(string? icon)
+    {
+        var rules = new PerkRules(new PerkOptions { Perks = [new() { Id = "a", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 1, Icon = icon }] });
+
+        Assert.Single(rules.Options.Perks);
+    }
+
+    [Theory]
+    [InlineData("shield")]
+    [InlineData("mdi-")]
+    [InlineData("mdi-Shield")]
+    [InlineData("mdi-shield\"><script>")]
+    [InlineData("mdi-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    public void Constructor_AnIconThatIsNotAMaterialDesignIconsName_IsRefused(string icon)
+    {
+        var failure = Assert.Throws<ArgumentException>(() =>
+            new PerkRules(new PerkOptions { Perks = [new() { Id = "a", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 1, Icon = icon }] }));
+
+        Assert.Contains("icon", failure.Message);
+    }
+
+    [Fact]
+    public void Constructor_ADescriptionThatIsTooLong_IsRefused()
+    {
+        var description = new string('x', PerkRules.MaxDescriptionLength + 1);
+
+        var failure = Assert.Throws<ArgumentException>(() =>
+            new PerkRules(new PerkOptions { Perks = [new() { Id = "a", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 1, Description = description }] }));
+
+        Assert.Contains("description", failure.Message);
+    }
 }

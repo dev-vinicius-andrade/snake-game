@@ -34,6 +34,10 @@ public readonly record struct PerkEffects
 /// <summary>Which perks a snake has for the foods it ate, and what they do.</summary>
 public sealed class PerkRules
 {
+    public const int MaxDescriptionLength = 200;
+
+    private static readonly System.Text.RegularExpressions.Regex IconName = new(@"^mdi-[a-z0-9]+(-[a-z0-9]+)*$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
     private const double MinReloadFactor = 0.2;
     private const double MinDamageFactor = 0.2;
 
@@ -251,6 +255,10 @@ public sealed class PerkRules
         foreach (var entry in effects) EnsureValid(perk, entry);
         if (perk.Rooms.Concat(perk.ExcludedRooms).Any(string.IsNullOrWhiteSpace))
             throw new ArgumentException($"Perk '{perk.Id}' has a blank room.", nameof(perk));
+        if (!string.IsNullOrWhiteSpace(perk.Icon) && (perk.Icon.Length > 40 || !IconName.IsMatch(perk.Icon)))
+            throw new ArgumentException($"Perk '{perk.Id}' icon must be a Material Design Icons name such as mdi-shield.", nameof(perk));
+        if (perk.Description is { Length: > MaxDescriptionLength })
+            throw new ArgumentException($"Perk '{perk.Id}' description is too long: at most {MaxDescriptionLength} characters.", nameof(perk));
     }
 
     private static void EnsureValid(PerkDefinition perk, PerkEffectEntry entry)

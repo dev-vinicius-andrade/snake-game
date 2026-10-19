@@ -37,6 +37,14 @@ public sealed record PerkDefinition
     /// <summary>Rooms the perk does not work in, even where <see cref="Rooms"/> would allow it. Same ways to name a room.</summary>
     public List<string> ExcludedRooms { get; init; } = [];
 
+    /// <summary>
+    /// The icon players see, a Material Design Icons name such as <c>mdi-shield</c>. Empty: the icon of the perk's first effect.
+    /// </summary>
+    public string? Icon { get; init; }
+
+    /// <summary>A sentence for players that says what the perk does, shown in its tooltip. Useful for a perk made of a script.</summary>
+    public string? Description { get; init; }
+
     /// <summary>JavaScript that decides more of what the perk does while it runs in a room. See docs/PERK_SCRIPTS.md.</summary>
     public string? Script { get; init; }
 
