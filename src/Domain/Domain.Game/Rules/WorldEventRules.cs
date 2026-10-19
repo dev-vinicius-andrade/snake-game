@@ -41,6 +41,43 @@ public enum TurretAction
 /// <param name="Angles">For Fire: the direction of each shot, in radians, 0 to the right and turning clockwise on screen.</param>
 public sealed record TurretStep(TurretState State, TurretAction Action, IReadOnlyList<double> Angles);
 
+/// <summary>
+/// Where the safe zone of a room is in its life: when the next is due (while there is none), or the moments the one that is going
+/// closes, stops closing and goes, and when it next makes a snake outside pay.
+/// </summary>
+public sealed record ZoneState(
+    DateTimeOffset? NextAt, DateTimeOffset? ClosingAt, DateTimeOffset? ClosedAt, DateTimeOffset? EndsAt, DateTimeOffset? NextDamageAt,
+    double X, double Y, double StartRadius)
+{
+    public static ZoneState None { get; } = new(null, null, null, null, null, 0, 0, 0);
+
+    public bool IsActive => EndsAt is not null;
+}
+
+public enum ZonePhase
+{
+    /// <summary>The safe spot is shown and the zone covers everything: nobody is harmed.</summary>
+    Warning,
+    /// <summary>The zone is closing in and snakes outside pay.</summary>
+    Closing,
+    /// <summary>The zone is at its smallest.</summary>
+    Holding
+}
+
+public enum ZoneAction
+{
+    None,
+    /// <summary>The zone began: its state says where.</summary>
+    Begin,
+    /// <summary>The zone is over.</summary>
+    End,
+    /// <summary>Make every snake outside the zone, at the radius of the step, pay.</summary>
+    Damage
+}
+
+/// <param name="Radius">For Damage: how far from the middle the zone reaches now.</param>
+public sealed record ZoneStep(ZoneState State, ZoneAction Action, double Radius);
+
 /// <summary>What a strike did: the body segments it destroyed (the head is not among them) and whether it reached the head.</summary>
 public readonly record struct StrikeHit(bool HeadHit, IReadOnlyList<int> BrokenSegments);
 
@@ -83,7 +120,23 @@ public sealed class WorldEventRules
         Validate("Lightning", options.Lightning);
         Validate("Meteors", options.Meteors);
         ValidateTurret(options.Turret ?? throw new ArgumentException("World event options are missing.", nameof(options)));
+        ValidateZone(options.Zone ?? throw new ArgumentException("World event options are missing.", nameof(options)));
         return options;
+    }
+
+    private static void ValidateZone(ZoneOptions zone)
+    {
+        if (zone.MinIntervalSeconds < 1) throw OutOfRange("Zone", zone.MinIntervalSeconds, "the shortest interval must be at least 1 second");
+        if (zone.MaxIntervalSeconds < zone.MinIntervalSeconds)
+            throw OutOfRange("Zone", zone.MaxIntervalSeconds, "the longest interval must not be shorter than the shortest");
+        if (zone.WarningSeconds is < 1 or > 600) throw OutOfRange("Zone", zone.WarningSeconds, "the warning must last 1 to 600 seconds");
+        if (zone.ShrinkSeconds is < 5 or > 3600) throw OutOfRange("Zone", zone.ShrinkSeconds, "it must take 5 to 3600 seconds to close");
+        if (zone.HoldSeconds is < 0 or > 3600) throw OutOfRange("Zone", zone.HoldSeconds, "it must hold for 0 to 3600 seconds");
+        if (zone.FinalRadius is < 30 or > 2000) throw OutOfRange("Zone", zone.FinalRadius, "the final radius must be 30 to 2000");
+        if (zone.DamageIntervalMilliseconds is < 200 or > 10000) throw OutOfRange("Zone", zone.DamageIntervalMilliseconds, "it must make snakes pay every 200 to 10000 milliseconds");
+        if (zone.DamageMass is < 1 or > 1000) throw OutOfRange("Zone", zone.DamageMass, "the damage must be 1 to 1000 mass");
+        if (zone.MinPlayers < 1) throw OutOfRange("Zone", zone.MinPlayers, "at least 1 player is needed");
+        if (zone.Rooms.Concat(zone.ExcludedRooms).Any(string.IsNullOrWhiteSpace)) throw new ArgumentException("Zone has a blank room.", nameof(zone));
     }
 
     private static void ValidateTurret(TurretOptions turret)
@@ -223,6 +276,76 @@ public sealed class WorldEventRules
     /// <summary>Whether a shot (its middle at <paramref name="shot"/>, <paramref name="shotSize"/> across) touches the square of the turret. Touching counts.</summary>
     public static bool TurretIsHit(double x, double y, double size, Point shot, double shotSize)
         => Math.Abs(shot.X - x) <= (size + shotSize) / 2 && Math.Abs(shot.Y - y) <= (size + shotSize) / 2;
+
+    /// <summary>
+    /// Moves the safe zone of a room on. Call as often as the damage needs to be timed (every frame is fine). Whether anyone is in
+    /// the room is for the caller to say through <paramref name="players"/>.
+    /// </summary>
+    public ZoneStep ZoneStep(ZoneState state, DateTimeOffset now, double roomWidth, double roomHeight, int players)
+    {
+        var options = _options;
+        var zone = options.Zone;
+        if (!options.Enabled || !zone.Enabled) return new ZoneStep(ZoneState.None, ZoneAction.None, 0);
+        if (!state.IsActive) return ZoneWaiting(zone, state, now, roomWidth, roomHeight, players);
+        if (now >= state.EndsAt) return new ZoneStep(ZoneScheduled(zone, now), ZoneAction.End, 0);
+        if (now < state.NextDamageAt) return new ZoneStep(state, ZoneAction.None, 0);
+
+        var next = state with { NextDamageAt = now.AddMilliseconds(zone.DamageIntervalMilliseconds) };
+        return new ZoneStep(next, ZoneAction.Damage, RadiusAt(state, now));
+    }
+
+    private ZoneStep ZoneWaiting(ZoneOptions zone, ZoneState state, DateTimeOffset now, double width, double height, int players)
+    {
+        if (state.NextAt is not { } due) return new ZoneStep(ZoneScheduled(zone, now), ZoneAction.None, 0);
+        if (now < due || players < zone.MinPlayers) return new ZoneStep(state, ZoneAction.None, 0);
+
+        var closing = now.AddSeconds(zone.WarningSeconds);
+        var closed = closing.AddSeconds(zone.ShrinkSeconds);
+        // Far enough that the zone covers the whole room, across its edges too.
+        var cover = Math.Sqrt(width * width / 4 + height * height / 4);
+        var begun = new ZoneState(
+            null, closing, closed, closed.AddSeconds(zone.HoldSeconds), closing, _random() * width, _random() * height, Math.Max(cover, zone.FinalRadius));
+        return new ZoneStep(begun, ZoneAction.Begin, 0);
+    }
+
+    private ZoneState ZoneScheduled(ZoneOptions zone, DateTimeOffset now)
+        => ZoneState.None with { NextAt = now.AddSeconds(zone.MinIntervalSeconds + (zone.MaxIntervalSeconds - zone.MinIntervalSeconds) * _random()) };
+
+    /// <summary>Which part of its life a zone is in.</summary>
+    public ZonePhase PhaseOf(ZoneState state, DateTimeOffset now)
+        => now < state.ClosingAt ? ZonePhase.Warning : now < state.ClosedAt ? ZonePhase.Closing : ZonePhase.Holding;
+
+    /// <summary>The moment the current phase gives way to the next (the zone going, for the last).</summary>
+    public DateTimeOffset PhaseEnd(ZoneState state, DateTimeOffset now)
+        => PhaseOf(state, now) switch
+        {
+            ZonePhase.Warning => state.ClosingAt!.Value,
+            ZonePhase.Closing => state.ClosedAt!.Value,
+            _ => state.EndsAt!.Value
+        };
+
+    /// <summary>How far from its middle the zone reaches: all of the room while warning, closing evenly, then the final radius.</summary>
+    public double RadiusAt(ZoneState state, DateTimeOffset now)
+    {
+        var final = _options.Zone.FinalRadius;
+        return PhaseOf(state, now) switch
+        {
+            ZonePhase.Warning => state.StartRadius,
+            ZonePhase.Closing => state.StartRadius + (final - state.StartRadius) * Math.Clamp((now - state.ClosingAt!.Value) / (state.ClosedAt!.Value - state.ClosingAt!.Value), 0, 1),
+            _ => final
+        };
+    }
+
+    /// <summary>Whether a point is outside a zone, going the short way round the world that wraps. The edge is inside.</summary>
+    public static bool IsOutsideZone(Point point, Point center, double radius, double roomWidth, double roomHeight)
+    {
+        var dx = Wrapped(point.X - center.X, roomWidth);
+        var dy = Wrapped(point.Y - center.Y, roomHeight);
+        return dx * dx + dy * dy > radius * radius;
+    }
+
+    private static double Wrapped(double delta, double size)
+        => delta > size / 2 ? delta - size : delta < -size / 2 ? delta + size : delta;
 
     /// <summary>
     /// What a strike at <paramref name="center"/> reaches of a body (tail first, head last). A segment is a square of

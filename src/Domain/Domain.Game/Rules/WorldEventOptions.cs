@@ -23,6 +23,8 @@ public sealed record WorldEventOptions
 
     public TurretOptions Turret { get; init; } = new();
 
+    public ZoneOptions Zone { get; init; } = new();
+
     /// <summary>The settings of one kind of event.</summary>
     public IStormSettings Of(WorldEventKind kind) => kind == WorldEventKind.Lightning ? Lightning : Meteors;
 
@@ -200,6 +202,50 @@ public sealed record TurretOptions
     public List<string> Rooms { get; init; } = [];
 
     /// <summary>Rooms it does not appear in. Wins over <see cref="Rooms"/>.</summary>
+    public List<string> ExcludedRooms { get; init; } = [];
+
+    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
+}
+
+/// <summary>
+/// The shrinking safe zone: a circle on the map, shown first and then closing in. A snake whose head is outside it loses mass
+/// every moment, and dies when it has none left. It stays at its smallest for a while and then goes.
+/// </summary>
+public sealed record ZoneOptions
+{
+    public bool Enabled { get; init; } = true;
+
+    /// <summary>The shortest wait, in seconds, from one zone going (or the room waking up) to the next.</summary>
+    public int MinIntervalSeconds { get; init; } = 300;
+
+    /// <summary>The longest wait, in seconds, to the next zone.</summary>
+    public int MaxIntervalSeconds { get; init; } = 600;
+
+    /// <summary>Seconds the safe spot is shown before the zone begins to close, with nobody harmed.</summary>
+    public int WarningSeconds { get; init; } = 15;
+
+    /// <summary>Seconds it takes to close from covering the whole room to its smallest.</summary>
+    public int ShrinkSeconds { get; init; } = 60;
+
+    /// <summary>Seconds it stays at its smallest before it goes.</summary>
+    public int HoldSeconds { get; init; } = 30;
+
+    /// <summary>World units around the safe spot that stay safe at the end.</summary>
+    public int FinalRadius { get; init; } = 160;
+
+    /// <summary>Milliseconds between two times a snake outside is made to pay.</summary>
+    public int DamageIntervalMilliseconds { get; init; } = 1000;
+
+    /// <summary>Mass a snake outside loses each time. It falls as food where the snake is. A snake with none left dies.</summary>
+    public int DamageMass { get; init; } = 4;
+
+    /// <summary>Players needed in the room before one appears.</summary>
+    public int MinPlayers { get; init; } = 2;
+
+    /// <summary>The rooms it is for. Empty: every room.</summary>
+    public List<string> Rooms { get; init; } = [];
+
+    /// <summary>Rooms it is not for. Wins over <see cref="Rooms"/>.</summary>
     public List<string> ExcludedRooms { get; init; } = [];
 
     public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
