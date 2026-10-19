@@ -12,6 +12,10 @@ export interface CatalogPerk {
   name: string;
   foodsRequired: number;
   effects: CatalogEffect[];
+  /** A Material Design Icons name; without one the icon of the first effect is used. */
+  icon?: string | null;
+  /** A sentence that says what the perk does, for a perk whose effects are in a script. */
+  description?: string | null;
 }
 
 export interface PerkCatalogReply {

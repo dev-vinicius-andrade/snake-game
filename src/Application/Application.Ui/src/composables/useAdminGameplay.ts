@@ -16,6 +16,10 @@ export interface PerkDefinition {
   foodsRequired: number;
   /** A perk that is switched off is kept in the list but nobody gets it. */
   enabled: boolean;
+  /** A Material Design Icons name such as mdi-shield. Empty: the icon of the first effect. */
+  icon?: string | null;
+  /** A sentence players see in the perk's tooltip. */
+  description?: string | null;
   /** Everything the perk does. Empty only for a perk whose script does it. */
   effects: PerkEffectEntry[];
   /** Invite codes, names or ids of the rooms the perk works in. Empty: every room (a perk with a script: none). */
@@ -273,6 +277,10 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
       perk.rooms = perk.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       perk.excludedRooms = perk.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       if (!perk.script?.trim()) delete perk.script;
+      if (!perk.icon?.trim()) delete perk.icon;
+      else perk.icon = perk.icon.trim();
+      if (!perk.description?.trim()) delete perk.description;
+      else perk.description = perk.description.trim();
     }
     for (const kind of body.prize.prizes) {
       kind.rooms = kind.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);

@@ -399,6 +399,33 @@ describe("useAdminGameplay", () => {
     });
   });
 
+  describe("icon and description", () => {
+    it("keeps them through a save, trimmed", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      gameplay.draft.value!.perks.perks[0].icon = " mdi-skull ";
+      gameplay.draft.value!.perks.perks[0].description = "  Gets angry.  ";
+
+      await gameplay.save();
+
+      const sent = http.put.mock.calls[0][2] as GameplayConfig;
+      expect(sent.perks.perks[0]).toMatchObject({ icon: "mdi-skull", description: "Gets angry." });
+    });
+
+    it("sends neither when they are blank", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      gameplay.draft.value!.perks.perks[0].icon = "  ";
+      gameplay.draft.value!.perks.perks[0].description = "";
+
+      await gameplay.save();
+
+      const sent = http.put.mock.calls[0][2] as GameplayConfig;
+      expect(sent.perks.perks[0].icon).toBeUndefined();
+      expect(sent.perks.perks[0].description).toBeUndefined();
+    });
+  });
+
   describe("prizes", () => {
     it("adds a kind of prize with sensible starting values and a free id", async () => {
       const gameplay = create();

@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import type { CatalogPerk } from "@/composables/usePerkCatalog";
 import { perkLabel } from "@/game/perks";
-import { perkIcon, perkParams, perkTooltipKey } from "@/game/perkInfo";
+import { perkIcon, perkIconOf, perkParams, perkTooltipKey } from "@/game/perkInfo";
 import { getText } from "@/helpers";
 
 const props = defineProps<{
@@ -25,11 +25,14 @@ function describe(id: string): Shown {
   if (!perk) return { id, icon: perkIcon(""), title: perkLabel(id), lines: [] };
   return {
     id,
-    icon: perkIcon(perk.effects[0]?.effect ?? ""),
+    icon: perkIconOf(perk),
     title: perk.name || perkLabel(id),
-    lines: perk.effects.map((entry) =>
-      getText({ key: perkTooltipKey(entry.effect), params: perkParams({ ...entry, foodsRequired: perk.foodsRequired }) })
-    ),
+    lines: [
+      ...(perk.description?.trim() ? [perk.description.trim()] : []),
+      ...perk.effects.map((entry) =>
+        getText({ key: perkTooltipKey(entry.effect), params: perkParams({ ...entry, foodsRequired: perk.foodsRequired }) })
+      ),
+    ],
   };
 }
 

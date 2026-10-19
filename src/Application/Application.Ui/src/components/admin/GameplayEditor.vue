@@ -2,7 +2,8 @@
 import { computed, defineAsyncComponent, onMounted, reactive } from "vue";
 import type { ScriptCheck, useAdminGameplay } from "@/composables/useAdminGameplay";
 import { getText } from "@/helpers";
-import { PERK_EFFECTS } from "@/game/perkInfo";
+import { PERK_EFFECTS, PERK_ICON_CHOICES, perkIconOf } from "@/game/perkInfo";
+import { SCRIPT_TEMPLATES } from "@/game/scriptTemplates";
 
 /** The code editor is big, so it is loaded only when a script is opened. */
 const ScriptEditor = defineAsyncComponent(() => import("./ScriptEditor.vue"));
@@ -111,11 +112,48 @@ onMounted(() => {
             hide-details
           />
 
+          <div class="field-grid">
+            <VCombobox
+              v-model="perk.icon"
+              :items="PERK_ICON_CHOICES"
+              :prepend-inner-icon="perkIconOf(perk)"
+              density="compact"
+              hide-details
+              clearable
+              :label="getText({ key: 'admin.gameplay.perkIcon' })"
+            >
+              <template #item="{ props: item }">
+                <VListItem v-bind="item" :prepend-icon="item.title" />
+              </template>
+            </VCombobox>
+            <VTextField
+              v-model="perk.description"
+              density="compact"
+              hide-details
+              maxlength="200"
+              :label="getText({ key: 'admin.gameplay.perkDescription' })"
+            />
+          </div>
+
           <div class="perk-script">
             <VBtn v-if="!perk.script" size="x-small" variant="text" @click="gameplay.addScript(index)">{{ getText({ key: "admin.gameplay.addScript" }) }}</VBtn>
             <template v-else>
               <div class="perk-script-head">
                 <strong>{{ getText({ key: "admin.gameplay.scriptTitle" }) }}</strong>
+                <VMenu>
+                  <template #activator="{ props: menu }">
+                    <VBtn v-bind="menu" size="x-small" variant="text">{{ getText({ key: "admin.gameplay.scriptTemplate" }) }}</VBtn>
+                  </template>
+                  <VList density="compact">
+                    <VListItem
+                      v-for="template in SCRIPT_TEMPLATES"
+                      :key="template.id"
+                      :title="getText({ key: `admin.gameplay.scriptTemplates.${template.id}.name` })"
+                      :subtitle="getText({ key: `admin.gameplay.scriptTemplates.${template.id}.hint` })"
+                      @click="perk.script = template.code"
+                    />
+                  </VList>
+                </VMenu>
                 <VBtn size="x-small" variant="text" @click="check(perk.id, perk.script ?? '')">{{ getText({ key: "admin.gameplay.checkScript" }) }}</VBtn>
                 <VBtn size="x-small" variant="text" color="error" :disabled="perk.effects.length === 0" @click="gameplay.removeScript(index)">
                   {{ getText({ key: "admin.gameplay.removeScript" }) }}
@@ -238,6 +276,7 @@ onMounted(() => {
 }
 .perk-script-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;

@@ -1,14 +1,25 @@
 <script setup lang="ts">
-import { javascript } from "@codemirror/lang-javascript";
+import type { CompletionContext } from "@codemirror/autocomplete";
+import { javascript, javascriptLanguage } from "@codemirror/lang-javascript";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView, basicSetup } from "codemirror";
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { completionsFor } from "@/game/scriptCompletions";
 
-/** A code editor (CodeMirror) for a perk script: JavaScript, with highlighting, line numbers and brackets that close themselves. */
+/**
+ * A code editor (CodeMirror) for a perk script: JavaScript, with highlighting, line numbers, brackets that close themselves, and
+ * suggestions for what a script can use (snake., room., the keys a function may return, the functions themselves).
+ */
 const props = defineProps<{ modelValue: string; label?: string }>();
 const emit = defineEmits<{ (event: "update:modelValue", value: string): void }>();
 
 const host = ref<HTMLElement | null>(null);
+
+function suggestScriptApi(context: CompletionContext) {
+  const found = completionsFor(context.state.sliceDoc(0, context.pos));
+  if (!found) return null;
+  return { from: found.from, options: found.options, validFor: /^\w*$/ };
+}
 let view: EditorView | null = null;
 
 onMounted(() => {
@@ -19,6 +30,7 @@ onMounted(() => {
     extensions: [
       basicSetup,
       javascript(),
+      javascriptLanguage.data.of({ autocomplete: suggestScriptApi }),
       oneDark,
       EditorView.contentAttributes.of({ "aria-label": props.label ?? "Script" }),
       EditorView.updateListener.of((update) => {

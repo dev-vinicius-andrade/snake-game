@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import type { AdminRoom } from "@/composables/useAdminRooms";
 import type { useAdminGameplay } from "@/composables/useAdminGameplay";
-import { perkIcon } from "@/game/perkInfo";
+import { perkIconOf } from "@/game/perkInfo";
 import { perkWorksInRoom, setPerkInRoom } from "@/game/perkRooms";
 import { getText } from "@/helpers";
 
@@ -56,7 +56,7 @@ function cancel() {
             @update:model-value="(value: boolean | null) => toggle(index, value)"
           />
           <span class="room-perk-icons" aria-hidden="true">
-            <VIcon v-for="(entry, position) in perk.effects" :key="position" size="x-small">{{ perkIcon(entry.effect) }}</VIcon>
+            <VIcon size="x-small">{{ perkIconOf(perk) }}</VIcon>
           </span>
           <VChip v-if="!perk.enabled" size="x-small" label color="warning">{{ getText({ key: "admin.perkOff" }) }}</VChip>
           <VChip v-if="perk.script?.trim()" size="x-small" label>{{ getText({ key: "admin.scripted" }) }}</VChip>

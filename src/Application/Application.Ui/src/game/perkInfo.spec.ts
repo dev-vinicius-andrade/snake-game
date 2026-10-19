@@ -1,12 +1,29 @@
 import { describe, expect, it } from "vitest";
 import en from "@/locales/messages/en";
 import pt from "@/locales/messages/pt";
-import { PERK_EFFECTS, perkIcon, perkParams, perkTooltipKey } from "./perkInfo";
+import { PERK_EFFECTS, PERK_ICON_CHOICES, perkIcon, perkIconOf, perkParams, perkTooltipKey } from "./perkInfo";
 
 describe("perkInfo", () => {
   it("knows an icon for every effect the server has, and a fallback for others", () => {
     for (const effect of PERK_EFFECTS) expect(perkIcon(effect)).toMatch(/^mdi-/);
     expect(perkIcon("SomethingNew")).toBe("mdi-star-four-points");
+  });
+
+  it("shows the icon a perk was given, else the icon of its first effect", () => {
+    expect(perkIconOf({ icon: "mdi-skull", effects: [{ effect: "Magnet" }] })).toBe("mdi-skull");
+    expect(perkIconOf({ icon: "", effects: [{ effect: "Magnet" }] })).toBe(perkIcon("Magnet"));
+    expect(perkIconOf({ effects: [{ effect: "Armor" }] })).toBe(perkIcon("Armor"));
+    expect(perkIconOf({ effects: [] })).toBe("mdi-star-four-points");
+  });
+
+  it("ignores an icon that is not a Material Design Icons name", () => {
+    expect(perkIconOf({ icon: "skull", effects: [{ effect: "Magnet" }] })).toBe(perkIcon("Magnet"));
+    expect(perkIconOf({ icon: "mdi-x y", effects: [] })).toBe("mdi-star-four-points");
+  });
+
+  it("offers only valid, different icon names to pick from", () => {
+    expect(new Set(PERK_ICON_CHOICES).size).toBe(PERK_ICON_CHOICES.length);
+    for (const name of PERK_ICON_CHOICES) expect(name).toMatch(/^mdi-[a-z0-9]+(-[a-z0-9]+)*$/);
   });
 
   it("has a name, a help text and a tooltip for every effect in both languages", () => {
