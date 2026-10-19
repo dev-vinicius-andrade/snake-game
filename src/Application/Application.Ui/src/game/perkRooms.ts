@@ -8,19 +8,19 @@ export interface RoomRef {
 }
 
 /** The name a room is given when an administrator picks it: the invite code, which people know, else the id. */
-export const roomKey = (room: RoomRef): string => room.code ?? room.id;
+export const roomKey = (place: RoomRef): string => place.code ?? place.id;
 
 const same = (first: string, second: string | null) => second !== null && first.trim().length > 0 && first.trim().toLowerCase() === second.toLowerCase();
 
-const isNamed = (entry: string, room: RoomRef) => same(entry, room.code) || same(entry, room.name) || same(entry, room.id);
+const isNamed = (entry: string, place: RoomRef) => same(entry, place.code) || same(entry, place.name) || same(entry, place.id);
 
 const hasScript = (perk: PerkDefinition) => !!perk.script?.trim();
 
 /** The same rule the game server follows: does this perk work in this room? */
-export function perkWorksInRoom(perk: PerkDefinition, room: RoomRef): boolean {
-  if (perk.excludedRooms.some((entry) => isNamed(entry, room))) return false;
+export function perkWorksInRoom(perk: PerkDefinition, place: RoomRef): boolean {
+  if (perk.excludedRooms.some((entry) => isNamed(entry, place))) return false;
   if (perk.rooms.length === 0) return !hasScript(perk);
-  return perk.rooms.some((entry) => isNamed(entry, room));
+  return perk.rooms.some((entry) => isNamed(entry, place));
 }
 
 /**
@@ -28,10 +28,10 @@ export function perkWorksInRoom(perk: PerkDefinition, room: RoomRef): boolean {
  * names rooms. Any other perk is on everywhere unless it names rooms, and is switched off in a room by leaving that room out.
  * The perk it is given is not changed.
  */
-export function setPerkInRoom(perk: PerkDefinition, room: RoomRef, enabled: boolean): PerkDefinition {
-  const withoutRoom = (entries: string[]) => entries.filter((entry) => !isNamed(entry, room));
-  const named = (entries: string[]) => entries.some((entry) => isNamed(entry, room));
-  const key = roomKey(room);
+export function setPerkInRoom(perk: PerkDefinition, place: RoomRef, enabled: boolean): PerkDefinition {
+  const withoutRoom = (entries: string[]) => entries.filter((entry) => !isNamed(entry, place));
+  const named = (entries: string[]) => entries.some((entry) => isNamed(entry, place));
+  const key = roomKey(place);
 
   if (hasScript(perk)) {
     return { ...perk, rooms: enabled && !named(perk.rooms) ? [...perk.rooms, key] : enabled ? perk.rooms : withoutRoom(perk.rooms), excludedRooms: withoutRoom(perk.excludedRooms) };

@@ -25,7 +25,7 @@ class MemoryStorage {
   removeItem = (key: string) => void this.values.delete(key);
 }
 
-let http: { get: ReturnType<typeof vi.fn>; put: ReturnType<typeof vi.fn> };
+let http: { get: ReturnType<typeof vi.fn>; put: ReturnType<typeof vi.fn>; checkScript: ReturnType<typeof vi.fn> };
 let storage: MemoryStorage;
 
 const create = () => useAdminGameplay({ managerUrl: "http://manager.test/", http: http as unknown as GameplayHttp, storage });
@@ -35,6 +35,7 @@ beforeEach(() => {
   http = {
     get: vi.fn(async () => structuredClone(payload)),
     put: vi.fn(async (_url: string, _key: string, body: GameplayConfig) => ({ revision: "r2", config: structuredClone(body) })),
+    checkScript: vi.fn(async () => ({ ok: true, error: null })),
   };
   storage = new MemoryStorage();
 });
@@ -268,5 +269,80 @@ describe("useAdminGameplay", () => {
 
     const sent = http.put.mock.calls[0][2] as GameplayConfig;
     expect(sent.perks.perks[0].script).toBeUndefined();
+  });
+
+  describe("scripts", () => {
+    it("adds a script to a perk, starting from an example that works", async () => {
+      const gameplay = create();
+      await gameplay.load();
+
+      gameplay.addScript(0);
+
+      const script = gameplay.draft.value!.perks.perks[0].script!;
+      expect(script).toContain("function modify");
+      expect(script).toContain("function onEat");
+    });
+
+    it("keeps the script a perk already has when asked to add one", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      gameplay.draft.value!.perks.perks[0].script = "function modify() { return {}; }";
+
+      gameplay.addScript(0);
+
+      expect(gameplay.draft.value!.perks.perks[0].script).toBe("function modify() { return {}; }");
+    });
+
+    it("removes a script", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      gameplay.addScript(0);
+
+      gameplay.removeScript(0);
+
+      expect(gameplay.draft.value!.perks.perks[0].script).toBeUndefined();
+    });
+
+    it("will not remove a script that a perk needs because it has no effect", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      gameplay.draft.value!.perks.perks[0].effects = [];
+      gameplay.addScript(0);
+
+      gameplay.removeScript(0);
+
+      expect(gameplay.draft.value!.perks.perks[0].script).toBeDefined();
+    });
+
+    it("asks the server whether a script would be accepted", async () => {
+      http.checkScript.mockResolvedValue({ ok: false, error: "Unexpected token" });
+      const gameplay = create();
+      await gameplay.load();
+
+      const result = await gameplay.checkScript("function modify( {");
+
+      expect(http.checkScript).toHaveBeenCalledWith("http://manager.test/admin/gameplay/check-script", "secret", "function modify( {");
+      expect(result).toEqual({ ok: false, error: "Unexpected token" });
+    });
+
+    it("says so when the server cannot be asked", async () => {
+      http.checkScript.mockRejectedValue(failure(500));
+      const gameplay = create();
+      await gameplay.load();
+
+      const result = await gameplay.checkScript("function modify() {}");
+
+      expect(result).toEqual({ ok: false, error: "unavailable" });
+    });
+
+    it("does not ask about nothing", async () => {
+      const gameplay = create();
+      await gameplay.load();
+
+      const result = await gameplay.checkScript("   ");
+
+      expect(result.ok).toBe(false);
+      expect(http.checkScript).not.toHaveBeenCalled();
+    });
   });
 });

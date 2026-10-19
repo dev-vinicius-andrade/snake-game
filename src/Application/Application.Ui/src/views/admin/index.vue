@@ -2,11 +2,16 @@
 import { useIntervalFn } from "@vueuse/core";
 import { computed, onMounted, ref } from "vue";
 import GameplayEditor from "@/components/admin/GameplayEditor.vue";
+import RoomPerksDialog from "@/components/admin/RoomPerksDialog.vue";
+import { useAdminGameplay } from "@/composables/useAdminGameplay";
 import { useAdminRooms, type AdminRoom } from "@/composables/useAdminRooms";
 import { getText } from "@/helpers";
 
 const REFRESH_MS = 5000;
 const admin = useAdminRooms();
+/** One gameplay editor for the Gameplay tab and for the perks of a room, so what is edited in one shows in the other. */
+const gameplay = useAdminGameplay();
+const perksOf = ref<AdminRoom | null>(null);
 const keyInput = ref("");
 const tab = ref<"rooms" | "gameplay">("rooms");
 const confirming = ref<AdminRoom | null>(null);
@@ -27,6 +32,11 @@ function playersOf(entry: AdminRoom) {
 async function signIn() {
   await admin.signIn(keyInput.value);
   keyInput.value = "";
+}
+
+async function openPerks(entry: AdminRoom) {
+  if (!gameplay.draft.value) await gameplay.load();
+  perksOf.value = entry;
 }
 
 async function confirmDelete() {
@@ -66,7 +76,7 @@ onMounted(() => void admin.refresh());
           </VTabs>
 
           <VCardText v-if="signedIn && tab === 'gameplay'">
-            <GameplayEditor />
+            <GameplayEditor :gameplay="gameplay" />
           </VCardText>
 
           <VCardText v-else-if="signedIn">
@@ -81,6 +91,7 @@ onMounted(() => void admin.refresh());
                   <th>{{ getText({ key: "admin.colAge" }) }}</th>
                   <th>{{ getText({ key: "admin.colServer" }) }}</th>
                   <th />
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -90,6 +101,7 @@ onMounted(() => void admin.refresh());
                   <td>{{ playersOf(entry) }}</td>
                   <td>{{ ageOf(entry) }}</td>
                   <td>{{ entry.server }}</td>
+                  <td><VBtn size="small" @click="openPerks(entry)">{{ getText({ key: "admin.roomPerks" }) }}</VBtn></td>
                   <td><VBtn size="small" color="error" @click="confirming = entry">{{ getText({ key: "admin.delete" }) }}</VBtn></td>
                 </tr>
               </tbody>
@@ -104,6 +116,8 @@ onMounted(() => void admin.refresh());
         </VCard>
       </VCol>
     </VRow>
+
+    <RoomPerksDialog :target="perksOf" :gameplay="gameplay" @close="perksOf = null" />
 
     <VDialog :model-value="confirming !== null" max-width="420" @update:model-value="confirming = null">
       <VCard :title="getText({ key: 'admin.delete' })">

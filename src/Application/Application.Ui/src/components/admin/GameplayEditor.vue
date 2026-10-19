@@ -1,11 +1,27 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
-import { useAdminGameplay } from "@/composables/useAdminGameplay";
+import { computed, defineAsyncComponent, onMounted, reactive } from "vue";
+import type { ScriptCheck, useAdminGameplay } from "@/composables/useAdminGameplay";
 import { getText } from "@/helpers";
 import { PERK_EFFECTS } from "@/game/perkInfo";
 
-const gameplay = useAdminGameplay();
+/** The code editor is big, so it is loaded only when a script is opened. */
+const ScriptEditor = defineAsyncComponent(() => import("./ScriptEditor.vue"));
+
+const props = defineProps<{ gameplay: ReturnType<typeof useAdminGameplay> }>();
+const gameplay = props.gameplay;
 const draft = gameplay.draft;
+
+/** What the last check of each perk's script said, by perk id. */
+const checks = reactive<Record<string, ScriptCheck>>({});
+
+async function check(perkId: string, script: string) {
+  checks[perkId] = await gameplay.checkScript(script);
+}
+
+function checkText(result: ScriptCheck) {
+  if (result.ok) return getText({ key: "admin.gameplay.scriptOk" });
+  return result.error === "empty" || result.error === "unavailable" ? getText({ key: result.error === "empty" ? "admin.gameplay.scriptEmpty" : "admin.unavailable" }) : (result.error ?? "");
+}
 
 /** The server lists the effects it knows; one this build has no text for is still offered, by its name. */
 const effectItems = computed(() =>
@@ -30,7 +46,9 @@ function effectHelp(effect: string) {
   return PERK_EFFECTS.some((known) => known === effect) ? getText({ key: `perkEffects.${effect}.help` }) : "";
 }
 
-onMounted(() => void gameplay.load());
+onMounted(() => {
+  if (!gameplay.draft.value) void gameplay.load();
+});
 </script>
 
 <template>
@@ -81,6 +99,39 @@ onMounted(() => void gameplay.load());
             :hint="getText({ key: 'admin.gameplay.roomsHint' })"
             persistent-hint
           />
+          <VCombobox
+            v-model="perk.excludedRooms"
+            multiple
+            chips
+            closable-chips
+            density="compact"
+            class="mt-2"
+            :label="getText({ key: 'admin.gameplay.excludedRooms' })"
+            hide-details
+          />
+
+          <div class="perk-script">
+            <VBtn v-if="!perk.script" size="x-small" variant="text" @click="gameplay.addScript(index)">{{ getText({ key: "admin.gameplay.addScript" }) }}</VBtn>
+            <template v-else>
+              <div class="perk-script-head">
+                <strong>{{ getText({ key: "admin.gameplay.scriptTitle" }) }}</strong>
+                <VBtn size="x-small" variant="text" @click="check(perk.id, perk.script ?? '')">{{ getText({ key: "admin.gameplay.checkScript" }) }}</VBtn>
+                <VBtn size="x-small" variant="text" color="error" :disabled="perk.effects.length === 0" @click="gameplay.removeScript(index)">
+                  {{ getText({ key: "admin.gameplay.removeScript" }) }}
+                </VBtn>
+              </div>
+              <div v-if="perk.rooms.length === 0" class="perk-script-warning" role="note">{{ getText({ key: "admin.gameplay.scriptOff" }) }}</div>
+              <ScriptEditor :model-value="perk.script ?? ''" :label="getText({ key: 'admin.gameplay.scriptTitle' })" @update:model-value="perk.script = $event" />
+              <div
+                v-if="checks[perk.id]"
+                class="mt-1"
+                :class="checks[perk.id].ok ? 'text-success' : 'text-error'"
+                role="status"
+              >
+                {{ checkText(checks[perk.id]) }}
+              </div>
+            </template>
+          </div>
         </div>
 
         <VBtn class="mt-2" size="small" @click="gameplay.addPerk">{{ getText({ key: "admin.gameplay.addPerk" }) }}</VBtn>
@@ -158,5 +209,19 @@ onMounted(() => void gameplay.load());
   padding-left: 2px;
   font-size: 12px;
   opacity: 0.65;
+}
+.perk-script {
+  margin-top: 10px;
+}
+.perk-script-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.perk-script-warning {
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--snake-amber);
 }
 </style>

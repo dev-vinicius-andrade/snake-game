@@ -31,6 +31,19 @@ Perks of the same effect add up. The snake's earned perk ids are sent in the sna
 
 Built-in set: magnet (6 foods), swift (8), quick-shot (12), twin-shot (15), armor (20), quick-reload (25), burst-shot (30), deep-lungs (35), regeneration (40), auto-fire (45), triple-shot (50), piercing-shot (60), turbo (70). A `Perks` list in the configuration replaces the whole set, so leave it out to get the built-in one.
 
+## Perks per room
+
+A perk works in every room unless it says otherwise, and a perk with a script works in no room until it names some. Three ways to
+say it, all on the admin page:
+
+- **Gameplay tab, each perk:** *Only in these rooms* (the perk works only there) and *Not in these rooms* (it works everywhere
+  but there). A room is named by its invite code, its name or its id; the case does not matter. *Not in these rooms* wins.
+- **Rooms tab, the Perks button of a room:** tick the perks that work in that room. It writes into the same two lists: a perk
+  with a script gets the room in *Only in these rooms*, and an ordinary perk is switched off in a room by naming it in *Not in
+  these rooms*.
+- Rooms are forgotten when the game server restarts. A private room is named by its invite code, a public one by its id, so a
+  perk list that names a room that no longer exists does nothing until that room is back.
+
 ## Editing it while the game runs (admin page)
 
 Everything above, the perks and the prize, can be edited on the admin page (`/admin`, tab **Gameplay**) with the admin key. Save,
@@ -45,7 +58,8 @@ and every game server applies it within a few seconds; no restart, and players a
 - The config is kept in the file named by `GameplayConfiguration__StorePath`, so it survives restarts when that file is on a
   volume. The home lab deploy does this (a small volume at `/data`, see `deploy/homelab/README.md`). Without a path, a restart
   goes back to the built-in defaults.
-- Players see their perks as icons with tooltips; the names and effects come from `GET /gameplay/perks` (public, nothing secret).
+- Players see their perks as icons with tooltips; the names and effects come from `GET /gameplay/perks` (public, with no scripts and no room names).
+- A perk can have several effects and a script: see [PERK_SCRIPTS.md](PERK_SCRIPTS.md).
 
 ## The prize
 

@@ -4,6 +4,12 @@ A perk normally does what its **effects** say (see [PERKS.md](PERKS.md)). A **sc
 effects cannot say: "two more shots while the snake is longer than 40 segments", "heal a little each time it eats", "armor only
 while boosting". Scripts are JavaScript, kept in the perk on the admin page (Gameplay tab) and edited there.
 
+## Writing one
+
+On the admin page, **Gameplay** tab: open a perk and choose **Add a script**. A code editor (CodeMirror) opens with a small
+example. **Check script** asks the server whether the script would be accepted (it parses it and runs it once with a sample),
+and says why not if it would not. **Save** checks it again and refuses a script that fails.
+
 ## Safe by default
 
 - A perk with a script is **off everywhere** until it names rooms (the *Only in these rooms* field of the perk: invite code,

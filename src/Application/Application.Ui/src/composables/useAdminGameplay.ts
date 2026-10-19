@@ -56,6 +56,13 @@ export interface GameplayPayload {
 export interface GameplayHttp {
   get(url: string, adminKey: string): Promise<GameplayPayload>;
   put(url: string, adminKey: string, body: GameplayConfig): Promise<GameplayDocument>;
+  /** Asks whether a script would be accepted. Nothing is saved. */
+  checkScript(url: string, adminKey: string, script: string): Promise<ScriptCheck>;
+}
+
+export interface ScriptCheck {
+  ok: boolean;
+  error: string | null;
 }
 
 export type GameplayStatus = "idle" | "loading" | "ready" | "saved" | "signedOut" | "error";
@@ -83,7 +90,29 @@ const axiosHttp: GameplayHttp = {
       throw withStatus(failure);
     }
   },
+  async checkScript(url, adminKey, script) {
+    try {
+      const reply = await axios.post<ScriptCheck>(url, script, { headers: { [ADMIN_KEY_HEADER]: adminKey, "Content-Type": "text/plain" } });
+      return reply.data;
+    } catch (failure) {
+      throw withStatus(failure);
+    }
+  },
 };
+
+/** What a new script starts from: both functions, each doing something small, so it is clear what they are for. */
+export const SCRIPT_EXAMPLE = `// Called a few times a second for each snake that has this perk. Return the extra effects.
+function modify(snake, room) {
+  return {
+    extraShots: snake.length > 40 ? 1 : 0,
+  };
+}
+
+// Called each time the snake eats. Return extra mass or healing.
+function onEat(snake, food, room) {
+  return { heal: food.isPrize ? 30 : 0 };
+}
+`;
 
 export interface UseAdminGameplayOptions {
   managerUrl?: string;
@@ -179,8 +208,8 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     const body = clone(draft.value);
     body.perks.perks.sort((first, second) => first.foodsRequired - second.foodsRequired);
     for (const perk of body.perks.perks) {
-      perk.rooms = perk.rooms.map((room) => room.trim()).filter((room) => room.length > 0);
-      perk.excludedRooms = perk.excludedRooms.map((room) => room.trim()).filter((room) => room.length > 0);
+      perk.rooms = perk.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+      perk.excludedRooms = perk.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       if (!perk.script?.trim()) delete perk.script;
     }
     try {
@@ -219,6 +248,28 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
   }
 
   /** A perk keeps its last effect, unless a script is there to do the work. */
+  /** Gives a perk a script, from an example, unless it has one. */
+  function addScript(perkIndex: number) {
+    const perk = draft.value?.perks.perks[perkIndex];
+    if (perk && !perk.script?.trim()) perk.script = SCRIPT_EXAMPLE;
+  }
+
+  /** Takes the script away, unless the perk has no effect of its own: then the script is all it is. */
+  function removeScript(perkIndex: number) {
+    const perk = draft.value?.perks.perks[perkIndex];
+    if (perk && perk.effects.length > 0) delete perk.script;
+  }
+
+  async function checkScript(script: string): Promise<ScriptCheck> {
+    const adminKey = key();
+    if (!adminKey || !script.trim()) return { ok: false, error: "empty" };
+    try {
+      return await http.checkScript(`${url}/check-script`, adminKey, script);
+    } catch {
+      return { ok: false, error: "unavailable" };
+    }
+  }
+
   function removeEffect(perkIndex: number, effectIndex: number) {
     const perk = draft.value?.perks.perks[perkIndex];
     if (!perk || (perk.effects.length <= 1 && !perk.script?.trim())) return;
@@ -229,5 +280,5 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     draft.value?.perks.perks.splice(index, 1);
   }
 
-  return { status, error, draft, saved, effects, revision, dirty, load, save, useDefaults, revert, addPerk, removePerk, addEffect, removeEffect };
+  return { status, error, draft, saved, effects, revision, dirty, load, save, useDefaults, revert, addPerk, removePerk, addEffect, removeEffect, addScript, removeScript, checkScript };
 }
