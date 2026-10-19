@@ -23,6 +23,10 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: {{ .Values.runAsUser }}
+        {{- if .Values.persistence.enabled }}
+        # Makes the volume writable for the non-root user of the image.
+        fsGroup: {{ .Values.runAsUser }}
+        {{- end }}
         seccompProfile:
           type: RuntimeDefault
       {{- with .Values.imagePullSecrets }}
@@ -75,6 +79,15 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-data
+        {{- end }}

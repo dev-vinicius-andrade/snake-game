@@ -12,7 +12,14 @@ resources:
   memoryRequests: "128Mi"
   memoryLimit: "512Mi"
 
+# Keeps the gameplay config an administrator saved (perks and prize) across restarts of the manager.
+persistence:
+  enabled: true
+  size: 100Mi
+  mountPath: /data
+
 env:
+  GameplayConfiguration__StorePath: "/data/gameplay.json"
   ASPNETCORE_URLS: "http://+:8080"
   ASPNETCORE_ENVIRONMENT: "Production"
   Serilog__MinimumLevel: "Information"

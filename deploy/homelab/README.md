@@ -126,6 +126,13 @@ What the script does:
    RabbitMQ URL and Redis password copied from `infrastructure`.
 5. Installs the three Helm releases and the tunnel connector, and prints the addresses.
 
+## Storage
+
+The manager keeps one small file, the gameplay config saved on the admin page (perks and prize), on a 100 Mi volume
+(`snake-manager-data`, mounted at `/data`, default storage class). It survives restarts and redeploys. The claim is kept when
+the release is uninstalled (`helm.sh/resource-policy: keep`); delete it by hand to forget the config:
+`kubectl --context <ctx> -n home-apps delete pvc snake-manager-data`. Nothing else in the cluster needs a volume of its own.
+
 ## Secrets and the admin page
 
 - **Admin key** for `https://snake.andradev.io/admin`:

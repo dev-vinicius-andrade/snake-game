@@ -42,8 +42,9 @@ and every game server applies it within a few seconds; no restart, and players a
 - Values the game could not run (a perk that needs 0 foods, a prize that never appears) are refused when you save, with the
   reason shown, and nothing changes.
 - **Load defaults** puts the built-in perks and prize in the form; **Undo edits** goes back to what is saved. Neither saves.
-- To keep the config when the manager restarts, set `GameplayConfiguration__StorePath` to a file on a volume that survives
-  restarts. Without it a restart goes back to the built-in defaults.
+- The config is kept in the file named by `GameplayConfiguration__StorePath`, so it survives restarts when that file is on a
+  volume. The home lab deploy does this (a small volume at `/data`, see `deploy/homelab/README.md`). Without a path, a restart
+  goes back to the built-in defaults.
 - Players see their perks as icons with tooltips; the names and effects come from `GET /gameplay/perks` (public, nothing secret).
 
 ## The prize

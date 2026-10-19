@@ -25,6 +25,15 @@ probe:
 
 env: {}
 
+# A small volume for what the app must keep across restarts (the manager's gameplay config). One pod at a time uses it,
+# which the Recreate strategy above guarantees. Off by default; a workload turns it on in its values file.
+persistence:
+  enabled: false
+  size: 100Mi
+  mountPath: /data
+  # Empty: the cluster's default storage class.
+  storageClass: ""
+
 # NAME: { secretName, key }
 secretEnv: {}
 
