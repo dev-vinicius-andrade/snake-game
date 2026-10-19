@@ -5,6 +5,7 @@ import LanguageSwitcher from "@/components/brand/LanguageSwitcher.vue";
 import SiteFooter from "@/components/brand/SiteFooter.vue";
 import SnakeLogo from "@/components/brand/SnakeLogo.vue";
 import RoomActions from "@/components/rooms/RoomActions.vue";
+import { isGuestNicknameAllowed } from "@/game/accountName";
 import { getText } from "@/helpers";
 import { usePlayerStore } from "@/store/usePlayerStore";
 
@@ -15,7 +16,9 @@ const nickname = computed({
   get: () => playerStore.data?.nickname ?? "",
   set: (value) => playerStore.setNickname(value),
 });
-const isPlayerNameValid = computed(() => nickname.value.trim().length > 0);
+const nicknameAllowed = computed(() => isGuestNicknameAllowed(nickname.value));
+const nicknameError = computed(() => (nicknameAllowed.value ? "" : getText({ key: "account.guestNickname" })));
+const isPlayerNameValid = computed(() => nickname.value.trim().length > 0 && nicknameAllowed.value);
 
 function playNow() {
   if (!isPlayerNameValid.value) return;
@@ -32,6 +35,7 @@ function playNow() {
       <VTextField
         v-model="nickname"
         :label="getText({ key: 'variations.nickname.Text' })"
+        :error-messages="nicknameError"
         maxlength="20"
         autocomplete="nickname"
         clearable
@@ -43,6 +47,8 @@ function playNow() {
       </VBtn>
       <RoomActions :disabled="!isPlayerNameValid" />
     </section>
+
+    <RouterLink class="account-link" :to="{ name: 'account' }">{{ getText({ key: "account.link" }) }}</RouterLink>
 
     <LanguageSwitcher />
     <EyeSetup />
@@ -60,6 +66,10 @@ function playNow() {
   min-height: 100dvh;
   padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
   box-sizing: border-box;
+}
+.account-link {
+  color: var(--snake-muted);
+  font-size: 0.95rem;
 }
 .tagline {
   margin: -4px 0 0;
