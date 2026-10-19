@@ -46,6 +46,7 @@ public static class DependencyInjection
         services.AddSingleton<PerkWorld>();
         services.AddSingleton<WorldEventRunner>();
         services.AddSingleton<TurretRunner>();
+        services.AddSingleton<ZoneRunner>();
         services.AddSingleton<DamageCalculator>();
         services.AddSingleton<BodyHealer>();
         services.AddSingleton<BodyHealthRules>();

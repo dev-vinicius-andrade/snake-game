@@ -105,6 +105,55 @@ public sealed class GameplayConfigTests
     }
 
     [Fact]
+    public void Defaults_HaveAShrinkingZoneOn()
+    {
+        var zone = GameplayConfig.Defaults.WorldEvents.Zone;
+
+        Assert.True(zone.Enabled);
+        Assert.True(zone.ShrinkSeconds >= 5);
+        Assert.True(zone.MinPlayers >= 2);
+    }
+
+    [Fact]
+    public void Json_ZoneSettingsAreWrittenAndReadBack()
+    {
+        var config = GameplayConfig.Defaults with
+        {
+            WorldEvents = new WorldEventOptions
+            {
+                Zone = new ZoneOptions { WarningSeconds = 7, ShrinkSeconds = 50, HoldSeconds = 0, FinalRadius = 90, DamageMass = 9, ExcludedRooms = ["calm"] }
+            }
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(config, GameplayConfig.Json);
+        var back = System.Text.Json.JsonSerializer.Deserialize<GameplayConfig>(json, GameplayConfig.Json)!;
+
+        Assert.Contains("\"zone\"", json);
+        var zone = back.WorldEvents.Zone;
+        Assert.Equal((7, 50, 0, 90, 9), (zone.WarningSeconds, zone.ShrinkSeconds, zone.HoldSeconds, zone.FinalRadius, zone.DamageMass));
+        Assert.Equal(["calm"], zone.ExcludedRooms);
+    }
+
+    [Fact]
+    public void Json_AConfigWithoutAZoneStillLoadsAndGetsTheDefaultOne()
+    {
+        const string old = "{\"worldEvents\":{\"enabled\":true}}";
+
+        var config = System.Text.Json.JsonSerializer.Deserialize<GameplayConfig>(old, GameplayConfig.Json)!;
+
+        config.EnsureValid();
+        Assert.True(config.WorldEvents.Zone.Enabled);
+    }
+
+    [Fact]
+    public void EnsureValid_RefusesAZoneThatCannotWork()
+    {
+        var config = new GameplayConfig { WorldEvents = new WorldEventOptions { Zone = new ZoneOptions { ShrinkSeconds = 1 } } };
+
+        Assert.Throws<ArgumentOutOfRangeException>(config.EnsureValid);
+    }
+
+    [Fact]
     public void EnsureValid_RefusesATurretThatCannotWork()
     {
         var config = new GameplayConfig { WorldEvents = new WorldEventOptions { Turret = new TurretOptions { Arms = 0 } } };

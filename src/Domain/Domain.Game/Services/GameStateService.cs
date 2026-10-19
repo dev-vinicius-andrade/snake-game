@@ -533,6 +533,31 @@ public class GameStateService : IGameStateService
         UpdatePlayer(killer);
     }
 
+    public IReadOnlyList<IPlayer> ApplyZoneDamage(IGameState gameState, double x, double y, double radius, long mass)
+    {
+        ArgumentNullException.ThrowIfNull(gameState);
+        var died = new List<IPlayer>();
+        var half = _snakeConfiguration.Value.HeadSize / 2.0;
+        var room = gameState.Room;
+        foreach (var player in gameState.Players.Values.Where(player => player.IsAlive).ToArray())
+        {
+            var head = new Point(player.CurrentPosition.X + half, player.CurrentPosition.Y + half);
+            if (!WorldEventRules.IsOutsideZone(head, new Point(x, y), radius, room.Width, room.Height)) continue;
+            if (EffectsOf(gameState, player).Invulnerable) continue;
+            if (player.Score <= 0)
+            {
+                KillPlayer(gameState, player);
+                died.Add(player);
+                continue;
+            }
+            var lost = Math.Min(player.Score, mass);
+            player.Score -= lost;
+            AddPellet(gameState, new PelletDrop(new Point(player.CurrentPosition.X, player.CurrentPosition.Y), lost), player.BackgroundColor);
+            UpdatePlayer(player);
+        }
+        return died;
+    }
+
     public IReadOnlyList<IPlayer> StrikeArea(IGameState gameState, double x, double y, double radius)
     {
         ArgumentNullException.ThrowIfNull(gameState);

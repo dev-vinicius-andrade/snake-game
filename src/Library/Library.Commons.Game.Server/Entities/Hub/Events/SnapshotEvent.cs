@@ -29,6 +29,36 @@ public record SnapshotEvent
     /// <summary>The boss standing in the room. Left out while there is none.</summary>
     [JsonPropertyName("boss")]
     public SnapshotBoss? Boss { get; set; }
+
+    /// <summary>The safe zone of the room. Left out while there is none.</summary>
+    [JsonPropertyName("zone")]
+    public SnapshotZone? Zone { get; set; }
+}
+
+/// <summary>The safe zone: the middle, how far it reaches now and at the end, the phase it is in and the milliseconds left in it.</summary>
+public record SnapshotZone
+{
+    [JsonPropertyName("x")]
+    public int X { get; set; }
+
+    [JsonPropertyName("y")]
+    public int Y { get; set; }
+
+    /// <summary>How far from the middle the zone reaches now, in world units.</summary>
+    [JsonPropertyName("r")]
+    public int R { get; set; }
+
+    /// <summary>How far it will reach when it has closed.</summary>
+    [JsonPropertyName("f")]
+    public int F { get; set; }
+
+    /// <summary>0 warning (nobody harmed yet), 1 closing, 2 holding.</summary>
+    [JsonPropertyName("p")]
+    public int P { get; set; }
+
+    /// <summary>Milliseconds until the phase gives way to the next.</summary>
+    [JsonPropertyName("t")]
+    public int T { get; set; }
 }
 
 /// <summary>A boss: where it stands, how big it is, how much of it is left, and where its arms point (for the picture).</summary>

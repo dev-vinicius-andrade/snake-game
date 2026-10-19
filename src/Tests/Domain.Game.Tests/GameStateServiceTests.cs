@@ -1628,4 +1628,93 @@ public sealed class GameStateServiceTests
         Assert.False(target.IsAlive);
         Assert.Empty(_state.Obstacles);
     }
+
+    // ApplyZoneDamage: snakes outside the safe zone pay.
+
+    [Fact]
+    public void ApplyZoneDamage_ASnakeOutsideLosesMass_ThatFallsAsFoodWhereItIs()
+    {
+        var outside = AddPlayer("outside", 1500, 900, score: 10);
+
+        var died = _service.ApplyZoneDamage(_state, 300, 300, 100, 4);
+
+        Assert.Empty(died);
+        Assert.True(outside.IsAlive);
+        Assert.Equal(6, outside.Score);
+        var pellet = Assert.Single(_state.Foods.Values);
+        Assert.Equal(4, pellet.Value);
+        Assert.InRange(Math.Abs(pellet.Position.X - 1500), 0, HeadSize * 2);
+        Assert.InRange(Math.Abs(pellet.Position.Y - 900), 0, HeadSize * 2);
+    }
+
+    [Fact]
+    public void ApplyZoneDamage_ASnakeInsideIsUntouched()
+    {
+        var inside = AddPlayer("inside", 300, 300, score: 10);
+
+        var died = _service.ApplyZoneDamage(_state, 300, 300, 100, 4);
+
+        Assert.Empty(died);
+        Assert.Equal(10, inside.Score);
+        Assert.Empty(_state.Foods);
+    }
+
+    [Fact]
+    public void ApplyZoneDamage_ASnakeWithLessMassThanTheDamage_LosesWhatItHas()
+    {
+        var poor = AddPlayer("poor", 1500, 900, score: 3);
+
+        var died = _service.ApplyZoneDamage(_state, 300, 300, 100, 4);
+
+        Assert.Empty(died);
+        Assert.Equal(0, poor.Score);
+        Assert.Equal(3, Assert.Single(_state.Foods.Values).Value);
+    }
+
+    [Fact]
+    public void ApplyZoneDamage_ASnakeWithNoMassLeft_Dies()
+    {
+        var broke = AddPlayer("broke", 1500, 900, score: 0);
+
+        var died = _service.ApplyZoneDamage(_state, 300, 300, 100, 4);
+
+        Assert.Same(broke, Assert.Single(died));
+        Assert.False(broke.IsAlive);
+    }
+
+    [Fact]
+    public void ApplyZoneDamage_CountsTheShortWayRoundTheWorld()
+    {
+        // The room is 1920 wide: a head at 1900 is 40 from a centre at 20.
+        var near = AddPlayer("near", 1900, 500, score: 10);
+
+        _service.ApplyZoneDamage(_state, 20, 500, 100, 4);
+
+        Assert.Equal(10, near.Score);
+    }
+
+    [Fact]
+    public void ApplyZoneDamage_AnInvulnerableSnake_IsUntouched()
+    {
+        var service = WithScript("function modify() { return { invulnerable: true }; }", _room.Guid.ToString());
+        var shielded = AddPlayer("shielded", 1500, 900, score: 0);
+        shielded.FoodsEaten = 1;
+
+        var died = service.ApplyZoneDamage(_state, 300, 300, 100, 4);
+
+        Assert.Empty(died);
+        Assert.True(shielded.IsAlive);
+    }
+
+    [Fact]
+    public void ApplyZoneDamage_ASnakeAlreadyDead_IsLeftAlone()
+    {
+        var dead = AddPlayer("dead", 1500, 900, score: 10);
+        dead.IsAlive = false;
+
+        var died = _service.ApplyZoneDamage(_state, 300, 300, 100, 4);
+
+        Assert.Empty(died);
+        Assert.Equal(10, dead.Score);
+    }
 }

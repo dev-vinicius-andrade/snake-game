@@ -53,6 +53,12 @@ public interface IGameStateService
     /// </summary>
     Task ResolveBossHits(IGameState gameState);
 
+    /// <summary>
+    /// Makes every snake whose head is outside a circle (the short way round the world) pay: it loses up to <paramref name="mass"/> mass,
+    /// which falls as food where it is, and a snake with none left dies. The invulnerable are skipped. Returns the snakes that died.
+    /// </summary>
+    IReadOnlyList<IPlayer> ApplyZoneDamage(IGameState gameState, double x, double y, double radius, long mass);
+
     IReadOnlyList<IPlayer> StrikeArea(IGameState gameState, double x, double y, double radius);
     IPlayer? GetPlayer(IGameState gameState, ITrackableId trackableId);
 }

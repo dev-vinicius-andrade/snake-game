@@ -23,8 +23,22 @@ public static class SnapshotBuilder
             Shots = gameState.Obstacles.Values.Select(ToShot).ToList(),
             Strikes = ToStrikes(gameState, now ?? DateTimeOffset.UtcNow),
             Boss = ToBoss(gameState.Boss),
+            Zone = ToZone(gameState.Zone, now ?? DateTimeOffset.UtcNow),
         };
     }
+
+    private static SnapshotZone? ToZone(WorldZone? zone, DateTimeOffset now)
+        => zone is null
+            ? null
+            : new SnapshotZone
+            {
+                X = (int)Math.Round(zone.X),
+                Y = (int)Math.Round(zone.Y),
+                R = (int)Math.Round(zone.Radius),
+                F = (int)Math.Round(zone.FinalRadius),
+                P = (int)zone.Phase,
+                T = (int)Math.Max(0, Math.Round((zone.PhaseEndsAt - now).TotalMilliseconds)),
+            };
 
     private static SnapshotBoss? ToBoss(WorldBoss? boss)
     {

@@ -27,4 +27,6 @@ internal record GameState:IGameState
     public ConcurrentDictionary<Guid, WorldStrike> Strikes { get; } = new();
     [JsonIgnore]
     public WorldBoss? Boss { get; set; }
+    [JsonIgnore]
+    public WorldZone? Zone { get; set; }
 }

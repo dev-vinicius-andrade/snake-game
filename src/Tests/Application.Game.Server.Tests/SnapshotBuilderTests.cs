@@ -180,6 +180,40 @@ public sealed class SnapshotBuilderTests
     }
 
     [Fact]
+    public void Build_NoZone_LeavesItOut()
+    {
+        Assert.False(Json().TryGetProperty("zone", out _));
+    }
+
+    [Fact]
+    public void Build_AZone_IsWhereItIsHowFarItReachesNowAndAtTheEndAndWhatPhase()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        _state.Zone.Returns(new WorldZone(300.4, 400.6, 812.6, 160, WorldZonePhase.Closing, now.AddMilliseconds(4321)));
+
+        var json = JsonDocument.Parse(JsonSerializer.Serialize(SnapshotBuilder.Build(_state, now), Options)).RootElement;
+
+        var zone = json.GetProperty("zone");
+        Assert.Equal(300, zone.GetProperty("x").GetInt32());
+        Assert.Equal(401, zone.GetProperty("y").GetInt32());
+        Assert.Equal(813, zone.GetProperty("r").GetInt32());
+        Assert.Equal(160, zone.GetProperty("f").GetInt32());
+        Assert.Equal(1, zone.GetProperty("p").GetInt32());
+        Assert.Equal(4321, zone.GetProperty("t").GetInt32());
+    }
+
+    [Fact]
+    public void Build_AZonePastItsPhase_NeverSaysNegativeTime()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        _state.Zone.Returns(new WorldZone(1, 2, 100, 100, WorldZonePhase.Holding, now.AddMilliseconds(-50)));
+
+        var json = JsonDocument.Parse(JsonSerializer.Serialize(SnapshotBuilder.Build(_state, now), Options)).RootElement;
+
+        Assert.Equal(0, json.GetProperty("zone").GetProperty("t").GetInt32());
+    }
+
+    [Fact]
     public void Build_NoBoss_LeavesItOut()
     {
         Assert.False(Json().TryGetProperty("boss", out _));

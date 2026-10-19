@@ -11,6 +11,9 @@ public interface IGameState
     /// <summary>Spots that lightning is about to strike, by id: shown to the players until the strike.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     System.Collections.Concurrent.ConcurrentDictionary<Guid, Library.Commons.Game.Domain.Entities.WorldStrike> Strikes { get; }
+    /// <summary>The safe zone of the room, or null.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    Library.Commons.Game.Domain.Entities.WorldZone? Zone { get; set; }
     /// <summary>The boss that stands in the room, or null.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     Library.Commons.Game.Domain.Entities.WorldBoss? Boss { get; set; }
