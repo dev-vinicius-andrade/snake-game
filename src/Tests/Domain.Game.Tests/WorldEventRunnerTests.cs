@@ -244,7 +244,19 @@ public sealed class WorldEventRunnerTests
         Pass(runner, 2);
 
         Assert.Empty(_state.Strikes);
-        _gameStates.Received(1).StrikeArea(_state, Arg.Any<double>(), Arg.Any<double>(), 130);
+        _gameStates.Received(1).StrikeArea(_state, Arg.Any<double>(), Arg.Any<double>(), 130, WorldStrikeKind.Meteor);
+    }
+
+    [Fact]
+    public void Update_LightningStrikes_SayTheyAreLightning()
+    {
+        AddPlayer();
+        var runner = Stormy();
+
+        Pass(runner, 1.5);
+
+        _gameStates.Received(3).StrikeArea(_state, Arg.Any<double>(), Arg.Any<double>(), 80, WorldStrikeKind.Lightning);
+        _gameStates.DidNotReceive().StrikeArea(Arg.Any<IGameState>(), Arg.Any<double>(), Arg.Any<double>(), Arg.Any<double>(), WorldStrikeKind.Meteor);
     }
 
     [Fact]

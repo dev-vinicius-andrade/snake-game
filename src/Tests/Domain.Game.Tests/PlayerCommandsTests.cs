@@ -117,6 +117,44 @@ public sealed class PlayerCommandsTests
     }
 
     [Fact]
+    public async Task JoinNewPlayer_WithAnAccount_TagsThePlayerWithIt()
+    {
+        var roomId = Guid.NewGuid();
+        var accountId = Guid.NewGuid();
+        var created = Substitute.For<IPlayer>();
+        _service.CreatePlayerInRoom(ConnectionId, "Vini#09291", roomId, Arg.Any<CancellationToken>()).Returns(created);
+        var command = new JoinNewPlayerCommand(ConnectionId, "Vini#09291", roomId, accountId);
+
+        await command.ExecuteAsync(_context, CancellationToken.None);
+
+        Assert.Same(created, await command.Completion);
+        _service.Received(1).AttachAccount(created, accountId);
+    }
+
+    [Fact]
+    public async Task JoinNewPlayer_AGuest_IsNotTagged()
+    {
+        _service.CreatePlayerInRoom(default!, default!, default, default).ReturnsForAnyArgs(Substitute.For<IPlayer>());
+        var command = new JoinNewPlayerCommand(ConnectionId, "ana", Guid.NewGuid());
+
+        await command.ExecuteAsync(_context, CancellationToken.None);
+
+        _service.DidNotReceiveWithAnyArgs().AttachAccount(default!, default);
+    }
+
+    [Fact]
+    public async Task JoinNewPlayer_RoomRefusesAnAccount_TagsNobody()
+    {
+        _service.CreatePlayerInRoom(default!, default!, default, default).ReturnsForAnyArgs(Task.FromResult<IPlayer?>(null));
+        var command = new JoinNewPlayerCommand(ConnectionId, "Vini#09291", Guid.NewGuid(), Guid.NewGuid());
+
+        await command.ExecuteAsync(_context, CancellationToken.None);
+
+        Assert.Null(await command.Completion);
+        _service.DidNotReceiveWithAnyArgs().AttachAccount(default!, default);
+    }
+
+    [Fact]
     public async Task JoinNewPlayer_RoomRefuses_ReturnsNull()
     {
         _service.CreatePlayerInRoom(default!, default!, default, default).ReturnsForAnyArgs(Task.FromResult<IPlayer?>(null));

@@ -4,6 +4,7 @@ using Domain.Game.Extensions;
 using Domain.Game.Helpers;
 using Domain.Game.Rules;
 using Domain.Game.Scripting;
+using Domain.Game.Stats;
 using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Entities.Configurations;
 using Library.Commons.Game.Domain.Enums;
@@ -61,6 +62,12 @@ public class GameStateService : IGameStateService
 
     private readonly ConcurrentDictionary<Guid, SnakeLife> _lives = new();
 
+    private readonly IStatsReporter? _statsReporter;
+    /// <summary>The stats of the lives of signed-in snakes still playing. Guests are never in here.</summary>
+    private readonly ConcurrentDictionary<Guid, LifeStats> _lifeStats = new();
+    /// <summary>The stats of lives that ended, waiting for the player to be removed to be reported.</summary>
+    private readonly ConcurrentDictionary<Guid, LifeStatsReport> _finishedStats = new();
+
     public GameStateService(
         IOptions<ServerConfiguration> serverConfiguration,
         IOptions<SnakeConfiguration> snakeConfiguration,
@@ -76,10 +83,12 @@ public class GameStateService : IGameStateService
         SnakeBodyRules snakeBodyRules, BodyShotRules bodyShotRules, BodyHealthRules bodyHealthRules,
         BoostRules boostRules, DamageCalculator damageCalculator, SnakeRulesOptions rulesOptions,
         ShotCooldownRules shotCooldownRules, HeadingRules headingRules, PerkRules perkRules,
-        TimeProvider? clock = null)
+        TimeProvider? clock = null,
+        IStatsReporter? statsReporter = null)
     {
         _perkRules = perkRules;
         _clock = clock ?? TimeProvider.System;
+        _statsReporter = statsReporter;
         _shotCooldownRules = shotCooldownRules;
         _headingRules = headingRules;
         _snakeBodyRules = snakeBodyRules;
@@ -201,6 +210,7 @@ public class GameStateService : IGameStateService
         MoveBody(gameState, player, newCurrentPosition);
         RegenerateBody(player, perks);
         ContinueBurst(gameState, player, perks);
+        StatsOf(player)?.Observe(player.Score, player.Path.Count);
 
         _playerService.Save(player);
     }
@@ -246,6 +256,8 @@ public class GameStateService : IGameStateService
             if (!gameState.Players.TryGetValue(playerTrackableId.Guid, out var player)) return false;
             gameState.Players.Remove(playerTrackableId.Guid);
             ForgetLife(player);
+            FinishStats(player);
+            ReportStats(player);
             _playerRoomService.DisconnectPlayer(player, gameState.Room);
             _playerService.Delete(player);
             return true;
@@ -267,6 +279,7 @@ public class GameStateService : IGameStateService
         gameState.Foods.Remove(food.Guid);
         player.Score += food.Value;
         player.FoodsEaten += food.FoodsCredit;
+        StatsOf(player)?.Ate(food.Kind);
         GrantPerk(player, food);
         RefreshPerks(gameState, player);
         HealBody(player, food.Value);
@@ -527,8 +540,15 @@ public class GameStateService : IGameStateService
         gameState.Hits.Enqueue(new DamageDealt(shot.CreatedyBy.Guid, boss.Id, boss.X, boss.Y, 1, down ? DamageKind.Kill : DamageKind.Hit));
         if (!down) return false;
         gameState.Boss = null;
+        CountBossKill(gameState, shot.CreatedyBy.Guid);
         DropBossReward(gameState, boss);
         return true;
+    }
+
+    private void CountBossKill(IGameState gameState, Guid shooterId)
+    {
+        if (!gameState.Players.TryGetValue(shooterId, out var shooter)) return;
+        StatsOf(shooter)?.BroughtDownBoss();
     }
 
     private void DropBossReward(IGameState gameState, WorldBoss boss)
@@ -575,7 +595,7 @@ public class GameStateService : IGameStateService
         return died;
     }
 
-    public IReadOnlyList<IPlayer> StrikeArea(IGameState gameState, double x, double y, double radius)
+    public IReadOnlyList<IPlayer> StrikeArea(IGameState gameState, double x, double y, double radius, WorldStrikeKind kind = WorldStrikeKind.Lightning)
     {
         ArgumentNullException.ThrowIfNull(gameState);
         var died = new List<IPlayer>();
@@ -587,6 +607,7 @@ public class GameStateService : IGameStateService
             if (hit.HeadHit)
             {
                 var mass = player.Score;
+                CountStrike(player, kind, mass);
                 KillPlayer(gameState, player);
                 died.Add(player);
                 TellLoss(gameState, player, mass);
@@ -596,9 +617,17 @@ public class GameStateService : IGameStateService
                 var before = player.Score;
                 BreakSegments(gameState, player, hit.BrokenSegments);
                 TellLoss(gameState, player, before - player.Score);
+                CountStrike(player, kind, before - player.Score);
             }
         }
         return died;
+    }
+
+    /// <summary>A strike counts in the stats of a snake only when it cost it mass.</summary>
+    private void CountStrike(IPlayer player, WorldStrikeKind kind, long massLost)
+    {
+        if (massLost <= 0) return;
+        StatsOf(player)?.Struck(kind);
     }
 
     /// <summary>Tells a snake how much mass it lost to something that is not a shot, at its head. Nothing when it lost none.</summary>
@@ -720,6 +749,7 @@ public class GameStateService : IGameStateService
     {
         if (killerId == victim.Guid || !gameState.Players.TryGetValue(killerId, out var killer) || !killer.IsAlive) return;
         LifeOf(killer).Kills++;
+        StatsOf(killer)?.Killed();
         CreditFoods(gameState, killer, _perkRules.KillFoodsCredit);
         _scriptedEffects.TryRemove(killer.Guid, out _);
         if (!_perkRules.HasScripts(killer.FoodsEaten, gameState.Room, GrantedOf(killer))) return;
@@ -761,8 +791,42 @@ public class GameStateService : IGameStateService
         if (!player.IsAlive) return;
         player.IsAlive = false;
         ForgetLife(player);
+        StatsOf(player)?.Died();
+        FinishStats(player);
         DropPellets(gameState, player);
         UpdatePlayer(player);
+    }
+
+    public void AttachAccount(IPlayer player, Guid accountId)
+    {
+        ArgumentNullException.ThrowIfNull(player);
+        player.AccountId = accountId;
+        _lifeStats.TryAdd(player.Guid, LifeStats.Begin(_clock.GetUtcNow(), player.Score, player.Path.Count));
+    }
+
+    public LifeStatsReport? FinishedStatsOf(IPlayer player)
+    {
+        ArgumentNullException.ThrowIfNull(player);
+        return _finishedStats.TryGetValue(player.Guid, out var report) ? report : null;
+    }
+
+    /// <summary>The stats of the life the snake is playing; null for a guest, and once the life is over.</summary>
+    private LifeStats? StatsOf(IPlayer player)
+        => player.AccountId is not null && _lifeStats.TryGetValue(player.Guid, out var stats) ? stats : null;
+
+    /// <summary>Ends the life of a signed-in snake, if it is still counted: its last mass and length count, and its report is made.</summary>
+    private void FinishStats(IPlayer player)
+    {
+        if (player.AccountId is null || !_lifeStats.TryRemove(player.Guid, out var stats)) return;
+        stats.Observe(player.Score, player.Path.Count);
+        _finishedStats[player.Guid] = stats.Finish(_clock.GetUtcNow(), Guid.NewGuid());
+    }
+
+    /// <summary>Sends the report of a life that ended, once: it is forgotten as it goes.</summary>
+    private void ReportStats(IPlayer player)
+    {
+        if (player.AccountId is not Guid accountId || !_finishedStats.TryRemove(player.Guid, out var report)) return;
+        _statsReporter?.Report(accountId, report);
     }
 
     private void DropPellets(IGameState gameState, IPlayer player)

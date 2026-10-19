@@ -79,7 +79,7 @@ public sealed class WorldEventRunner
         var step = _rules.Step(kind, storm.State, _time.GetUtcNow(), room.Width, room.Height, heads, options);
         storm.State = step.State;
         foreach (var strike in step.Started) Mark(gameState, storm, strike, kind);
-        return step.Fired.SelectMany(strike => Strike(gameState, storm, strike)).ToList();
+        return step.Fired.SelectMany(strike => Strike(gameState, storm, strike, kind)).ToList();
     }
 
     private static void Mark(IGameState gameState, Storm storm, StormStrike strike, WorldEventKind kind)
@@ -91,13 +91,13 @@ public sealed class WorldEventRunner
         gameState.Strikes[id] = new WorldStrike(strike.X, strike.Y, strike.Radius, strike.StrikesAt, ToStrikeKind(kind));
     }
 
-    private IReadOnlyList<IPlayer> Strike(IGameState gameState, Storm storm, StormStrike strike)
+    private IReadOnlyList<IPlayer> Strike(IGameState gameState, Storm storm, StormStrike strike, WorldEventKind kind)
     {
         var index = storm.Marked.FindIndex(marked => marked.Strike == strike);
         if (index < 0) return [];
         gameState.Strikes.TryRemove(storm.Marked[index].Id, out _);
         storm.Marked.RemoveAt(index);
-        return _gameStates.StrikeArea(gameState, strike.X, strike.Y, strike.Radius);
+        return _gameStates.StrikeArea(gameState, strike.X, strike.Y, strike.Radius, ToStrikeKind(kind));
     }
 
     private void Forget(IGameState gameState, WorldEventKind kind)

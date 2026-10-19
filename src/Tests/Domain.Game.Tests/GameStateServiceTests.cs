@@ -72,7 +72,7 @@ public sealed class GameStateServiceTests
         _service = Build(_perks);
     }
 
-    private GameStateService Build(PerkRules perks)
+    private GameStateService Build(PerkRules perks, IStatsReporter? statsReporter = null)
     {
         var rules = _rules;
         var states = _states;
@@ -101,7 +101,8 @@ public sealed class GameStateServiceTests
             new ShotCooldownRules(rules),
             new HeadingRules(rules),
             perks,
-            _clock);
+            _clock,
+            statsReporter);
     }
 
     private IPointAxis At(double x, double y)
@@ -1890,5 +1891,264 @@ public sealed class GameStateServiceTests
         await service.ResolveBossHits(_state);
 
         Assert.Equal(0, shooter.FoodsEaten);
+    }
+
+    // Stats of signed-in players: counted for each life, reported once when the player is removed (docs/ACHIEVEMENTS.md).
+
+    private static readonly Guid AccountA = Guid.NewGuid();
+    private static readonly Guid AccountB = Guid.NewGuid();
+
+    private sealed record Reported(Guid AccountId, LifeStatsReport Report);
+
+    private (GameStateService Service, List<Reported> Reports) Reporting()
+    {
+        var reporter = Substitute.For<IStatsReporter>();
+        var reports = new List<Reported>();
+        reporter.When(sent => sent.Report(Arg.Any<Guid>(), Arg.Any<LifeStatsReport>()))
+            .Do(call => reports.Add(new Reported(call.ArgAt<Guid>(0), call.ArgAt<LifeStatsReport>(1))));
+        return (Build(_perks, reporter), reports);
+    }
+
+    private Player AddAccountPlayer(GameStateService service, Guid accountId, string name, double headX, double headY, int length = InitialLength, long score = 0)
+    {
+        var player = AddPlayer(name, headX, headY, length, score);
+        service.AttachAccount(player, accountId);
+        return player;
+    }
+
+    private static LifeStatsReport ReportOf(List<Reported> reports, Guid accountId) => Assert.Single(reports, sent => sent.AccountId == accountId).Report;
+
+    [Fact]
+    public void AttachAccount_TagsThePlayerWithItsAccount()
+    {
+        var (service, _) = Reporting();
+
+        var player = AddAccountPlayer(service, AccountA, "vini", 500, 500);
+
+        Assert.Equal(AccountA, player.AccountId);
+    }
+
+    [Fact]
+    public async Task DisconnectPlayer_AnAccountPlayerLeavingAlive_ReportsOneGameAndItsPlayTime()
+    {
+        var (service, reports) = Reporting();
+        var player = AddAccountPlayer(service, AccountA, "vini", 500, 500, score: 4);
+        _clock.Advance(TimeSpan.FromSeconds(90.5));
+
+        await service.DisconnectPlayer(_room, player);
+
+        var report = ReportOf(reports, AccountA);
+        Assert.Equal((1L, 0L, 90L), (report.Counters[StatKeys.Games], report.Counters[StatKeys.Deaths], report.Counters[StatKeys.PlaySeconds]));
+        Assert.Equal(4, report.Maxima[StatKeys.BestScore]);
+    }
+
+    [Fact]
+    public async Task DisconnectPlayer_TwiceForTheSameLife_ReportsItOnce()
+    {
+        var (service, reports) = Reporting();
+        var player = AddAccountPlayer(service, AccountA, "vini", 500, 500);
+
+        await service.DisconnectPlayer(_room, player);
+        _state.Players.Add(player.Guid, player);
+        await service.DisconnectPlayer(_room, player);
+
+        Assert.Single(reports);
+    }
+
+    [Fact]
+    public async Task DisconnectPlayer_AGuest_ReportsNothing()
+    {
+        var (service, reports) = Reporting();
+        var guest = AddPlayer("guest", 500, 500, score: 3);
+        AddFood(500, 500, 2);
+        await service.CheckFoodCollision(_state, guest);
+
+        await service.DisconnectPlayer(_room, guest);
+
+        Assert.Empty(reports);
+        Assert.Null(guest.AccountId);
+        Assert.Null(service.FinishedStatsOf(guest));
+    }
+
+    [Fact]
+    public async Task CheckFoodCollision_AnAccountPlayer_CountsWhatItAte_NotTheCredit()
+    {
+        var (service, reports) = Reporting();
+        var player = AddAccountPlayer(service, AccountA, "vini", 500, 500);
+        AddFood(500, 500, 3, credit: 2);
+        await service.CheckFoodCollision(_state, player);
+        AddFood(500, 500, 20, FoodKind.Prize, credit: 8);
+        await service.CheckFoodCollision(_state, player);
+
+        await service.DisconnectPlayer(_room, player);
+
+        var report = ReportOf(reports, AccountA);
+        Assert.Equal((2L, 1L), (report.Counters[StatKeys.Foods], report.Counters[StatKeys.Prizes]));
+        Assert.Equal(23, report.Maxima[StatKeys.BestScore]);
+    }
+
+    [Fact]
+    public async Task CheckObstacleCollision_AHeadShot_CountsAKillForTheShooterAndADeathForTheTarget()
+    {
+        var (service, reports) = Reporting();
+        var target = AddAccountPlayer(service, AccountA, "target", 500, 500, length: 11, score: 5);
+        var shooter = AddAccountPlayer(service, AccountB, "shooter", 1500, 100);
+        AddShot(shooter, target.CurrentPosition.X, 500);
+
+        await service.CheckObstacleCollision(_state, target);
+        await service.DisconnectPlayer(_room, target);
+        await service.DisconnectPlayer(_room, shooter);
+
+        var victim = ReportOf(reports, AccountA);
+        var killer = ReportOf(reports, AccountB);
+        Assert.Equal((1L, 0L), (victim.Counters[StatKeys.Deaths], victim.Counters[StatKeys.Kills]));
+        Assert.Equal((0L, 1L, 1L), (killer.Counters[StatKeys.Deaths], killer.Counters[StatKeys.Kills], killer.Maxima[StatKeys.BestKillsInLife]));
+    }
+
+    [Fact]
+    public async Task ResolveSnakeCollisions_TheSnakeRunIntoGetsTheKill()
+    {
+        var (service, reports) = Reporting();
+        var wall = AddAccountPlayer(service, AccountA, "wall", 500, 500);
+        var intruder = AddPlayer("intruder", 900, 900, length: 8, score: 2);
+        intruder.CurrentPosition = At(wall.Path[2].X, 505);
+        intruder.Path[^1] = intruder.CurrentPosition;
+
+        await service.ResolveSnakeCollisions(_state);
+        await service.DisconnectPlayer(_room, wall);
+
+        Assert.Equal(1, ReportOf(reports, AccountA).Counters[StatKeys.Kills]);
+    }
+
+    [Fact]
+    public async Task FinishedStatsOf_ADeadAccountPlayer_HoldsItsLifeUntilItIsRemoved()
+    {
+        var (service, reports) = Reporting();
+        var target = AddAccountPlayer(service, AccountA, "target", 500, 500, length: 11, score: 5);
+        var shooter = AddPlayer("shooter", 1500, 100);
+        AddShot(shooter, target.CurrentPosition.X, 500);
+        await service.CheckObstacleCollision(_state, target);
+
+        var finished = service.FinishedStatsOf(target);
+        await service.DisconnectPlayer(_room, target);
+
+        Assert.NotNull(finished);
+        Assert.Equal(1, finished!.Counters[StatKeys.Deaths]);
+        Assert.Same(finished, ReportOf(reports, AccountA));
+        Assert.Null(service.FinishedStatsOf(target));
+    }
+
+    [Fact]
+    public void FinishedStatsOf_AnAccountPlayerStillAlive_IsNull()
+    {
+        var (service, _) = Reporting();
+
+        var player = AddAccountPlayer(service, AccountA, "vini", 500, 500);
+
+        Assert.Null(service.FinishedStatsOf(player));
+    }
+
+    [Fact]
+    public async Task ResolveBossHits_TheLastShot_CountsABossKillForTheShooter_AHurtingOneDoesNot()
+    {
+        var (service, reports) = Reporting();
+        var hurter = AddAccountPlayer(service, AccountA, "hurter", 100, 100);
+        var finisher = AddAccountPlayer(service, AccountB, "finisher", 1500, 100);
+        AddBoss(800, 400, hp: 2);
+        AddShot(hurter, 810, 410);
+        await service.ResolveBossHits(_state);
+        AddShot(finisher, 810, 410);
+        await service.ResolveBossHits(_state);
+
+        await service.DisconnectPlayer(_room, hurter);
+        await service.DisconnectPlayer(_room, finisher);
+
+        Assert.Null(_state.Boss);
+        Assert.Equal(0, ReportOf(reports, AccountA).Counters[StatKeys.BossKills]);
+        Assert.Equal(1, ReportOf(reports, AccountB).Counters[StatKeys.BossKills]);
+    }
+
+    [Fact]
+    public async Task StrikeArea_ABrokenBody_CountsAHitOfTheStrikesKind()
+    {
+        var (service, reports) = Reporting();
+        var victim = AddAccountPlayer(service, AccountA, "victim", 500, 500, length: 11, score: 10);
+
+        service.StrikeArea(_state, Middle(victim.Path[0].X), Middle(500), 5, WorldStrikeKind.Meteor);
+        service.StrikeArea(_state, Middle(victim.Path[0].X), Middle(500), 5);
+        await service.DisconnectPlayer(_room, victim);
+
+        var report = ReportOf(reports, AccountA);
+        Assert.Equal((1L, 1L), (report.Counters[StatKeys.MeteorHits], report.Counters[StatKeys.LightningHits]));
+    }
+
+    [Fact]
+    public async Task StrikeArea_AHeadHit_CountsAHitAndADeath()
+    {
+        var (service, reports) = Reporting();
+        var victim = AddAccountPlayer(service, AccountA, "victim", 500, 500, length: 11, score: 10);
+
+        service.StrikeArea(_state, Middle(500), Middle(500), 5, WorldStrikeKind.Meteor);
+        await service.DisconnectPlayer(_room, victim);
+
+        var report = ReportOf(reports, AccountA);
+        Assert.Equal((1L, 1L), (report.Counters[StatKeys.MeteorHits], report.Counters[StatKeys.Deaths]));
+    }
+
+    [Fact]
+    public async Task StrikeArea_NoMassLost_CountsNoHit()
+    {
+        var (service, reports) = Reporting();
+        var small = AddAccountPlayer(service, AccountA, "small", 500, 500, length: InitialLength, score: 5);
+
+        service.StrikeArea(_state, Middle(small.Path[0].X), Middle(500), 5);
+        await service.DisconnectPlayer(_room, small);
+
+        Assert.Equal(0, ReportOf(reports, AccountA).Counters[StatKeys.LightningHits]);
+    }
+
+    [Fact]
+    public async Task ApplyZoneDamage_CountsForNeitherKindOfStrike()
+    {
+        var (service, reports) = Reporting();
+        var outside = AddAccountPlayer(service, AccountA, "outside", 1500, 900, score: 10);
+
+        service.ApplyZoneDamage(_state, 300, 300, 100, 4);
+        await service.DisconnectPlayer(_room, outside);
+
+        var report = ReportOf(reports, AccountA);
+        Assert.Equal((0L, 0L), (report.Counters[StatKeys.LightningHits], report.Counters[StatKeys.MeteorHits]));
+    }
+
+    [Fact]
+    public async Task MovePlayer_KeepsThePeakMassAndLengthOfTheLife()
+    {
+        var (service, reports) = Reporting();
+        var player = AddAccountPlayer(service, AccountA, "vini", 500, 500, score: 4);
+        foreach (var _ in Enumerable.Range(0, 10))
+            await service.MovePlayer(_state, player);
+        var peakLength = player.Path.Count;
+        player.Score = 0;
+        foreach (var _ in Enumerable.Range(0, 10))
+            await service.MovePlayer(_state, player);
+
+        await service.DisconnectPlayer(_room, player);
+
+        var report = ReportOf(reports, AccountA);
+        Assert.True(peakLength > InitialLength);
+        Assert.Equal(InitialLength, player.Path.Count);
+        Assert.Equal((4L, (long)peakLength), (report.Maxima[StatKeys.BestScore], report.Maxima[StatKeys.LongestSnake]));
+    }
+
+    [Fact]
+    public async Task Service_WithoutAReporter_StillCountsAndRemovesPlayers()
+    {
+        var player = AddPlayer("vini", 500, 500);
+        _service.AttachAccount(player, AccountA);
+
+        var removed = await _service.DisconnectPlayer(_room, player);
+
+        Assert.True(removed);
+        Assert.Empty(_state.Players);
     }
 }

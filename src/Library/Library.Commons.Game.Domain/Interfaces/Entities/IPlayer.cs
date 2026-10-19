@@ -6,6 +6,9 @@ namespace Library.Commons.Game.Domain.Interfaces.Entities;
 public interface IPlayer : IId, ITrackableId
 {
     string Name { get; }
+    /// <summary>The account of a signed-in player; null for a guest. Its stats are counted only when set. Never sent to clients.</summary>
+    [JsonIgnore]
+    Guid? AccountId { get; set; }
     IPointAxis CurrentPosition { get; set; }
     Direction CurrentDirection { get; set; }
     IMovementDirection Direction { get; set; }

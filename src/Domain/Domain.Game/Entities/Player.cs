@@ -6,6 +6,8 @@ namespace Domain.Game.Entities;
 [Serializable]
 internal record Player(Guid Guid, string Name) : IPlayer
 {
+    [JsonIgnore]
+    public Guid? AccountId { get; set; }
     public IPointAxis CurrentPosition { get; set; } = null!;
     public Direction CurrentDirection { get; set; } 
     public bool IsConnected { get; set; }

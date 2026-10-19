@@ -1,3 +1,4 @@
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Enums;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 
@@ -59,6 +60,16 @@ public interface IGameStateService
     /// </summary>
     IReadOnlyList<IPlayer> ApplyZoneDamage(IGameState gameState, double x, double y, double radius, long mass);
 
-    IReadOnlyList<IPlayer> StrikeArea(IGameState gameState, double x, double y, double radius);
+    /// <param name="kind">What falls: a snake that loses mass to it counts a hit of this kind in its stats.</param>
+    IReadOnlyList<IPlayer> StrikeArea(IGameState gameState, double x, double y, double radius, WorldStrikeKind kind = WorldStrikeKind.Lightning);
     IPlayer? GetPlayer(IGameState gameState, ITrackableId trackableId);
+
+    /// <summary>
+    /// Tags a player with the account it signed in with: from now on the stats of its life are counted, and they are reported
+    /// (<see cref="IStatsReporter"/>) once, when the player is removed (<see cref="DisconnectPlayer"/>), whether it died or left.
+    /// </summary>
+    void AttachAccount(IPlayer player, Guid accountId);
+
+    /// <summary>The stats of a signed-in snake that died and is not removed yet (they are reported then); null otherwise.</summary>
+    LifeStatsReport? FinishedStatsOf(IPlayer player);
 }

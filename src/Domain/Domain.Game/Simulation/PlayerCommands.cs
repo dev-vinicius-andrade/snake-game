@@ -50,11 +50,19 @@ public sealed class LeaveCommand(string connectionId) : PlayerCommand<IPlayer?>
     }
 }
 
-/// <summary>Completes with the created player, or null when the room refused.</summary>
-public sealed class JoinNewPlayerCommand(string connectionId, string nickname, Guid roomId) : PlayerCommand<IPlayer?>
+/// <summary>
+/// Completes with the created player, or null when the room refused. A signed-in player (<paramref name="accountId"/>) is tagged with
+/// its account, so the stats of its life are counted.
+/// </summary>
+public sealed class JoinNewPlayerCommand(string connectionId, string nickname, Guid roomId, Guid? accountId = null) : PlayerCommand<IPlayer?>
 {
-    protected override Task<IPlayer?> RunAsync(CommandContext context, CancellationToken cancellationToken)
-        => context.GameStateService.CreatePlayerInRoom(connectionId, nickname, roomId, cancellationToken);
+    protected override async Task<IPlayer?> RunAsync(CommandContext context, CancellationToken cancellationToken)
+    {
+        var player = await context.GameStateService.CreatePlayerInRoom(connectionId, nickname, roomId, cancellationToken);
+        if (player is not null && accountId is Guid account)
+            context.GameStateService.AttachAccount(player, account);
+        return player;
+    }
 }
 
 public sealed record ReconnectedPlayer(IPlayer Player, string OldConnectionId);
