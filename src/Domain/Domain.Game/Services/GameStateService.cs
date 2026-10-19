@@ -17,6 +17,9 @@ namespace Domain.Game.Services;
 
 public class GameStateService : IGameStateService
 {
+    /// <summary>The colour of the food a boss drops.</summary>
+    private const string BossRewardColor = "#ffd23f";
+
     /// <summary>World units a magnet pulls food closer to the head each tick.</summary>
     private const double MagnetPullPerTick = 6;
 
@@ -386,9 +389,11 @@ public class GameStateService : IGameStateService
         return _perkRules.ShotOffsets(shots).Select(offset => DirectionAt(player, aim + offset)).ToArray();
     }
 
-    private IMovementDirection DirectionAt(IPlayer player, double angle)
+    private IMovementDirection DirectionAt(IPlayer player, double angle) => DirectionAt(player.CurrentPosition, angle);
+
+    private IMovementDirection DirectionAt(IPointAxis template, double angle)
     {
-        var axis = ToAxis(player.CurrentPosition, _headingRules.AxisOf(_headingRules.Normalize(angle)));
+        var axis = ToAxis(template, _headingRules.AxisOf(_headingRules.Normalize(angle)));
         axis.Z = 0;
         axis.Angle = angle;
         return _playerService.CreateDirection(Direction.Angular, axis);
@@ -460,6 +465,72 @@ public class GameStateService : IGameStateService
         if (outcome.BrokenAt.HasValue)
             DropBrokenSegment(gameState, player, outcome.BrokenAt.Value);
         UpdatePlayer(player);
+    }
+
+    public void FireTurret(IGameState gameState, IReadOnlyList<double> angles)
+    {
+        ArgumentNullException.ThrowIfNull(gameState);
+        ArgumentNullException.ThrowIfNull(angles);
+        if (gameState.Boss is not { } boss) return;
+        var middle = _snakeConfiguration.Value.HeadSize / 2.0;
+        var origin = ToAxis(_pointAxisServices.Create(0, 0), new Point(boss.X - middle, boss.Y - middle));
+        foreach (var angle in angles)
+        {
+            var id = _trackableIdGeneratorService.Generate(Guid.NewGuid());
+            var obstacle = _obstacleService.Create(id, gameState.Room, origin, DirectionAt(origin, angle), _snakeConfiguration.Value.HeadSize,
+                _trackableIdGeneratorService.Generate(boss.Id));
+            obstacle.SpeedFactor = boss.ShotSpeed;
+            gameState.Obstacles.Add(obstacle.Guid, obstacle);
+        }
+    }
+
+    public Task ResolveBossHits(IGameState gameState)
+    {
+        ArgumentNullException.ThrowIfNull(gameState);
+        if (gameState.Boss is not { } boss) return Task.CompletedTask;
+        var headSize = _snakeConfiguration.Value.HeadSize;
+        foreach (var shot in gameState.Obstacles.Values.ToArray())
+        {
+            if (shot.CreatedyBy.Guid == boss.Id || shot.HitPlayers.Contains(boss.Id)) continue;
+            var middle = new Point(shot.CurrentPosition.X + headSize / 2.0, shot.CurrentPosition.Y + headSize / 2.0);
+            if (!WorldEventRules.TurretIsHit(boss.X, boss.Y, boss.Size, middle, headSize)) continue;
+            if (shot.Piercing) shot.HitPlayers.Add(boss.Id);
+            else gameState.Obstacles.Remove(shot.Guid);
+            if (HitBoss(gameState, boss, shot)) break;
+        }
+        return Task.CompletedTask;
+    }
+
+    /// <summary>One hit on the boss. True when it was the last: the boss is gone and its reward given.</summary>
+    private bool HitBoss(IGameState gameState, WorldBoss boss, IObstacle shot)
+    {
+        boss.Hp -= 1;
+        boss.LastHitBy = shot.CreatedyBy.Guid;
+        var down = boss.Hp <= 0;
+        gameState.Hits.Enqueue(new DamageDealt(shot.CreatedyBy.Guid, boss.Id, boss.X, boss.Y, 1, down ? DamageKind.Kill : DamageKind.Hit));
+        if (!down) return false;
+        gameState.Boss = null;
+        DropBossReward(gameState, boss);
+        return true;
+    }
+
+    private void DropBossReward(IGameState gameState, WorldBoss boss)
+    {
+        var ring = Enumerable.Range(0, 16)
+            .Select(index => new Point(boss.X + Math.Cos(index * Math.PI / 8) * boss.Size, boss.Y + Math.Sin(index * Math.PI / 8) * boss.Size))
+            .ToArray();
+        foreach (var drop in _deathDropRules.Plan(boss.RewardMass, ring)) AddPellet(gameState, drop, new Color(BossRewardColor, BossRewardColor));
+        if (boss.LastHitBy is not { } killerId || !gameState.Players.TryGetValue(killerId, out var killer) || !killer.IsAlive) return;
+        GrantBossPerk(gameState, killer, boss.GrantsPerk);
+    }
+
+    private void GrantBossPerk(IGameState gameState, IPlayer killer, string? perk)
+    {
+        if (string.IsNullOrWhiteSpace(perk)) return;
+        if (!killer.GrantedPerks.Contains(perk)) killer.GrantedPerks.Add(perk);
+        killer.Perks = _perkRules.UnlockedIds(killer.FoodsEaten, gameState.Room, GrantedOf(killer)).ToList();
+        killer.AutoFire = EffectsOf(gameState, killer).AutoFire;
+        UpdatePlayer(killer);
     }
 
     public IReadOnlyList<IPlayer> StrikeArea(IGameState gameState, double x, double y, double radius)

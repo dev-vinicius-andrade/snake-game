@@ -29,6 +29,7 @@ public class GameWorkerService : BackgroundService
     private readonly RoomSimulation _roomSimulation;
     private readonly IRoomInputQueue _roomInputQueue;
     private readonly WorldEventRunner _worldEvents;
+    private readonly TurretRunner _turrets;
     private readonly TimeProvider _time;
     private readonly ConcurrentDictionary<Guid, FixedTimestepClock> _clocks = new();
     /// <summary>What each room last heard as its ranking, and what each player last heard as their score: said again only when it changes.</summary>
@@ -45,9 +46,11 @@ public class GameWorkerService : BackgroundService
         RoomSimulation roomSimulation,
         IRoomInputQueue roomInputQueue,
         WorldEventRunner worldEvents,
+        TurretRunner turrets,
         TimeProvider time)
     {
         _worldEvents = worldEvents;
+        _turrets = turrets;
         _time = time;
         _roomInputQueue = roomInputQueue;
         _logger = logger;
@@ -93,6 +96,7 @@ public class GameWorkerService : BackgroundService
             // Every frame, not once a second: the lightning warning is timed in fractions of a second, and the snakes it
             // kills are told and removed below, with the ones the simulation killed.
             var struck = _worldEvents.Update(gameState);
+            _turrets.Update(gameState);
             var diedPlayers = (await StepAsync(gameState, ticks, cancellationToken)).Concat(struck).ToList();
             await NotifyDamageAsync(gameState);
             await NotifyDiedAsync(diedPlayers);

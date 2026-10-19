@@ -25,6 +25,40 @@ public record SnapshotEvent
     /// <summary>Spots about to be struck by lightning or a meteor. Left out while there are none.</summary>
     [JsonPropertyName("strikes")]
     public List<SnapshotStrike>? Strikes { get; set; }
+
+    /// <summary>The boss standing in the room. Left out while there is none.</summary>
+    [JsonPropertyName("boss")]
+    public SnapshotBoss? Boss { get; set; }
+}
+
+/// <summary>A boss: where it stands, how big it is, how much of it is left, and where its arms point (for the picture).</summary>
+public record SnapshotBoss
+{
+    /// <summary>Its shots have this as their owner.</summary>
+    [JsonPropertyName("guid")]
+    public Guid Guid { get; set; }
+
+    [JsonPropertyName("x")]
+    public int X { get; set; }
+
+    [JsonPropertyName("y")]
+    public int Y { get; set; }
+
+    /// <summary>Side of its square, in world units.</summary>
+    [JsonPropertyName("s")]
+    public int S { get; set; }
+
+    /// <summary>Hit points left, in whole percents; at least 1 while it stands.</summary>
+    [JsonPropertyName("hp")]
+    public int Hp { get; set; }
+
+    /// <summary>Where the first arm points, in whole degrees, 0 to the right and turning clockwise.</summary>
+    [JsonPropertyName("a")]
+    public int A { get; set; }
+
+    /// <summary>Number of arms, evenly spread.</summary>
+    [JsonPropertyName("n")]
+    public int N { get; set; }
 }
 
 /// <summary>A warning of a strike (lightning, a meteor): the spot, how far it reaches, the milliseconds left, and what it is.</summary>

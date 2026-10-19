@@ -180,6 +180,37 @@ public sealed class SnapshotBuilderTests
     }
 
     [Fact]
+    public void Build_NoBoss_LeavesItOut()
+    {
+        Assert.False(Json().TryGetProperty("boss", out _));
+    }
+
+    [Fact]
+    public void Build_ABoss_IsWhereItIsHowBigHowHurtAndWhichWayItPoints()
+    {
+        var boss = new WorldBoss { Id = Guid.NewGuid(), X = 800.4, Y = 400.6, Size = 60, Hp = 15, MaxHp = 40, Angle = Math.PI / 2, Arms = 6 };
+        _state.Boss.Returns(boss);
+
+        var sent = Json().GetProperty("boss");
+
+        Assert.Equal(boss.Id.ToString(), sent.GetProperty("guid").GetString());
+        Assert.Equal(800, sent.GetProperty("x").GetInt32());
+        Assert.Equal(401, sent.GetProperty("y").GetInt32());
+        Assert.Equal(60, sent.GetProperty("s").GetInt32());
+        Assert.Equal(38, sent.GetProperty("hp").GetInt32());
+        Assert.Equal(90, sent.GetProperty("a").GetInt32());
+        Assert.Equal(6, sent.GetProperty("n").GetInt32());
+    }
+
+    [Fact]
+    public void Build_ABossAlmostDead_StillSaysItIsThere()
+    {
+        _state.Boss.Returns(new WorldBoss { Id = Guid.NewGuid(), X = 1, Y = 1, Size = 60, Hp = 0.2, MaxHp = 400, Arms = 1 });
+
+        Assert.Equal(1, Json().GetProperty("boss").GetProperty("hp").GetInt32());
+    }
+
+    [Fact]
     public void Build_NoLightningWarning_LeavesTheListOut()
     {
         Assert.False(Json().TryGetProperty("strikes", out _));

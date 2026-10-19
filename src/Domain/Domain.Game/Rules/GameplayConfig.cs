@@ -57,6 +57,9 @@ public sealed record GameplayConfig
         var known = (Perks.Perks.Count > 0 ? Perks.Perks : PerkOptions.BuiltIn).Select(perk => perk.Id).ToHashSet();
         foreach (var prize in Prize.Definitions().Where(prize => !string.IsNullOrWhiteSpace(prize.GrantsPerk) && !known.Contains(prize.GrantsPerk!)))
             throw new ArgumentException($"Prize '{prize.Id}' gives the perk '{prize.GrantsPerk}', which does not exist.");
+        var turretPerk = WorldEvents.Turret.GrantsPerk;
+        if (!string.IsNullOrWhiteSpace(turretPerk) && !known.Contains(turretPerk))
+            throw new ArgumentException($"The turret gives the perk '{turretPerk}', which does not exist.");
     }
 }
 

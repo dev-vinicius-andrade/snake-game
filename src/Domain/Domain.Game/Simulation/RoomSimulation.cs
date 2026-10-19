@@ -32,6 +32,7 @@ public sealed class RoomSimulation
         var livingPlayers = SnapshotLivingPlayers(gameState);
         await MovePlayersAsync(gameState, livingPlayers, cancellationToken);
         await ResolvePickupsAndShotsAsync(gameState, livingPlayers, cancellationToken);
+        await _gameStateService.ResolveBossHits(gameState);
         await _gameStateService.ResolveSnakeCollisions(gameState);
         return new SimulationStepResult(SelectDied(livingPlayers));
     }

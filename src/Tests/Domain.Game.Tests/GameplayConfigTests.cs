@@ -65,6 +65,70 @@ public sealed class GameplayConfigTests
     }
 
     [Fact]
+    public void Defaults_HaveATurretOn()
+    {
+        var turret = GameplayConfig.Defaults.WorldEvents.Turret;
+
+        Assert.True(turret.Enabled);
+        Assert.True(turret.HitPoints > 1);
+        Assert.True(turret.MinPlayers >= 2);
+    }
+
+    [Fact]
+    public void Json_TurretSettingsAreWrittenAndReadBack()
+    {
+        var config = GameplayConfig.Defaults with
+        {
+            WorldEvents = new WorldEventOptions
+            {
+                Turret = new TurretOptions { HitPoints = 77, Arms = 3, SpinDegrees = -20, ShotSpeed = 0.8, RewardMass = 5, GrantsPerk = "magnet", Rooms = ["arena"] }
+            }
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(config, GameplayConfig.Json);
+        var back = System.Text.Json.JsonSerializer.Deserialize<GameplayConfig>(json, GameplayConfig.Json)!;
+
+        Assert.Contains("\"turret\"", json);
+        Assert.Equal((77, 3, -20.0, 0.8, 5L, "magnet"), (back.WorldEvents.Turret.HitPoints, back.WorldEvents.Turret.Arms, back.WorldEvents.Turret.SpinDegrees, back.WorldEvents.Turret.ShotSpeed, back.WorldEvents.Turret.RewardMass, back.WorldEvents.Turret.GrantsPerk));
+        Assert.Equal(["arena"], back.WorldEvents.Turret.Rooms);
+    }
+
+    [Fact]
+    public void Json_AConfigWithoutATurretStillLoadsAndGetsTheDefaultOne()
+    {
+        const string old = "{\"worldEvents\":{\"enabled\":true}}";
+
+        var config = System.Text.Json.JsonSerializer.Deserialize<GameplayConfig>(old, GameplayConfig.Json)!;
+
+        config.EnsureValid();
+        Assert.True(config.WorldEvents.Turret.Enabled);
+    }
+
+    [Fact]
+    public void EnsureValid_RefusesATurretThatCannotWork()
+    {
+        var config = new GameplayConfig { WorldEvents = new WorldEventOptions { Turret = new TurretOptions { Arms = 0 } } };
+
+        Assert.Throws<ArgumentOutOfRangeException>(config.EnsureValid);
+    }
+
+    [Fact]
+    public void EnsureValid_ATurretCanOnlyGiveAPerkThatExists()
+    {
+        var config = GameplayConfig.Defaults with { WorldEvents = new WorldEventOptions { Turret = new TurretOptions { GrantsPerk = "nope" } } };
+
+        Assert.Throws<ArgumentException>(config.EnsureValid);
+    }
+
+    [Fact]
+    public void EnsureValid_ATurretMayGiveABuiltInPerk()
+    {
+        var config = GameplayConfig.Defaults with { WorldEvents = new WorldEventOptions { Turret = new TurretOptions { GrantsPerk = "magnet" } } };
+
+        config.EnsureValid();
+    }
+
+    [Fact]
     public void EnsureValid_RefusesMeteorsThatCannotWork()
     {
         var config = new GameplayConfig { WorldEvents = new WorldEventOptions { Meteors = new MeteorOptions { RainSeconds = 0 } } };

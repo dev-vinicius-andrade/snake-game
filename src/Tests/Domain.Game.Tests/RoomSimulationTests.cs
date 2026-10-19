@@ -41,6 +41,20 @@ public sealed class RoomSimulationTests
         await _gameStateService.Received(1).MovePlayer(state, joiner);
     }
 
+    [Fact]
+    public async Task StepAsync_Always_LetsShotsHurtTheBossAfterTheShotsHaveMoved()
+    {
+        var calls = new List<string>();
+        var state = StateWith(Player());
+        _gameStateService.When(service => service.MoveObstacles(state)).Do(_ => calls.Add("obstacles"));
+        _gameStateService.When(service => service.ResolveBossHits(state)).Do(_ => calls.Add("boss"));
+        _gameStateService.When(service => service.ResolveSnakeCollisions(state)).Do(_ => calls.Add("snakes"));
+
+        await _simulation.StepAsync(state);
+
+        Assert.Equal(new[] { "obstacles", "boss", "snakes" }, calls.Where(call => call != "move"));
+    }
+
     private static IPlayer Player(bool isAlive = true)
     {
         var player = Substitute.For<IPlayer>();

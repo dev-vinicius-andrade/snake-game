@@ -1442,4 +1442,190 @@ public sealed class GameStateServiceTests
         Assert.Empty(died);
         Assert.Empty(_state.Foods);
     }
+
+    // The turret: a boss that fires volleys and is shot down.
+
+    private WorldBoss AddBoss(double x = 800, double y = 400, int hp = 3, long reward = 20, string? perk = null)
+    {
+        var boss = new WorldBoss
+        {
+            Id = Guid.NewGuid(), X = x, Y = y, Size = 60, Hp = hp, MaxHp = hp, Arms = 4, ShotSpeed = 0.5, RewardMass = reward, GrantsPerk = perk
+        };
+        _state.Boss = boss;
+        return boss;
+    }
+
+    private Obstacle AddBossShot(WorldBoss boss, double x, double y)
+    {
+        var shot = new Obstacle(Guid.NewGuid(), HeadSize, _room, new TrackableId(boss.Id))
+        {
+            InitialPosition = At(x, y),
+            CurrentPosition = At(x, y),
+            EndPosition = At(5000, 5000),
+            Direction = new MovementDirection(Direction.Right, At(1, 0))
+        };
+        _state.Obstacles.Add(shot.Guid, shot);
+        return shot;
+    }
+
+    [Fact]
+    public void FireTurret_OneShotPerAngle_OwnedByTheBossAndSlow()
+    {
+        var boss = AddBoss();
+
+        _service.FireTurret(_state, [0, Math.PI / 2]);
+
+        Assert.Equal(2, _state.Obstacles.Count);
+        Assert.All(_state.Obstacles.Values, shot =>
+        {
+            Assert.Equal(boss.Id, shot.CreatedyBy.Guid);
+            Assert.Equal(0.5, shot.SpeedFactor);
+        });
+        var axes = _state.Obstacles.Values.Select(shot => (Math.Round(shot.Direction.Axis.X, 6), Math.Round(shot.Direction.Axis.Y, 6))).ToList();
+        Assert.Contains((1.0, 0.0), axes);
+        Assert.Contains((0.0, 1.0), axes);
+    }
+
+    [Fact]
+    public void FireTurret_ShotsStartInTheMiddleOfTheTurret()
+    {
+        AddBoss(800, 400);
+
+        _service.FireTurret(_state, [0]);
+
+        var shot = Assert.Single(_state.Obstacles.Values);
+        Assert.Equal(800 - HeadSize / 2.0, shot.CurrentPosition.X, 3);
+        Assert.Equal(400 - HeadSize / 2.0, shot.CurrentPosition.Y, 3);
+    }
+
+    [Fact]
+    public void FireTurret_WithoutABoss_DoesNothing()
+    {
+        _service.FireTurret(_state, [0, 1]);
+
+        Assert.Empty(_state.Obstacles);
+    }
+
+    [Fact]
+    public async Task ResolveBossHits_AShotThatReachesIt_TakesOneHitPointAndIsSpent()
+    {
+        var boss = AddBoss(800, 400);
+        var shooter = AddPlayer("shooter", 100, 100);
+        AddShot(shooter, 810, 410);
+
+        await _service.ResolveBossHits(_state);
+
+        Assert.Equal(2, boss.Hp);
+        Assert.Empty(_state.Obstacles);
+        Assert.Equal(shooter.Guid, boss.LastHitBy);
+        var hit = Assert.Single(_state.Hits);
+        Assert.Equal((shooter.Guid, boss.Id, DamageKind.Hit), (hit.ShooterGuid, hit.TargetGuid, hit.Kind));
+        Assert.Equal(1, hit.Damage);
+    }
+
+    [Fact]
+    public async Task ResolveBossHits_AShotThatMisses_ChangesNothing()
+    {
+        var boss = AddBoss(800, 400);
+        var shooter = AddPlayer("shooter", 100, 100);
+        AddShot(shooter, 200, 410);
+
+        await _service.ResolveBossHits(_state);
+
+        Assert.Equal(3, boss.Hp);
+        Assert.Single(_state.Obstacles);
+        Assert.Empty(_state.Hits);
+    }
+
+    [Fact]
+    public async Task ResolveBossHits_ItsOwnShots_NeverHurtIt()
+    {
+        var boss = AddBoss(800, 400);
+        AddBossShot(boss, 800, 400);
+
+        await _service.ResolveBossHits(_state);
+
+        Assert.Equal(3, boss.Hp);
+        Assert.Single(_state.Obstacles);
+    }
+
+    [Fact]
+    public async Task ResolveBossHits_APiercingShot_HitsItOnceAndGoesOn()
+    {
+        var boss = AddBoss(800, 400);
+        var shooter = AddPlayer("shooter", 100, 100);
+        var shot = AddShot(shooter, 810, 410);
+        shot.Piercing = true;
+
+        await _service.ResolveBossHits(_state);
+        await _service.ResolveBossHits(_state);
+
+        Assert.Equal(2, boss.Hp);
+        Assert.Single(_state.Obstacles);
+    }
+
+    [Fact]
+    public async Task ResolveBossHits_TheLastHitPoint_BringsItDownAndDropsTheRewardAsFood()
+    {
+        var boss = AddBoss(800, 400, hp: 1, reward: 20);
+        var shooter = AddPlayer("shooter", 100, 100);
+        AddShot(shooter, 810, 410);
+
+        await _service.ResolveBossHits(_state);
+
+        Assert.Null(_state.Boss);
+        Assert.Equal(20, _state.Foods.Values.Sum(food => food.Value));
+        Assert.All(_state.Foods.Values, food => Assert.InRange(Math.Abs(food.Position.X - 800), 0, 100));
+        Assert.Equal(DamageKind.Kill, Assert.Single(_state.Hits).Kind);
+    }
+
+    [Fact]
+    public async Task ResolveBossHits_TheSnakeThatLandsTheLastShot_GetsThePerk()
+    {
+        AddBoss(800, 400, hp: 1, perk: "twin");
+        var shooter = AddPlayer("shooter", 100, 100);
+        AddShot(shooter, 810, 410);
+
+        await _service.ResolveBossHits(_state);
+
+        Assert.Contains("twin", shooter.GrantedPerks);
+        Assert.Contains("twin", shooter.Perks);
+    }
+
+    [Fact]
+    public async Task ResolveBossHits_NoRewardMass_DropsNoFood()
+    {
+        AddBoss(800, 400, hp: 1, reward: 0);
+        var shooter = AddPlayer("shooter", 100, 100);
+        AddShot(shooter, 810, 410);
+
+        await _service.ResolveBossHits(_state);
+
+        Assert.Null(_state.Boss);
+        Assert.Empty(_state.Foods);
+    }
+
+    [Fact]
+    public async Task ResolveBossHits_WithoutABoss_DoesNothing()
+    {
+        var shooter = AddPlayer("shooter", 100, 100);
+        AddShot(shooter, 810, 410);
+
+        await _service.ResolveBossHits(_state);
+
+        Assert.Single(_state.Obstacles);
+    }
+
+    [Fact]
+    public async Task CheckObstacleCollision_AShotFromTheBoss_HurtsASnakeLikeAnyOther()
+    {
+        var boss = AddBoss();
+        var target = AddPlayer("target", 500, 500, length: 11, score: 5);
+        AddBossShot(boss, target.CurrentPosition.X, 500);
+
+        await _service.CheckObstacleCollision(_state, target);
+
+        Assert.False(target.IsAlive);
+        Assert.Empty(_state.Obstacles);
+    }
 }

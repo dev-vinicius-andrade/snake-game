@@ -25,4 +25,6 @@ internal record GameState:IGameState
     public ConcurrentQueue<DamageDealt> Hits { get; } = new();
     [JsonIgnore]
     public ConcurrentDictionary<Guid, WorldStrike> Strikes { get; } = new();
+    [JsonIgnore]
+    public WorldBoss? Boss { get; set; }
 }

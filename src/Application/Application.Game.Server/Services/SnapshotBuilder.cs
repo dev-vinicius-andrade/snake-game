@@ -1,3 +1,4 @@
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Enums;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 using Library.Commons.Game.Server.Entities.Hub.Events;
@@ -21,6 +22,23 @@ public static class SnapshotBuilder
             Foods = gameState.Foods.Values.Select(ToFood).ToList(),
             Shots = gameState.Obstacles.Values.Select(ToShot).ToList(),
             Strikes = ToStrikes(gameState, now ?? DateTimeOffset.UtcNow),
+            Boss = ToBoss(gameState.Boss),
+        };
+    }
+
+    private static SnapshotBoss? ToBoss(WorldBoss? boss)
+    {
+        if (boss is null) return null;
+        var degrees = (int)Math.Round(boss.Angle * 180 / Math.PI) % 360;
+        return new SnapshotBoss
+        {
+            Guid = boss.Id,
+            X = (int)Math.Round(boss.X),
+            Y = (int)Math.Round(boss.Y),
+            S = (int)Math.Round(boss.Size),
+            Hp = (int)Math.Clamp(Math.Round(boss.Hp / Math.Max(boss.MaxHp, 1) * 100), 1, 100),
+            A = degrees < 0 ? degrees + 360 : degrees,
+            N = boss.Arms,
         };
     }
 

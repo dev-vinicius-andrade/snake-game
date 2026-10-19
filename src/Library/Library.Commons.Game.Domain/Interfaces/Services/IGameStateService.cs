@@ -44,6 +44,15 @@ public interface IGameStateService
     /// Lightning on a spot: body segments within the radius break off like a broken part, a head within it dies, and the mass
     /// falls as pellets. Snakes that cannot be harmed are skipped. Returns the snakes that died, for the caller to notify and remove.
     /// </summary>
+    /// <summary>Fires a shot from the boss of the room along each angle (radians, 0 to the right, clockwise on screen). Nothing without a boss.</summary>
+    void FireTurret(IGameState gameState, IReadOnlyList<double> angles);
+
+    /// <summary>
+    /// Lets the shots of snakes hurt the boss: each takes one hit point and is spent (a piercing one hits once and goes on). The snake
+    /// that lands the last one gets the reward: food where the boss stood, and its perk.
+    /// </summary>
+    Task ResolveBossHits(IGameState gameState);
+
     IReadOnlyList<IPlayer> StrikeArea(IGameState gameState, double x, double y, double radius);
     IPlayer? GetPlayer(IGameState gameState, ITrackableId trackableId);
 }
