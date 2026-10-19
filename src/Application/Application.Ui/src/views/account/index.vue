@@ -163,6 +163,7 @@ onBeforeUnmount(() => clearTimeout(availabilityTimer));
           <template v-else-if="status === 'signedIn' && account">
             <div>{{ getText({ key: "account.signedInAs" }) }}</div>
             <div class="text-h5 my-2" data-test="signed-in-display">{{ account.display }}</div>
+            <VBtn variant="tonal" :to="{ name: 'profile' }" data-test="profile-link">{{ getText({ key: "profile.link" }) }}</VBtn>
           </template>
 
           <!-- Guest -->

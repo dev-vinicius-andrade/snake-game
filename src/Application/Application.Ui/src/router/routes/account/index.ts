@@ -9,6 +9,11 @@ export default [
         name: "account",
         component: () => import("@/views/account/index.vue"),
       },
+      {
+        path: "profile",
+        name: "profile",
+        component: () => import("@/views/account/profile.vue"),
+      },
     ],
   },
 ] as RouteRecordRaw[];
