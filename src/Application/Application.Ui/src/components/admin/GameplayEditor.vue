@@ -2,7 +2,7 @@
 import { computed, defineAsyncComponent, onMounted, reactive, ref } from "vue";
 import type { ScriptCheck, useAdminGameplay } from "@/composables/useAdminGameplay";
 import { getText } from "@/helpers";
-import { PERK_EFFECTS, PERK_ICON_CHOICES, perkIconOf } from "@/game/perkInfo";
+import { PERK_EFFECTS, PERK_ICON_CHOICES, perkIconOf, tierLabel } from "@/game/perkInfo";
 import { SCRIPT_TEMPLATES } from "@/game/scriptTemplates";
 import WorldEventsEditor from "./WorldEventsEditor.vue";
 
@@ -19,6 +19,9 @@ const section = ref<Section>("perks");
 
 /** Perks start closed and open one at a time as wanted: indexes of the open ones. */
 const openPerks = ref<number[]>([]);
+
+/** The name of the tier a row stands for: the first row is the second tier, since the perk itself is the first. */
+const tierName = (index: number) => tierLabel(index + 2);
 
 function addPerk() {
   gameplay.addPerk();
@@ -106,6 +109,9 @@ onMounted(() => {
           <VCol cols="6" md="4">
             <VTextField v-model.number="draft.perks.burstIntervalMilliseconds" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.burstInterval' })" />
           </VCol>
+          <VCol cols="6" md="4">
+            <VTextField v-model.number="draft.perks.killFoodsCredit" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.killFoodsCredit' })" />
+          </VCol>
         </VRow>
 
         <VExpansionPanels v-model="openPerks" multiple class="perk-panels">
@@ -137,6 +143,14 @@ onMounted(() => {
             </div>
           </template>
           <VBtn size="x-small" variant="text" class="mt-1" @click="gameplay.addEffect(index)">{{ getText({ key: "admin.gameplay.addEffect" }) }}</VBtn>
+
+          <div v-for="(tier, tierIndex) in perk.tiers" :key="`tier-${tierIndex}`" class="perk-row perk-effect" data-tier>
+            <strong class="perk-tier-name">{{ tierName(tierIndex) }}</strong>
+            <VTextField v-model.number="tier.foodsRequired" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.tierFoods' })" />
+            <VTextField v-model.number="tier.multiplier" type="number" step="0.1" density="compact" hide-details :label="getText({ key: 'admin.gameplay.tierMultiplier' })" />
+            <VBtn size="small" variant="text" @click="gameplay.removeTier(index, tierIndex)">{{ getText({ key: "admin.gameplay.removeTier" }) }}</VBtn>
+          </div>
+          <VBtn size="x-small" variant="text" class="mt-1" :disabled="(perk.tiers?.length ?? 0) >= 4" @click="gameplay.addTier(index)">{{ getText({ key: "admin.gameplay.addTier" }) }}</VBtn>
 
           <VCombobox
             v-model="perk.rooms"

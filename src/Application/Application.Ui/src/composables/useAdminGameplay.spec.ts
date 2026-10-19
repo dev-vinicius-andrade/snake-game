@@ -7,9 +7,10 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
     enabled: true,
     shotSpreadDegrees: 12,
     burstIntervalMilliseconds: 80,
+    killFoodsCredit: 3,
     perks: [
-      { id: "magnet", name: "Magnet", foodsRequired: 6, enabled: true, effects: [{ effect: "Magnet", amount: 60 }], rooms: [], excludedRooms: [] },
-      { id: "twin", name: "Twin shot", foodsRequired: 15, enabled: true, effects: [{ effect: "ExtraShots", amount: 1 }], rooms: [], excludedRooms: [] },
+      { id: "magnet", name: "Magnet", foodsRequired: 6, enabled: true, effects: [{ effect: "Magnet", amount: 60 }], tiers: [], rooms: [], excludedRooms: [] },
+      { id: "twin", name: "Twin shot", foodsRequired: 15, enabled: true, effects: [{ effect: "ExtraShots", amount: 1 }], tiers: [], rooms: [], excludedRooms: [] },
     ],
   },
   prize: {
@@ -73,6 +74,7 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
       shotSpeed: 0.5,
       minPlayers: 2,
       rewardMass: 60,
+      foodsCredit: 15,
       rooms: [],
       excludedRooms: [],
     },
@@ -228,7 +230,7 @@ describe("useAdminGameplay", () => {
     const perks = gameplay.draft.value!.perks.perks;
     expect(perks).toHaveLength(4);
     expect(new Set(perks.map((perk) => perk.id)).size).toBe(4);
-    expect(perks[2]).toMatchObject({ foodsRequired: 10, enabled: true, effects: [{ effect: "ExtraShots", amount: 1 }], rooms: [], excludedRooms: [] });
+    expect(perks[2]).toMatchObject({ foodsRequired: 10, enabled: true, effects: [{ effect: "ExtraShots", amount: 1 }], tiers: [], rooms: [], excludedRooms: [] });
   });
 
   it("removes a perk", async () => {
@@ -770,5 +772,76 @@ describe("useAdminGameplay", () => {
       expect(sent.rooms.maxPrivateRoomMinutes).toBe(120);
       expect(gameplay.dirty.value).toBe(false);
     });
+  });
+});
+
+describe("perk tiers", () => {
+  it("fills in no tiers and the credit for a kill for a server from before tiers", async () => {
+    const { killFoodsCredit: _credit, ...perks } = config().perks;
+    const older = { ...config(), perks: { ...perks, perks: perks.perks.map(({ tiers: _tiers, ...perk }) => perk) } };
+    http.get.mockResolvedValue({ ...payload, current: { revision: "r1", config: older } });
+    const gameplay = create();
+
+    await gameplay.load();
+
+    expect(gameplay.draft.value!.perks.killFoodsCredit).toBe(3);
+    expect(gameplay.draft.value!.perks.perks.map((perk) => perk.tiers)).toEqual([[], []]);
+  });
+
+  it("adds a tier that asks for more foods and does more than the one before", async () => {
+    const gameplay = create();
+    await gameplay.load();
+
+    gameplay.addTier(0);
+    gameplay.addTier(0);
+
+    expect(gameplay.draft.value!.perks.perks[0].tiers).toEqual([
+      { foodsRequired: 12, multiplier: 1.5 },
+      { foodsRequired: 18, multiplier: 2 },
+    ]);
+  });
+
+  it("allows four tiers after the first, no more", async () => {
+    const gameplay = create();
+    await gameplay.load();
+
+    for (let count = 0; count < 8; count++) gameplay.addTier(0);
+
+    expect(gameplay.draft.value!.perks.perks[0].tiers).toHaveLength(4);
+  });
+
+  it("takes the last tier away", async () => {
+    const gameplay = create();
+    await gameplay.load();
+    gameplay.addTier(0);
+    gameplay.addTier(0);
+
+    gameplay.removeTier(0, 0);
+
+    expect(gameplay.draft.value!.perks.perks[0].tiers).toEqual([{ foodsRequired: 18, multiplier: 2 }]);
+  });
+
+  it("does nothing for a perk that is not there", async () => {
+    const gameplay = create();
+    await gameplay.load();
+
+    gameplay.addTier(9);
+    gameplay.removeTier(9, 0);
+
+    expect(gameplay.dirty.value).toBe(false);
+  });
+
+  it("sends the tiers in order of the foods they ask for", async () => {
+    const gameplay = create();
+    await gameplay.load();
+    gameplay.addTier(0);
+    gameplay.addTier(0);
+    const tiers = gameplay.draft.value!.perks.perks[0].tiers!;
+    [tiers[0], tiers[1]] = [tiers[1], tiers[0]];
+
+    await gameplay.save();
+
+    const sent = http.put.mock.calls[0][2] as GameplayConfig;
+    expect(sent.perks.perks[0].tiers!.map((tier) => tier.foodsRequired)).toEqual([12, 18]);
   });
 });

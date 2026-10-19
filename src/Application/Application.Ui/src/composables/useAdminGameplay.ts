@@ -10,12 +10,20 @@ export interface PerkEffectEntry {
   amount: number;
 }
 
+/** A step up of a perk: with this many foods everything it does is `multiplier` times its amounts. */
+export interface PerkTierConfig {
+  foodsRequired: number;
+  multiplier: number;
+}
+
 export interface PerkDefinition {
   id: string;
   name: string;
   foodsRequired: number;
   /** A perk that is switched off is kept in the list but nobody gets it. */
   enabled: boolean;
+  /** The steps up after the first tier (the perk as it is), each asking for more foods. At most four. */
+  tiers?: PerkTierConfig[];
   /** A Material Design Icons name such as mdi-shield. Empty: the icon of the first effect. */
   icon?: string | null;
   /** A sentence players see in the perk's tooltip. */
@@ -82,6 +90,8 @@ export interface TurretConfig {
   minPlayers: number;
   /** Mass that falls as food where it is brought down. */
   rewardMass: number;
+  /** How many foods bringing it down counts for toward the perks (and tiers) of the snake that does it. */
+  foodsCredit: number;
   /** The id of a perk the snake that brings it down gets. Empty: none. */
   grantsPerk?: string | null;
   rooms: string[];
@@ -114,6 +124,8 @@ export interface GameplayConfig {
     enabled: boolean;
     shotSpreadDegrees: number;
     burstIntervalMilliseconds: number;
+    /** How many foods killing another snake counts for toward perks and their tiers. */
+    killFoodsCredit: number;
     perks: PerkDefinition[];
   };
   prize: {
@@ -260,6 +272,7 @@ const DEFAULT_TURRET: TurretConfig = {
   shotSpeed: 0.5,
   minPlayers: 2,
   rewardMass: 60,
+  foodsCredit: 15,
   rooms: [],
   excludedRooms: [],
 };
@@ -368,10 +381,12 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     const copy = clone(config);
     for (const perk of copy.perks.perks) {
       perk.enabled ??= true;
+      perk.tiers ??= [];
       perk.effects ??= [];
       perk.rooms ??= [];
       perk.excludedRooms ??= [];
     }
+    copy.perks.killFoodsCredit ??= 3;
     completePrizes(copy);
     copy.rooms ??= { emptyPrivateRoomMinutes: 10, maxPrivateRoomMinutes: 0 };
     const events = (copy.worldEvents ??= {
@@ -443,6 +458,7 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     const body = clone(draft.value);
     body.perks.perks.sort((first, second) => first.foodsRequired - second.foodsRequired);
     for (const perk of body.perks.perks) {
+      perk.tiers = [...(perk.tiers ?? [])].sort((first, second) => first.foodsRequired - second.foodsRequired);
       perk.rooms = perk.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       perk.excludedRooms = perk.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       if (!perk.script?.trim()) delete perk.script;
@@ -489,7 +505,7 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
   function addPerk() {
     if (!draft.value) return;
     const perks = draft.value.perks.perks;
-    perks.push({ id: freeId(perks), name: "New perk", foodsRequired: 10, enabled: true, effects: [newEffect()], rooms: [], excludedRooms: [] });
+    perks.push({ id: freeId(perks), name: "New perk", foodsRequired: 10, enabled: true, effects: [newEffect()], tiers: [], rooms: [], excludedRooms: [] });
   }
 
   function addPrize() {
@@ -510,6 +526,23 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
   const perkChoices = computed(() => (draft.value?.perks.perks ?? []).map((perk) => ({ id: perk.id, name: perk.name })));
 
   const newEffect = (): PerkEffectEntry => ({ effect: effects.value[0] ?? "ExtraShots", amount: 1 });
+
+  /** Most tiers a perk can have after its first. */
+  const MAX_EXTRA_TIERS = 4;
+
+  /** A tier that asks for another helping of foods and does half as much again as the one before. */
+  function addTier(perkIndex: number) {
+    const perk = draft.value?.perks.perks[perkIndex];
+    if (!perk) return;
+    const tiers = (perk.tiers ??= []);
+    if (tiers.length >= MAX_EXTRA_TIERS) return;
+    const last = tiers[tiers.length - 1];
+    tiers.push({ foodsRequired: (last?.foodsRequired ?? perk.foodsRequired) + perk.foodsRequired, multiplier: (last?.multiplier ?? 1) + 0.5 });
+  }
+
+  function removeTier(perkIndex: number, tierIndex: number) {
+    draft.value?.perks.perks[perkIndex]?.tiers?.splice(tierIndex, 1);
+  }
 
   function addEffect(perkIndex: number) {
     draft.value?.perks.perks[perkIndex]?.effects.push(newEffect());
@@ -548,5 +581,5 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     draft.value?.perks.perks.splice(index, 1);
   }
 
-  return { status, error, draft, saved, effects, revision, dirty, load, save, useDefaults, revert, addPerk, removePerk, addEffect, removeEffect, addScript, removeScript, checkScript, addPrize, removePrize, perkChoices };
+  return { status, error, draft, saved, effects, revision, dirty, load, save, useDefaults, revert, addPerk, removePerk, addEffect, removeEffect, addTier, removeTier, addScript, removeScript, checkScript, addPrize, removePrize, perkChoices };
 }

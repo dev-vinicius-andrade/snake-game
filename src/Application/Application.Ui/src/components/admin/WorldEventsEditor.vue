@@ -43,6 +43,7 @@ const turretFields: Array<{ key: NumberKeys<TurretConfig>; label: string; step?:
   { key: "shotSpeed", label: "turretShotSpeed", step: 0.1 },
   { key: "minPlayers", label: "turretMinPlayers" },
   { key: "rewardMass", label: "turretReward" },
+  { key: "foodsCredit", label: "turretFoodsCredit" },
 ];
 
 const zoneFields: Array<{ key: NumberKeys<ZoneConfig>; label: string; step?: number }> = [
