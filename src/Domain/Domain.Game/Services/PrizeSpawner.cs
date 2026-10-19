@@ -46,6 +46,20 @@ public sealed class PrizeSpawner
         foreach (var definition in active) Step(gameState, definition);
     }
 
+    /// <summary>
+    /// Puts a prize of this kind on the map now, for a script that asked for it. Nothing happens when the kind is unknown, off, not
+    /// for this room, or already has a prize on the map. It stays for the kind's lifetime, like any other.
+    /// </summary>
+    public bool Drop(IGameState gameState, string kind)
+    {
+        ArgumentNullException.ThrowIfNull(gameState);
+        var definition = _rules.Definitions.FirstOrDefault(candidate => candidate.Id == kind);
+        if (definition is null || !_rules.Options.Enabled || !definition.AppliesTo(gameState.Room) || HasPrize(gameState, kind)) return false;
+        AddPrize(gameState, definition);
+        _states[(gameState.Room.Guid, kind)] = new PrizeState(null, _time.GetUtcNow().AddSeconds(definition.LifetimeSeconds));
+        return true;
+    }
+
     private void Step(IGameState gameState, PrizeDefinition definition)
     {
         var key = (gameState.Room.Guid, definition.Id);

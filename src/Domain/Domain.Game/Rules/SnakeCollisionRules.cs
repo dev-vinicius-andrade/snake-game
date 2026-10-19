@@ -14,23 +14,28 @@ public sealed class SnakeCollisionRules
     /// does not depend on list order and a head-on hit kills both.
     /// </summary>
     public IReadOnlySet<Guid> FindCollided(IReadOnlyList<SnakeBody> snakes, double hitSize)
+        => FindCollisions(snakes, hitSize).Keys.ToHashSet();
+
+    /// <summary>The snakes that collided, each with the snake it ran into: the one whose body (or head) its head overlapped first.</summary>
+    public IReadOnlyDictionary<Guid, Guid> FindCollisions(IReadOnlyList<SnakeBody> snakes, double hitSize)
     {
         ArgumentNullException.ThrowIfNull(snakes);
         if (hitSize <= 0) throw new ArgumentOutOfRangeException(nameof(hitSize), hitSize, "Must be greater than zero.");
 
-        return snakes
-            .Where(snake => snake.Segments.Count > 0)
-            .Where(snake => HeadHitsAnotherSnake(snake, snakes, hitSize))
-            .Select(snake => snake.Id)
-            .ToHashSet();
+        var collisions = new Dictionary<Guid, Guid>();
+        foreach (var snake in snakes.Where(snake => snake.Segments.Count > 0))
+            if (SnakeRunInto(snake, snakes, hitSize) is { } other)
+                collisions[snake.Id] = other;
+        return collisions;
     }
 
-    private static bool HeadHitsAnotherSnake(SnakeBody snake, IEnumerable<SnakeBody> snakes, double hitSize)
+    private static Guid? SnakeRunInto(SnakeBody snake, IEnumerable<SnakeBody> snakes, double hitSize)
     {
         var head = snake.Segments[^1];
         return snakes
             .Where(other => other.Id != snake.Id)
-            .SelectMany(other => other.Segments)
-            .Any(segment => HitBox.Overlaps(head, segment, hitSize));
+            .Where(other => other.Segments.Any(segment => HitBox.Overlaps(head, segment, hitSize)))
+            .Select(other => (Guid?)other.Id)
+            .FirstOrDefault();
     }
 }

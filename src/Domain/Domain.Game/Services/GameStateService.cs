@@ -48,6 +48,16 @@ public class GameStateService : IGameStateService
     private readonly ConcurrentDictionary<Guid, (DateTimeOffset At, PerkEffects Effects)> _scriptedEffects = new();
     private static readonly TimeSpan ScriptedEffectsLifetime = TimeSpan.FromMilliseconds(250);
 
+    /// <summary>What a script needs to know about a snake's life: when it began, whom it killed, and what the scripts remember.</summary>
+    private sealed class SnakeLife(DateTimeOffset spawnedAt)
+    {
+        public DateTimeOffset SpawnedAt { get; } = spawnedAt;
+        public int Kills { get; set; }
+        public ScriptStates States { get; } = new();
+    }
+
+    private readonly ConcurrentDictionary<Guid, SnakeLife> _lives = new();
+
     public GameStateService(
         IOptions<ServerConfiguration> serverConfiguration,
         IOptions<SnakeConfiguration> snakeConfiguration,
@@ -232,6 +242,7 @@ public class GameStateService : IGameStateService
             var gameState = GetGameState(roomTrackableId);
             if (!gameState.Players.TryGetValue(playerTrackableId.Guid, out var player)) return false;
             gameState.Players.Remove(playerTrackableId.Guid);
+            ForgetLife(player);
             _playerRoomService.DisconnectPlayer(player, gameState.Room);
             _playerService.Delete(player);
             return true;
@@ -286,11 +297,12 @@ public class GameStateService : IGameStateService
 
     public async Task Shoot(IGameState gameState, IRoom room, IPlayer player)
     {
-        if (!player.IsAlive || player.Score <= 0 || !_shotCooldownRules.CanShoot(player.ShotCooldownTicks)) return;
+        if (!player.IsAlive || !_shotCooldownRules.CanShoot(player.ShotCooldownTicks)) return;
         var perks = EffectsOf(gameState, player);
+        if (player.Score <= 0 && !perks.FreeShots) return;
         FireVolley(gameState, room, player, perks);
 
-        player.Score = Math.Max(0, player.Score - 1);
+        if (!perks.FreeShots) player.Score = Math.Max(0, player.Score - 1);
         player.BurstRemaining = perks.BurstExtraShots;
         player.BurstTicks = BurstIntervalTicks;
         player.ShotCooldownTicks = ReloadTicks(perks) + perks.BurstExtraShots * BurstIntervalTicks;
@@ -389,6 +401,7 @@ public class GameStateService : IGameStateService
         if (impact is null) return;
         if (impact.Shot.Piercing) impact.Shot.HitPlayers.Add(player.Guid);
         else gameState.Obstacles.Remove(impact.Shot.Guid);
+        if (EffectsOf(gameState, player).Invulnerable) return;
         if (impact.Hit.IsHead)
             KillByShot(gameState, player, impact);
         else
@@ -399,9 +412,12 @@ public class GameStateService : IGameStateService
     {
         var livingPlayers = gameState.Players.Values.Where(player => player.IsAlive).ToArray();
         var bodies = livingPlayers.Select(ToSnakeBody).ToArray();
-        var collided = _snakeCollisionRules.FindCollided(bodies, _snakeConfiguration.Value.HeadSize);
-        foreach (var player in livingPlayers.Where(player => collided.Contains(player.Guid)))
+        var collisions = _snakeCollisionRules.FindCollisions(bodies, _snakeConfiguration.Value.HeadSize);
+        foreach (var player in livingPlayers.Where(player => collisions.ContainsKey(player.Guid) && !EffectsOf(gameState, player).Invulnerable))
+        {
             KillPlayer(gameState, player);
+            RegisterKill(gameState, collisions[player.Guid], player);
+        }
         return Task.CompletedTask;
     }
 
@@ -426,6 +442,7 @@ public class GameStateService : IGameStateService
         var head = player.CurrentPosition;
         gameState.Hits.Enqueue(new DamageDealt(impact.Shot.CreatedyBy.Guid, player.Guid, head.X, head.Y, 0, DamageKind.Kill));
         KillPlayer(gameState, player);
+        RegisterKill(gameState, impact.Shot.CreatedyBy.Guid, player);
     }
 
     private void DamageBody(IGameState gameState, IPlayer player, ShotImpact impact)
@@ -514,15 +531,41 @@ public class GameStateService : IGameStateService
         player.GrantedPerks.Add(food.GrantsPerk);
     }
 
-    private static ScriptContext ContextOf(IGameState gameState, IPlayer player)
+    private ScriptContext ContextOf(IGameState gameState, IPlayer player)
     {
         var health = player.SegmentHealth;
+        var now = _clock.GetUtcNow();
+        var life = LifeOf(player);
         var snake = new ScriptSnake(
             player.Name, player.Path.Count, player.Score, player.FoodsEaten,
             health.Count == 0 ? 1.0 : health.Average(), health.Count == 0 ? 1.0 : health.Min(),
-            player.IsBoosting, player.Perks.ToArray());
+            player.IsBoosting, player.Perks.ToArray(),
+            now.ToUnixTimeMilliseconds(), (long)Math.Max(0, (now - life.SpawnedAt).TotalMilliseconds), life.Kills);
         var room = gameState.Room;
-        return new ScriptContext(snake, new ScriptRoom(gameState.Players.Count, room.Name ?? string.Empty, room.Code ?? string.Empty, room.Width, room.Height));
+        var view = new ScriptRoom(
+            gameState.Players.Count, room.Name ?? string.Empty, room.Code ?? string.Empty, room.Width, room.Height, now.ToUnixTimeMilliseconds());
+        return new ScriptContext(snake, view, life.States);
+    }
+
+    private SnakeLife LifeOf(IPlayer player) => _lives.GetOrAdd(player.Guid, _ => new SnakeLife(_clock.GetUtcNow()));
+
+    private void ForgetLife(IPlayer player)
+    {
+        _lives.TryRemove(player.Guid, out _);
+        _scriptedEffects.TryRemove(player.Guid, out _);
+    }
+
+    /// <summary>A kill counts for the killer's life, and the scripts of its perks may give something for it. Kills of the snake itself do not count.</summary>
+    private void RegisterKill(IGameState gameState, Guid killerId, IPlayer victim)
+    {
+        if (killerId == victim.Guid || !gameState.Players.TryGetValue(killerId, out var killer) || !killer.IsAlive) return;
+        LifeOf(killer).Kills++;
+        _scriptedEffects.TryRemove(killer.Guid, out _);
+        if (!_perkRules.HasScripts(killer.FoodsEaten, gameState.Room, GrantedOf(killer))) return;
+        var rewards = _perkRules.RewardsForKilling(
+            killer.FoodsEaten, gameState.Room, ContextOf(gameState, killer), new ScriptVictim(victim.Name, victim.Path.Count, victim.Score), GrantedOf(killer));
+        ApplyRewards(killer, rewards);
+        _scriptedEffects.TryRemove(killer.Guid, out _);
     }
 
     /// <summary>What the scripts of the snake's perks give for eating this: extra mass, and healing in HP.</summary>
@@ -531,6 +574,12 @@ public class GameStateService : IGameStateService
         if (!_perkRules.HasScripts(player.FoodsEaten, gameState.Room, GrantedOf(player))) return;
         var rewards = _perkRules.RewardsForEating(
             player.FoodsEaten, gameState.Room, ContextOf(gameState, player), new ScriptFood(food.Value, food.Kind == FoodKind.Prize), GrantedOf(player));
+        ApplyRewards(player, rewards);
+        _scriptedEffects.TryRemove(player.Guid, out _);
+    }
+
+    private void ApplyRewards(IPlayer player, ScriptRewards rewards)
+    {
         player.Score += rewards.Mass;
         if (rewards.Heal <= 0) return;
         var maxHp = _damageCalculator.MaxSegmentHp(Math.Max(player.Path.Count, 1));
@@ -550,6 +599,7 @@ public class GameStateService : IGameStateService
     {
         if (!player.IsAlive) return;
         player.IsAlive = false;
+        ForgetLife(player);
         DropPellets(gameState, player);
         UpdatePlayer(player);
     }

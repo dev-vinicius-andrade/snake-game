@@ -266,4 +266,145 @@ public sealed class PerkScriptTests
 
         Assert.Contains("long", failure.Message);
     }
+
+    [Fact]
+    public void State_IsKeptBetweenCalls_AndChangedInPlace()
+    {
+        var script = Compile("function modify(snake) { snake.state.calls = (snake.state.calls || 0) + 1; return { extraShots: snake.state.calls }; }");
+        var state = new ScriptState();
+
+        script.Modify(Snake, Room, state);
+        var second = script.Modify(Snake, Room, state)!;
+
+        Assert.Equal(2, second.ExtraShots);
+        Assert.Contains("\"calls\":2", state.Json);
+    }
+
+    [Fact]
+    public void State_OfOneSnakeIsNotSeenByAnother()
+    {
+        var script = Compile("function modify(snake) { snake.state.calls = (snake.state.calls || 0) + 1; return { extraShots: snake.state.calls }; }");
+        var mine = new ScriptState();
+        var yours = new ScriptState();
+
+        script.Modify(Snake, Room, mine);
+        script.Modify(Snake, Room, mine);
+
+        Assert.Equal(1, script.Modify(Snake, Room, yours)!.ExtraShots);
+    }
+
+    [Fact]
+    public void State_ThatGrowsTooBig_IsAFailureAndStaysAsItWas()
+    {
+        var script = Compile("function modify(snake) { snake.state.big = 'x'.repeat(3000); return {}; }");
+        var state = new ScriptState();
+
+        var result = script.Modify(Snake, Room, state);
+
+        Assert.Null(result);
+        Assert.Equal(1, script.Failures);
+        Assert.Equal("{}", state.Json);
+    }
+
+    [Fact]
+    public void State_ThatIsNotAnObject_StartsOver()
+    {
+        var script = Compile("function modify(snake) { snake.state = 5; return {}; }");
+        var state = new ScriptState { Json = "{\"a\":1}" };
+
+        script.Modify(Snake, Room, state);
+
+        Assert.Equal("{}", state.Json);
+    }
+
+    [Fact]
+    public void Modify_SeesTheClockTheAgeAndTheKills()
+    {
+        var script = Compile("function modify(snake, room) { return { magnetRadius: snake.ageMs / 10, regenPerSecond: snake.kills, boostSpeedBonus: room.now / 10000 }; }");
+        var snake = Snake with { Now = 5_000, AgeMs = 1_230, Kills = 3 };
+
+        var result = script.Modify(snake, Room with { Now = 5_000 })!;
+
+        Assert.Equal(123, result.MagnetRadius);
+        Assert.Equal(3, result.RegenPerSecond);
+        Assert.Equal(0.5, result.BoostSpeedBonus);
+    }
+
+    [Fact]
+    public void Modify_CanSayInvulnerableAndFreeShots()
+    {
+        var script = Compile("function modify() { return { invulnerable: true, freeShots: true }; }");
+
+        var result = script.Modify(Snake, Room)!;
+
+        Assert.True(result.Invulnerable);
+        Assert.True(result.FreeShots);
+    }
+
+    [Fact]
+    public void OnKill_GivesWhatTheScriptReturns_AndSeesTheVictim()
+    {
+        var script = Compile("function onKill(snake, victim, room) { return { mass: victim.length > 5 ? 10 : 0, heal: 7 }; }");
+
+        var result = script.OnKill(Snake, new ScriptVictim("bob", 12, 30), Room)!;
+
+        Assert.Equal(10, result.Mass);
+        Assert.Equal(7, result.Heal);
+    }
+
+    [Fact]
+    public void OnKill_WithoutTheFunction_GivesNothing()
+        => Assert.Null(Compile("function modify() { return {}; }").OnKill(Snake, new ScriptVictim("bob", 12, 30), Room));
+
+    [Fact]
+    public void OnTick_AsksForPrizes_ByNameOrList_AtMostThreeDifferentOnes()
+    {
+        var one = Compile("function onTick() { return { dropPrize: 'gold' }; }");
+        var many = Compile("function onTick() { return { dropPrize: ['a', 'a', 'b', 'c', 'd', 5] }; }");
+        var none = Compile("function onTick() { return {}; }");
+
+        Assert.Equal(new[] { "gold" }, one.OnTick(Room)!.DropPrizes);
+        Assert.Equal(new[] { "a", "b", "c" }, many.OnTick(Room)!.DropPrizes);
+        Assert.Empty(none.OnTick(Room)!.DropPrizes);
+    }
+
+    [Fact]
+    public void OnTick_KeepsTheRoomsState()
+    {
+        var script = Compile("function onTick(room) { room.state.n = (room.state.n || 0) + 1; return room.state.n >= 2 ? { dropPrize: 'x' } : {}; }");
+        var state = new ScriptState();
+
+        var first = script.OnTick(Room, state)!;
+        var second = script.OnTick(Room, state)!;
+
+        Assert.Empty(first.DropPrizes);
+        Assert.Equal(new[] { "x" }, second.DropPrizes);
+    }
+
+    [Theory]
+    [InlineData("function onKill() { return {}; }")]
+    [InlineData("function onTick() { return {}; }")]
+    public void Compile_AScriptWithOnlyOnKillOrOnTick_IsAccepted(string source)
+    {
+        var script = Compile(source);
+
+        script.Check();
+    }
+
+    [Fact]
+    public void HasOnTick_IsTrueOnlyWhenTheScriptDefinesIt()
+    {
+        Assert.True(Compile("function onTick() { return {}; }").HasOnTick);
+        Assert.False(Compile("function modify() { return {}; }").HasOnTick);
+    }
+
+    [Theory]
+    [InlineData("function onKill(snake, victim) { return victim.nothing.deeper; }", "onKill")]
+    [InlineData("function onTick(room) { return room.nothing.deeper; }", "onTick")]
+    public void Check_RunsOnKillAndOnTickToo(string source, string name)
+    {
+        var failure = Assert.Throws<ScriptException>(Compile(source).Check);
+
+        Assert.Contains(name, failure.Message);
+    }
 }

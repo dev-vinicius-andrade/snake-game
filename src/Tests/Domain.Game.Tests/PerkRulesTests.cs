@@ -709,4 +709,71 @@ public sealed class PerkRulesTests
         Assert.True(rules.HasScripts(0, Room(code: "ABC234"), ["s"]));
         Assert.False(rules.HasScripts(0, Room(code: "ABC234")));
     }
+
+    [Fact]
+    public void TickRoom_AsksOnlyTheScriptsThatWorkInTheRoom()
+    {
+        var rules = WithPerks(
+            Scripted("here", "function onTick() { return { dropPrize: 'gold' }; }", "ABC234"),
+            Scripted("elsewhere", "function onTick() { return { dropPrize: 'silver' }; }", "OTHER1"),
+            Scripted("nowhere", "function onTick() { return { dropPrize: 'bronze' }; }"));
+
+        var asked = rules.TickRoom(Room(code: "ABC234"), ARoom, new ScriptStates());
+
+        Assert.Equal(new[] { "gold" }, asked);
+    }
+
+    [Fact]
+    public void TickRoom_KeepsTheStateOfEachPerkApart()
+    {
+        var count = "function onTick(room) { room.state.n = (room.state.n || 0) + 1; return room.state.n === 2 ? { dropPrize: ID } : {}; }";
+        var rules = WithPerks(
+            Scripted("a", count.Replace("ID", "'x'"), "ABC234"),
+            Scripted("b", count.Replace("ID", "'y'"), "ABC234"));
+        var states = new ScriptStates();
+
+        var first = rules.TickRoom(Room(code: "ABC234"), ARoom, states);
+        var second = rules.TickRoom(Room(code: "ABC234"), ARoom, states);
+
+        Assert.Empty(first);
+        Assert.Equal(new[] { "x", "y" }, second);
+    }
+
+    [Fact]
+    public void RewardsForKilling_AddsUpTheScriptsOfTheSnakesPerks()
+    {
+        var rules = WithPerks(
+            Scripted("a", "function onKill() { return { mass: 3, heal: 1 }; }", "ABC234"),
+            Scripted("b", "function onKill() { return { mass: 4, heal: 2 }; }", "ABC234"));
+
+        var rewards = rules.RewardsForKilling(1, Room(code: "ABC234"), Here, new ScriptVictim("bob", 10, 10));
+
+        Assert.Equal(new ScriptRewards(7, 3), rewards);
+    }
+
+    [Fact]
+    public void RewardsForKilling_KeepsTheSnakesStatePerPerk()
+    {
+        var rules = WithPerks(Scripted("streak", "function onKill(snake) { snake.state.n = (snake.state.n || 0) + 1; return { mass: snake.state.n }; }", "ABC234"));
+        var here = Here with { SnakeStates = new ScriptStates() };
+
+        rules.RewardsForKilling(1, Room(code: "ABC234"), here, new ScriptVictim("bob", 10, 10));
+        var second = rules.RewardsForKilling(1, Room(code: "ABC234"), here, new ScriptVictim("bob", 10, 10));
+
+        Assert.Equal(2, second.Mass);
+    }
+
+    [Fact]
+    public void Scripts_InvulnerableAndFreeShotsAreSwitches()
+    {
+        var rules = WithPerks(Scripted("s", "function modify() { return { invulnerable: true, freeShots: true }; }", "ABC234"));
+
+        var inside = rules.EffectsFor(1, Room(code: "ABC234"), Here);
+        var plain = rules.EffectsFor(1, Room(code: "OTHER1"), Here);
+
+        Assert.True(inside.Invulnerable);
+        Assert.True(inside.FreeShots);
+        Assert.False(plain.Invulnerable);
+        Assert.False(plain.FreeShots);
+    }
 }

@@ -8,16 +8,42 @@ namespace Domain.Game.Scripting;
 
 /// <summary>A snake as a script sees it: plain numbers and text, nothing of the server.</summary>
 public sealed record ScriptSnake(
-    string Name, int Length, long Mass, int FoodsEaten, double Health, double LowestHealth, bool Boosting, IReadOnlyList<string> Perks);
+    string Name, int Length, long Mass, int FoodsEaten, double Health, double LowestHealth, bool Boosting, IReadOnlyList<string> Perks,
+    long Now = 0, long AgeMs = 0, int Kills = 0);
 
 /// <summary>The room a snake plays in, as a script sees it.</summary>
-public sealed record ScriptRoom(int Players, string Name, string Code, int Width, int Height);
+public sealed record ScriptRoom(int Players, string Name, string Code, int Width, int Height, long Now = 0);
+
+/// <summary>The snake that was just killed, as the killer's script sees it.</summary>
+public sealed record ScriptVictim(string Name, int Length, long Mass);
+
+/// <summary>
+/// What a script remembers between calls: a small JSON object, <c>snake.state</c> or <c>room.state</c> in the script. The script
+/// changes it in place and it is kept as long as the snake (or the room) lives.
+/// </summary>
+public sealed class ScriptState
+{
+    public const int MaxLength = 2_000;
+
+    public string Json { get; set; } = "{}";
+}
+
+/// <summary>The state of every perk script for one snake, or for one room, by perk id.</summary>
+public sealed class ScriptStates
+{
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, ScriptState> _states = new();
+
+    public ScriptState Of(string perkId) => _states.GetOrAdd(perkId, _ => new ScriptState());
+}
+
+/// <summary>What <c>onTick</c> asked the room for.</summary>
+public sealed record ScriptWorldActions(IReadOnlyList<string> DropPrizes);
 
 /// <summary>The food a snake just ate, as a script sees it.</summary>
 public sealed record ScriptFood(long Value, bool IsPrize);
 
 /// <summary>Who is asking: the snake and the room it plays in.</summary>
-public sealed record ScriptContext(ScriptSnake Snake, ScriptRoom Room);
+public sealed record ScriptContext(ScriptSnake Snake, ScriptRoom Room, ScriptStates? SnakeStates = null, ScriptStates? RoomStates = null);
 
 /// <summary>What <c>modify</c> returned, in range. A field the script left out, or got wrong, is null.</summary>
 public sealed record ScriptEffects
@@ -33,6 +59,8 @@ public sealed record ScriptEffects
     public double? MagnetRadius { get; init; }
     public bool? AutoFire { get; init; }
     public bool? Piercing { get; init; }
+    public bool? Invulnerable { get; init; }
+    public bool? FreeShots { get; init; }
 }
 
 /// <summary>What <c>onEat</c> returned, in range.</summary>
@@ -60,18 +88,26 @@ public sealed class PerkScript
     private static readonly ScriptSnake SampleSnake = new("sample", 10, 10, 5, 1.0, 1.0, false, ["sample"]);
     private static readonly ScriptRoom SampleRoom = new(2, "sample", "SAMPLE", 1920, 1080);
     private static readonly ScriptFood SampleFood = new(1, false);
+    private static readonly ScriptVictim SampleVictim = new("victim", 10, 10);
 
     private readonly Engine _engine;
     private readonly object _turn = new();
     private readonly bool _hasModify;
     private readonly bool _hasOnEat;
+    private readonly bool _hasOnKill;
+    private readonly bool _hasOnTick;
 
-    private PerkScript(Engine engine, bool hasModify, bool hasOnEat)
+    private PerkScript(Engine engine, bool hasModify, bool hasOnEat, bool hasOnKill, bool hasOnTick)
     {
         _engine = engine;
         _hasModify = hasModify;
         _hasOnEat = hasOnEat;
+        _hasOnKill = hasOnKill;
+        _hasOnTick = hasOnTick;
     }
+
+    /// <summary>True when the script defines <c>onTick</c>, which runs once a second for the room, not for a snake.</summary>
+    public bool HasOnTick => _hasOnTick;
 
     /// <summary>Failures in a row, counting from the last good call.</summary>
     public int Failures { get; private set; }
@@ -101,26 +137,40 @@ public sealed class PerkScript
 
         var hasModify = IsFunction(engine, "modify");
         var hasOnEat = IsFunction(engine, "onEat");
-        if (!hasModify && !hasOnEat) throw new ScriptException("A script needs a function named modify or onEat.");
-        return new PerkScript(engine, hasModify, hasOnEat);
+        var hasOnKill = IsFunction(engine, "onKill");
+        var hasOnTick = IsFunction(engine, "onTick");
+        if (!hasModify && !hasOnEat && !hasOnKill && !hasOnTick)
+            throw new ScriptException("A script needs a function named modify, onEat, onKill or onTick.");
+        return new PerkScript(engine, hasModify, hasOnEat, hasOnKill, hasOnTick);
     }
 
     /// <summary>The extra effects for a snake, or null when the script does not define <c>modify</c> or the call failed.</summary>
-    public ScriptEffects? Modify(ScriptSnake snake, ScriptRoom room)
-        => _hasModify ? Call("modify", false, snake, room) is { } result ? ReadEffects(result) : null : null;
+    public ScriptEffects? Modify(ScriptSnake snake, ScriptRoom room, ScriptState? state = null)
+        => _hasModify ? Call("modify", false, state, snake, room) is { } result ? ReadEffects(result) : null : null;
 
     /// <summary>What the script gives for eating, or null when it does not define <c>onEat</c> or the call failed.</summary>
-    public ScriptRewards? OnEat(ScriptSnake snake, ScriptFood food, ScriptRoom room)
-        => _hasOnEat ? Call("onEat", false, snake, food, room) is { } result ? ReadRewards(result) : null : null;
+    public ScriptRewards? OnEat(ScriptSnake snake, ScriptFood food, ScriptRoom room, ScriptState? state = null)
+        => _hasOnEat ? Call("onEat", false, state, snake, food, room) is { } result ? ReadRewards(result) : null : null;
+
+    /// <summary>What the script gives the snake that killed another, or null when it does not define <c>onKill</c> or the call failed.</summary>
+    public ScriptRewards? OnKill(ScriptSnake snake, ScriptVictim victim, ScriptRoom room, ScriptState? state = null)
+        => _hasOnKill ? Call("onKill", false, state, snake, victim, room) is { } result ? ReadRewards(result) : null : null;
+
+    /// <summary>What the script asks of the room, or null when it does not define <c>onTick</c> or the call failed.</summary>
+    public ScriptWorldActions? OnTick(ScriptRoom room, ScriptState? state = null)
+        => _hasOnTick ? Call("onTick", false, state, room) is { } result ? ReadActions(result) : null : null;
 
     /// <summary>Runs each function once with a sample, and throws <see cref="ScriptException"/> naming the one that fails.</summary>
     public void Check()
     {
-        if (_hasModify) Call("modify", true, SampleSnake, SampleRoom);
-        if (_hasOnEat) Call("onEat", true, SampleSnake, SampleFood, SampleRoom);
+        if (_hasModify) Call("modify", true, new ScriptState(), SampleSnake, SampleRoom);
+        if (_hasOnEat) Call("onEat", true, new ScriptState(), SampleSnake, SampleFood, SampleRoom);
+        if (_hasOnKill) Call("onKill", true, new ScriptState(), SampleSnake, SampleVictim, SampleRoom);
+        if (_hasOnTick) Call("onTick", true, new ScriptState(), SampleRoom);
     }
 
-    private JsValue? Call(string function, bool throwOnFailure, params object[] data)
+    /// <summary>Calls a function. The first of <paramref name="data"/> is the one that carries <c>state</c> when a state is given.</summary>
+    private JsValue? Call(string function, bool throwOnFailure, ScriptState? state, params object[] data)
     {
         lock (_turn)
         {
@@ -128,7 +178,9 @@ public sealed class PerkScript
             try
             {
                 var arguments = data.Select(item => Parse(JsonSerializer.Serialize(item, item.GetType(), DataOptions))).ToArray();
+                if (state is not null) arguments[0].AsObject().Set("state", Parse(state.Json));
                 var result = _engine.Invoke(function, arguments.Cast<object>().ToArray());
+                if (state is not null) state.Json = ReadState(arguments[0].AsObject().Get("state"));
                 if (!throwOnFailure) Failures = 0;
                 return result;
             }
@@ -144,6 +196,17 @@ public sealed class PerkScript
     }
 
     private JsValue Parse(string json) => new JsonParser(_engine).Parse(json);
+
+    /// <summary>The state after a call, as JSON. Something that is not an object starts over; a state that grew too big is a failure.</summary>
+    private string ReadState(JsValue state)
+    {
+        if (!state.IsObject() || state.IsArray()) return "{}";
+        var stringify = _engine.Evaluate("JSON").AsObject();
+        var json = _engine.Invoke(stringify.Get("stringify"), stringify, [state]);
+        var text = json.IsString() ? json.AsString() : "{}";
+        if (text.Length > ScriptState.MaxLength) throw new ScriptException($"The state is too big: {text.Length} characters, at most {ScriptState.MaxLength}.");
+        return text;
+    }
 
     private static Engine NewEngine() => new(options =>
     {
@@ -175,6 +238,8 @@ public sealed class PerkScript
             MagnetRadius = Number(source, "magnetRadius", 0, 300),
             AutoFire = Flag(source, "autoFire"),
             Piercing = Flag(source, "piercing"),
+            Invulnerable = Flag(source, "invulnerable"),
+            FreeShots = Flag(source, "freeShots"),
         };
     }
 
@@ -183,6 +248,17 @@ public sealed class PerkScript
         if (!result.IsObject()) return null;
         var source = result.AsObject();
         return new ScriptRewards(Whole(source, "mass", 0, 50) ?? 0, Number(source, "heal", 0, 500) ?? 0);
+    }
+
+    private const int MaxDropsPerTick = 3;
+
+    private static ScriptWorldActions? ReadActions(JsValue result)
+    {
+        if (!result.IsObject()) return null;
+        var asked = result.AsObject().Get("dropPrize");
+        var kinds = asked.IsString() ? [asked.AsString()]
+            : asked.IsArray() ? asked.AsArray().Select(item => item.IsString() ? item.AsString() : string.Empty).ToList() : [];
+        return new ScriptWorldActions(kinds.Where(kind => kind.Length > 0).Distinct().Take(MaxDropsPerTick).ToArray());
     }
 
     private static double? Number(Jint.Native.Object.ObjectInstance source, string name, double min, double max)

@@ -112,4 +112,28 @@ public sealed class SnakeCollisionRulesTests
     [Fact]
     public void FindCollided_NonPositiveHitSize_Throws()
         => Assert.Throws<ArgumentOutOfRangeException>(() => _rules.FindCollided(Array.Empty<SnakeBody>(), 0));
+
+    [Fact]
+    public void FindCollisions_NamesTheSnakeEachOneRanInto()
+    {
+        var snakeA = Snake(A, (100, 100), (105, 100), (110, 100));
+        var snakeB = Snake(B, (200, 52), (200, 100), (200, 148));
+        var intruder = Snake(C, (400, 400), (205, 100));
+
+        var collisions = _rules.FindCollisions(new[] { snakeA, snakeB, intruder }, HitSize);
+
+        Assert.Equal(new Dictionary<Guid, Guid> { [C] = B }, collisions);
+    }
+
+    [Fact]
+    public void FindCollisions_AHeadOnHitNamesEachOther()
+    {
+        var snakeA = Snake(A, (100, 100), (200, 100));
+        var snakeB = Snake(B, (300, 100), (205, 100));
+
+        var collisions = _rules.FindCollisions(new[] { snakeA, snakeB }, HitSize);
+
+        Assert.Equal(B, collisions[A]);
+        Assert.Equal(A, collisions[B]);
+    }
 }

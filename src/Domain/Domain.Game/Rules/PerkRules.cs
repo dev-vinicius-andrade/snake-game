@@ -23,6 +23,10 @@ public readonly record struct PerkEffects
     public double DamageFactor { get; init; } = 1.0;
     public double RegenPerSecond { get; init; }
     public double MagnetRadius { get; init; }
+    /// <summary>True while nothing can hurt the snake: shots and other snakes pass it by.</summary>
+    public bool Invulnerable { get; init; }
+    /// <summary>True while shooting costs no mass.</summary>
+    public bool FreeShots { get; init; }
 
     public PerkEffects() { }
 }
@@ -107,8 +111,8 @@ public sealed class PerkRules
     public PerkEffects EffectsFor(int foodsEaten, IRoom? room, ScriptContext context, IReadOnlyCollection<string>? granted = null)
     {
         var effects = EffectsFor(foodsEaten, room, granted);
-        foreach (var (_, script) in ScriptedPerks(foodsEaten, room, granted))
-            if (script.Modify(context.Snake, context.Room) is { } added)
+        foreach (var (perk, script) in ScriptedPerks(foodsEaten, room, granted))
+            if (script.Modify(context.Snake, context.Room, context.SnakeStates?.Of(perk.Id)) is { } added)
                 effects = Merge(effects, added);
         return effects;
     }
@@ -117,10 +121,37 @@ public sealed class PerkRules
     public ScriptRewards RewardsForEating(int foodsEaten, IRoom? room, ScriptContext context, ScriptFood food, IReadOnlyCollection<string>? granted = null)
     {
         var rewards = new ScriptRewards(0, 0);
-        foreach (var (_, script) in ScriptedPerks(foodsEaten, room, granted))
-            if (script.OnEat(context.Snake, food, context.Room) is { } given)
-                rewards = new ScriptRewards(rewards.Mass + given.Mass, rewards.Heal + given.Heal);
+        foreach (var (perk, script) in ScriptedPerks(foodsEaten, room, granted))
+            if (script.OnEat(context.Snake, food, context.Room, context.SnakeStates?.Of(perk.Id)) is { } given)
+                rewards = Add(rewards, given);
         return rewards;
+    }
+
+    /// <summary>What the scripts of this snake's perks give for killing another snake, added up.</summary>
+    public ScriptRewards RewardsForKilling(int foodsEaten, IRoom? room, ScriptContext context, ScriptVictim victim, IReadOnlyCollection<string>? granted = null)
+    {
+        var rewards = new ScriptRewards(0, 0);
+        foreach (var (perk, script) in ScriptedPerks(foodsEaten, room, granted))
+            if (script.OnKill(context.Snake, victim, context.Room, context.SnakeStates?.Of(perk.Id)) is { } given)
+                rewards = Add(rewards, given);
+        return rewards;
+    }
+
+    private static ScriptRewards Add(ScriptRewards total, ScriptRewards given) => new(total.Mass + given.Mass, total.Heal + given.Heal);
+
+    /// <summary>
+    /// Runs the <c>onTick</c> of every script that works in the room, whoever is in it, and gives back the kinds of prize they asked
+    /// to drop. Meant to be called about once a second.
+    /// </summary>
+    public IReadOnlyList<string> TickRoom(IRoom room, ScriptRoom view, ScriptStates states)
+    {
+        var settings = _settings;
+        if (!settings.Enabled) return [];
+        return settings.Perks
+            .Where(perk => perk.HasScript && perk.AppliesTo(room) && settings.Scripts.TryGetValue(perk.Id, out var script) && script.HasOnTick)
+            .SelectMany(perk => settings.Scripts[perk.Id].OnTick(view, states.Of(perk.Id))?.DropPrizes ?? [])
+            .Distinct()
+            .ToArray();
     }
 
     /// <summary>Adds what a script returned: sums add, factors multiply (kept in range), switches are on when either says so.</summary>
@@ -137,6 +168,8 @@ public sealed class PerkRules
         DamageFactor = Math.Max(MinDamageFactor, effects.DamageFactor * (added.DamageFactor ?? 1)),
         AutoFire = effects.AutoFire || added.AutoFire == true,
         Piercing = effects.Piercing || added.Piercing == true,
+        Invulnerable = effects.Invulnerable || added.Invulnerable == true,
+        FreeShots = effects.FreeShots || added.FreeShots == true,
     };
 
     /// <summary>Ids of the perks earned with <paramref name="foodsEaten"/> foods, in the order they unlock.</summary>

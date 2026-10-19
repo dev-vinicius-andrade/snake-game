@@ -276,4 +276,45 @@ public sealed class PrizeSpawnerTests
 
         Assert.Empty(Prizes());
     }
+
+    [Fact]
+    public void Drop_PutsAPrizeOnTheMapNow_AndItExpiresLikeAnyOther()
+    {
+        AddPlayers(2);
+
+        var dropped = _spawner.Drop(_state, "prize");
+
+        Assert.True(dropped);
+        Assert.Equal("prize", Assert.Single(Prizes()).PrizeId);
+        Pass(29);
+        Assert.Single(Prizes());
+        Pass(2);
+        Assert.Empty(Prizes());
+    }
+
+    [Fact]
+    public void Drop_WhenThatKindIsAlreadyOnTheMap_DoesNothing()
+    {
+        AddPlayers(2);
+        _spawner.Drop(_state, "prize");
+
+        Assert.False(_spawner.Drop(_state, "prize"));
+        Assert.Single(Prizes());
+    }
+
+    [Fact]
+    public void Drop_OfAKindThatDoesNotExist_DoesNothing()
+    {
+        Assert.False(_spawner.Drop(_state, "nope"));
+        Assert.Empty(Prizes());
+    }
+
+    [Fact]
+    public void Drop_WhilePrizesAreOff_DoesNothing()
+    {
+        _rules.Reconfigure(new PrizeOptions { Enabled = false });
+
+        Assert.False(_spawner.Drop(_state, "prize"));
+        Assert.Empty(Prizes());
+    }
 }

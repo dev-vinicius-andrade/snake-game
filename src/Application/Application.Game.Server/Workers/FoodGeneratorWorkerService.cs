@@ -19,9 +19,11 @@ public class FoodGeneratorWorkerService : BackgroundService
     private readonly IGameStateService _gameStateService;
     private readonly ITrackableIdGeneratorService _trackableIdGeneratorService;
     private readonly PrizeSpawner _prizeSpawner;
-    public FoodGeneratorWorkerService(Serilog.ILogger logger, IOptions<AppSettings> appSettings, IHubContext<GameHub, IGameHubSendEvents> gameHub, IPlayerRoomService playerRoomService, IRoomsService roomsService, IPlayerService playerService, IGameStateService gameStateService, ITrackableIdGeneratorService trackableIdGeneratorService, PrizeSpawner prizeSpawner)
+    private readonly PerkWorld _perkWorld;
+    public FoodGeneratorWorkerService(Serilog.ILogger logger, IOptions<AppSettings> appSettings, IHubContext<GameHub, IGameHubSendEvents> gameHub, IPlayerRoomService playerRoomService, IRoomsService roomsService, IPlayerService playerService, IGameStateService gameStateService, ITrackableIdGeneratorService trackableIdGeneratorService, PrizeSpawner prizeSpawner, PerkWorld perkWorld)
     {
         _prizeSpawner = prizeSpawner;
+        _perkWorld = perkWorld;
         _logger = logger;
         _appSettings = appSettings;
         _gameHub = gameHub;
@@ -62,6 +64,7 @@ public class FoodGeneratorWorkerService : BackgroundService
         var gameState = _gameStateService.GetGameState(_trackableIdGeneratorService.Generate(room.Key));
         if (gameState is null) return;
         _prizeSpawner.Update(gameState);
+        _perkWorld.Update(gameState);
         if (gameState.Players.Count == 0)
         {
             gameState.Foods.Clear();

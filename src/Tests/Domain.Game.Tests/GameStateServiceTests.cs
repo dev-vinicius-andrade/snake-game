@@ -1229,4 +1229,110 @@ public sealed class GameStateServiceTests
 
         Assert.Empty(player.GrantedPerks);
     }
+
+    [Fact]
+    public async Task Script_FreeShots_CostNoMass_AndWorkAtZeroMass()
+    {
+        var service = WithScript("function modify() { return { freeShots: true }; }", _room.Guid.ToString());
+        var player = AddPlayer("a", 500, 500, score: 0);
+        player.FoodsEaten = 1;
+
+        await service.Shoot(_state, _room, player);
+
+        Assert.Single(_state.Obstacles);
+        Assert.Equal(0, player.Score);
+    }
+
+    [Fact]
+    public async Task Script_Invulnerable_ASnakeShotInTheHeadLives_AndTheShotIsSpent()
+    {
+        var service = WithScript("function modify() { return { invulnerable: true }; }", _room.Guid.ToString());
+        var target = AddPlayer("target", 500, 500, length: 11, score: 5);
+        target.FoodsEaten = 1;
+        var shooter = AddPlayer("shooter", 1500, 100);
+        AddShot(shooter, target.CurrentPosition.X, 500);
+
+        await service.CheckObstacleCollision(_state, target);
+
+        Assert.True(target.IsAlive);
+        Assert.Empty(_state.Obstacles);
+        Assert.Empty(_state.Hits);
+    }
+
+    [Fact]
+    public async Task Script_Invulnerable_ASnakeThatRunsIntoOthersLives()
+    {
+        var service = WithScript("function modify() { return { invulnerable: true }; }", _room.Guid.ToString());
+        var wall = AddPlayer("wall", 500, 500);
+        var intruder = AddPlayer("intruder", 900, 900, length: 8);
+        intruder.FoodsEaten = 1;
+        intruder.CurrentPosition = At(wall.Path[2].X, 505);
+        intruder.Path[^1] = intruder.CurrentPosition;
+
+        await service.ResolveSnakeCollisions(_state);
+
+        Assert.True(intruder.IsAlive);
+    }
+
+    [Fact]
+    public async Task Script_OnKill_RunsForTheSnakeThatShotAndGivesWhatItReturns()
+    {
+        var service = WithScript("function onKill(snake, victim) { return { mass: 5 }; }", _room.Guid.ToString());
+        var target = AddPlayer("target", 500, 500, length: 11);
+        var shooter = AddPlayer("shooter", 1500, 100, score: 1);
+        shooter.FoodsEaten = 1;
+        AddShot(shooter, target.CurrentPosition.X, 500);
+
+        await service.CheckObstacleCollision(_state, target);
+
+        Assert.False(target.IsAlive);
+        Assert.Equal(6, shooter.Score);
+    }
+
+    [Fact]
+    public async Task Script_OnKill_RunsForTheSnakeThatWasRunInto()
+    {
+        var service = WithScript("function onKill(snake, victim) { return { mass: 5 }; }", _room.Guid.ToString());
+        var wall = AddPlayer("wall", 500, 500, score: 1);
+        wall.FoodsEaten = 1;
+        var intruder = AddPlayer("intruder", 900, 900, length: 8);
+        intruder.CurrentPosition = At(wall.Path[2].X, 505);
+        intruder.Path[^1] = intruder.CurrentPosition;
+
+        await service.ResolveSnakeCollisions(_state);
+
+        Assert.False(intruder.IsAlive);
+        Assert.Equal(6, wall.Score);
+    }
+
+    [Fact]
+    public async Task Script_KillsInARow_GiveInvulnerabilityForAWhile()
+    {
+        const string streak = """
+            function onKill(snake) {
+              snake.state.kills = (snake.state.kills || 0) + 1;
+              if (snake.state.kills >= 2) snake.state.until = snake.now + 5000;
+            }
+            function modify(snake) { return { invulnerable: snake.now < (snake.state.until || 0) }; }
+            """;
+        var service = WithScript(streak, _room.Guid.ToString());
+        var hero = AddPlayer("hero", 1500, 100, score: 1);
+        hero.FoodsEaten = 1;
+        for (var kill = 0; kill < 2; kill++)
+        {
+            var victim = AddPlayer($"victim{kill}", 500, 300 + kill * 200, length: 11);
+            AddShot(hero, victim.CurrentPosition.X, victim.CurrentPosition.Y);
+            await service.CheckObstacleCollision(_state, victim);
+        }
+        var outsider = AddPlayer("outsider", 1500, 900);
+        AddShot(outsider, hero.CurrentPosition.X, hero.CurrentPosition.Y);
+
+        await service.CheckObstacleCollision(_state, hero);
+        Assert.True(hero.IsAlive);
+
+        _clock.Advance(TimeSpan.FromSeconds(6));
+        AddShot(outsider, hero.CurrentPosition.X, hero.CurrentPosition.Y);
+        await service.CheckObstacleCollision(_state, hero);
+        Assert.False(hero.IsAlive);
+    }
 }
