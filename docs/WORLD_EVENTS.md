@@ -1,10 +1,11 @@
 # World events
 
-Things that happen to a whole room now and then, apart from what the snakes do. There are three:
+Things that happen to a whole room now and then, apart from what the snakes do. There are four:
 
 - **Lightning storm**: a burst of small strikes over a few seconds.
 - **Meteor rain**: a shower of big, slow meteors over a few seconds. Lightning and meteors share one engine.
 - **Turret boss**: a mini boss that sits in the room firing volleys until snakes shoot it down. It has its own state and runner.
+- **Shrinking safe zone**: a circle that closes in on the room; snakes outside it lose mass and die. It has its own state and runner.
 
 The next ones (earthquakes that open fissures, procedurally generated challenge paths) are to be added beside them; see
 [Adding the next event](#adding-the-next-event).
@@ -61,6 +62,30 @@ so the volleys sweep round it like a bullet-hell turret.
 
 The client shows the body with a glowing core, its barrels turning with it, a hit point bar above it that goes from green to
 amber to red, and a banner with an arrow to it, its hit points and the distance.
+
+## Shrinking safe zone
+
+Every 5 to 10 minutes (`minIntervalSeconds` to `maxIntervalSeconds`) a room with at least `minPlayers` players gets a safe zone, in
+three phases:
+
+1. **Warning** (`warningSeconds`, 15). The safe spot is marked on the map with a dashed circle of the final radius, a banner counts
+   down, and nobody is harmed. The zone itself covers the whole room.
+2. **Closing** (`shrinkSeconds`, 60). The edge of the zone closes in evenly on the safe spot, from covering the whole room to
+   `finalRadius` (160). The ground just outside the edge is tinted red in dots, the edge is a bright ring, and the spot where it will
+   end up stays marked.
+3. **Holding** (`holdSeconds`, 30). It stays at its smallest. Then it goes, and the next is scheduled from that moment.
+
+While it closes and holds, every `damageIntervalMilliseconds` (1000) **each snake whose head is outside it pays**: it loses
+`damageMass` (4) mass, which falls as food right where the snake is, so snakes inside can grab it. **A snake with no mass left that is
+outside dies** (its body is only the starting length, so there is nothing left to drop). A snake that has the invulnerable effect pays
+nothing, a dead one is left alone. A snake whose head is inside is never touched, whatever its tail does.
+
+The safe spot is drawn anywhere in the room. The world wraps, so the zone does too: distance is the short way round (a head at the
+right edge is near a centre at the left edge), and the zone at its start, with a radius of half the diagonal of the room, covers it all.
+
+The client draws the dashed final circle, the ring, the danger tint and a banner ("Safe zone in 12s: head for the circle", "The safe
+zone is closing: stay inside", "Stay inside the circle"). While the own snake is outside the banner turns red, says it is losing mass,
+and the edges of the screen glow red.
 
 ## Settings
 
@@ -120,6 +145,24 @@ The turret has its own section, with the same room switches:
 }
 ```
 
+The safe zone has its own section too:
+
+```jsonc
+"zone": {
+  "enabled": true,
+  "minIntervalSeconds": 300,         // wait between zones
+  "maxIntervalSeconds": 600,
+  "warningSeconds": 15,              // safe spot shown, nobody harmed, 1 to 600
+  "shrinkSeconds": 60,               // time to close, 5 to 3600
+  "holdSeconds": 30,                 // time it holds when closed, 0 to 3600
+  "finalRadius": 160,                // world units that stay safe, 30 to 2000
+  "damageIntervalMilliseconds": 1000, // how often a snake outside pays, 200 to 10000
+  "damageMass": 4,                   // mass lost each time, 1 to 1000
+  "minPlayers": 2,
+  "rooms": [], "excludedRooms": []
+}
+```
+
 Values that cannot work (an interval of 0, a longest wait shorter than the shortest, a radius of 0, more than 40 strikes, a blank
 room, an aimed share outside 0 to 1) are refused on save, with the reason shown, and nothing changes. Changes apply to a running
 game server within a few seconds; warnings already on screen fall as planned, unless the event was switched off, which takes them
@@ -129,7 +172,7 @@ at most 40. So snapshots stay small.
 
 **Configs from before storms still load.** A lightning section without `minStrikes`, `maxStrikes` and `stormSeconds` is a storm of
 one strike, as it was. The editor fills in the storm defaults (5 to 12 over 6 s, aimed 0.25) so they can be changed, and saving
-makes it a storm. A config without `meteors` or `turret` gets their defaults, switched on.
+makes it a storm. A config without `meteors`, `turret` or `zone` gets their defaults, switched on.
 
 ## How it is built
 
@@ -142,12 +185,18 @@ makes it a storm. A config without `meteors` or `turret` gets their defaults, sw
 | `GameplayConfig.WorldEvents` | `Domain.Game/Rules/GameplayConfig.cs` | Part of the config the manager keeps; `GameplayApplier` puts it on the running rules. |
 | Snapshot `strikes` | `SnapshotBuilder`, `SnapshotEvent` | The warnings for the client. |
 | `TurretOptions`, `TurretState`, `WorldEventRules.TurretStep`, `TurretKilled`, `TurretIsHit` | `Domain.Game/Rules` | The turret: pure scheduling, spawn, expiry, volleys (the angles of each shot and the turn), and whether a shot touches it. |
+| `ZoneOptions`, `ZoneState`, `WorldEventRules.ZoneStep`, `RadiusAt`, `PhaseOf`, `PhaseEnd`, `IsOutsideZone` | `Domain.Game/Rules` | The zone: pure scheduling, the three phases, the radius at any moment, and whether a point is outside (the short way round the world). |
+| `WorldZone` | `Library.Commons.Game.Domain/Entities/WorldZone.cs` | The zone in a room (`IGameState.Zone`): where, how far it reaches now and at the end, the phase and when it ends. Replaced every frame as it closes. |
+| `ZoneRunner` | `Domain.Game/Services/ZoneRunner.cs` | Per room, from the game loop each frame: keeps the state, updates `IGameState.Zone`, and every damage interval calls `GameStateService.ApplyZoneDamage`. Returns the snakes that died of it, which the loop tells and removes with the others. |
+| `GameStateService.ApplyZoneDamage` | `Domain.Game/Services/GameStateService.cs` | Takes mass from every snake outside (as food where it is), kills the one with none, skips the invulnerable. |
 | `WorldBoss` | `Library.Commons.Game.Domain/Entities/WorldBoss.cs` | The boss standing in a room (`IGameState.Boss`): where, size, hit points, the reward, the last snake to hit it. |
 | `TurretRunner` | `Domain.Game/Services/TurretRunner.cs` | Per room, from the game loop each frame, next to `WorldEventRunner`: spawns and removes the turret, calls `FireTurret` for each volley, and notices that snakes brought it down. |
 | `GameStateService.FireTurret`, `ResolveBossHits` | `Domain.Game/Services/GameStateService.cs` | Creates the shots (owned by the boss) and lets snakes' shots hurt it; the simulation calls `ResolveBossHits` every step, after the shots move. The reward is given there. |
 | `StrikeTracker`, `strikeWarning` | `Application.Ui/src/render/strikes.ts` | Client side: counts every warning down between snapshots, notices the strike, tells the HUD. |
 | Renderer | `render/pixelRenderer.ts` | Draws the lightning rim, ring and flash, and the meteor shadow, fall and impact. |
 | `bossCompass`, `armPixels`, `hpBarPixels` | `render/boss.ts` | The arrow to the boss, the pixels of its barrels and of its hit point bar. |
+| `zoneWarning`, `isOutsideZone` | `render/zone.ts` | What the banner needs: the phase, the time left, and whether the own snake is outside. |
+| `ZoneHint.vue` | `components/game` | The banner for the zone, and the red glow while the own snake is outside. |
 | `BossHint.vue` | `components/game` | The banner for the boss: an arrow to it, its hit points and the distance. |
 | `StrikeHint.vue` | `components/game` | The banner: "Lightning incoming!", "Meteors incoming!", or "... Get out of the circle!" when the own head is inside one. |
 | `WorldEventsEditor.vue` | `components/admin` | The admin form, one card per event. Props: `{ gameplay: ReturnType<typeof useAdminGameplay> }`. |
@@ -171,6 +220,10 @@ kind. The client counts `t` down with its own clock from the moment the snapshot
 `SnapshotEvent.boss` is left out while there is no boss. It is `{ "guid", "x", "y", "s", "hp", "a", "n" }`: the id (its shots have it
 as their `owner`, which is how the client draws them red), the middle in whole world units, the size, the hit points left in whole
 percents (at least 1), the angle of the first arm in whole degrees and the number of arms.
+
+`SnapshotEvent.zone` is left out while there is no zone. It is `{ "x", "y", "r", "f", "p", "t" }`: the middle in whole world units, how far
+the zone reaches now (`r`) and at the end (`f`), the phase (`0` warning, `1` closing, `2` holding) and the milliseconds left in the phase.
+The radius is sent as it is at the moment of the snapshot, so it closes in steps of the snapshot rate (30 a second), which is smooth enough.
 
 ### Adding the next event
 
