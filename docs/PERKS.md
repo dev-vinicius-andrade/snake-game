@@ -63,6 +63,8 @@ and every game server applies it within a few seconds; no restart, and players a
 - Each perk has a **Perk on** switch. A perk that is off stays in the list but nobody gets it, not even from a prize; the per-room dialog shows it as off.
 - The **Private rooms** card sets how long private rooms live: minutes an empty one stays open (`emptyPrivateRoomMinutes`, default 10) and the longest any private room lives (`maxPrivateRoomMinutes`, 0 is no limit). See [ROOMS.md](ROOMS.md).
 
+- The **World events** card sets lightning, the first world event. See [WORLD_EVENTS.md](WORLD_EVENTS.md).
+
 ## The prize
 
 Every so often a prize appears at a random spot of a room. It is worth a lot of mass and counts as several foods toward perks, so snakes fight over it. The HUD shows an arrow and the distance to the nearest prize. If nobody takes it, it disappears and the next one comes after the interval. A room needs at least `MinPlayers` players for a prize to appear.
