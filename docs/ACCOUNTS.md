@@ -28,6 +28,34 @@ they do today: a nickname, no tag, no achievements.
 `IAccountStore` (`Accounts/AccountContracts.cs`). `FileAccountStore`: a JSON file, loaded into memory, written atomically (temp file, then rename).
 Postgres later is a second implementation of the same interface with a unique index on `(lower(username), tag)`.
 
+## Rules as built
+
+Checked against `src/Application/Application.Manager.Api/Accounts/`.
+
+- **Username cleaning** (`UsernameRules`): NFC, trim, every run of Unicode spaces (NBSP included) becomes one space. 2 to 20 characters, only
+  letters, digits, space, `_`, `-`, `.`. Blocklist is a substring match, case-insensitive, on the name with spaces, `_`, `-`, `.` removed
+  (`A d-m.i_n` is blocked as `admin`).
+- **Tag parse** (`TagAllocator.TryParseTag`): `09291`, `9291` and `#09291` all mean tag 9291. 1 to 5 ASCII digits, optional leading `#`,
+  surrounding spaces ignored. Stored and shown as 5 digits.
+- **Recovery phrase normalization** (`RecoveryPhrase.Normalize`): NFKC, lowercase, every run of spaces and/or `-` becomes one `-`, none at the
+  ends. Length of 12 or more is measured on the normalized form. Also weak: a common password, one repeated character, or the username
+  (separators ignored for these three). Callers hash `Normalize(phrase)`, never the raw text.
+- **Hasher** (`SecretHasher`): `pbkdf2-sha256$<iterations>$<salt base64>$<hash base64>`, 210000 iterations, 16 byte salt, 32 byte hash.
+  `NeedsRehash` is true when the stored iterations are below the current setting, so the hash is replaced at next login.
+- **Device token** (`DeviceTokens`): 32 random bytes, base64url without padding (43 characters). Stored as the SHA-256 of the token text, lowercase hex.
+- **Throttle** (`AttemptThrottle`): 5 free failures, then waits of 2 s, 4 s, 8 s, ... doubling, capped at 15 min. A key with no failure for 1 h
+  is forgotten. At most 100000 keys; the oldest 10% are dropped when full. A failure during a wait does not escalate.
+- **File store** (`FileAccountStore`): JSON file `{ "version": 1, "accounts": [...] }`. Every change writes a temp file in the same folder,
+  flushes it, then moves it over the file. A file that cannot be parsed is renamed to `<path>.corrupt-<utc time>` and the store starts empty.
+  Every change rewrites the whole file.
+
+## Known limits
+
+- Look-alike letters (Cyrillic, fullwidth forms) still pass the username check, so `Vini` can be spelled with a Cyrillic `i`.
+- Scripts with combining vowel marks (Hindi, Thai) are rejected by the letter check, because the marks are not letters.
+- The blocklist is a substring match on the squashed name, so it has false positives (a name containing `retard` in a longer word, for example).
+- No email recovery. Losing the browser and the recovery phrase loses the account.
+
 ## HTTP contract (manager api)
 
 All bodies are JSON, property names in camel case. Errors are `{ "error": "<code>" }`.
