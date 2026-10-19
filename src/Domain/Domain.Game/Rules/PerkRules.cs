@@ -213,7 +213,7 @@ public sealed class PerkRules
         if (effects.Count == 0 && !perk.HasScript)
             throw new ArgumentException($"Perk '{perk.Id}' needs at least one effect, or a script.", nameof(perk));
         foreach (var entry in effects) EnsureValid(perk, entry);
-        if (perk.Rooms.Any(string.IsNullOrWhiteSpace))
+        if (perk.Rooms.Concat(perk.ExcludedRooms).Any(string.IsNullOrWhiteSpace))
             throw new ArgumentException($"Perk '{perk.Id}' has a blank room.", nameof(perk));
     }
 

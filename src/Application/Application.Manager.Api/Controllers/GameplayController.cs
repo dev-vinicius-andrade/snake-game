@@ -50,6 +50,15 @@ public class AdminGameplayController(GameplayConfigStore store) : Controller
         effects = Enum.GetNames<PerkEffect>(),
     });
 
+    /// <summary>Whether a script would be accepted: the editor asks while the administrator writes. Nothing is saved.</summary>
+    [HttpPost("check-script")]
+    public async Task<IActionResult> CheckScript(CancellationToken cancellationToken = default)
+    {
+        using var reader = new StreamReader(Request.Body);
+        var script = await reader.ReadToEndAsync(cancellationToken);
+        return Json(PerkScriptChecker.Check(script));
+    }
+
     [HttpPut]
     public async Task<IActionResult> Put(CancellationToken cancellationToken = default)
     {

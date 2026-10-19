@@ -31,6 +31,9 @@ public sealed record PerkDefinition
     /// </summary>
     public List<string> Rooms { get; init; } = [];
 
+    /// <summary>Rooms the perk does not work in, even where <see cref="Rooms"/> would allow it. Same ways to name a room.</summary>
+    public List<string> ExcludedRooms { get; init; } = [];
+
     /// <summary>JavaScript that decides more of what the perk does while it runs in a room. See docs/PERK_SCRIPTS.md.</summary>
     public string? Script { get; init; }
 
@@ -43,6 +46,7 @@ public sealed record PerkDefinition
     /// <summary>True when the perk works in <paramref name="room"/> (null: no room is known).</summary>
     public bool AppliesTo(IRoom? room)
     {
+        if (room is not null && ExcludedRooms.Any(entry => Matches(entry, room))) return false;
         if (Rooms.Count == 0) return !HasScript;
         return room is not null && Rooms.Any(entry => Matches(entry, room));
     }

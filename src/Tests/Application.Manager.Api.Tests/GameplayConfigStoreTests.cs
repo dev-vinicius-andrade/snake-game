@@ -112,4 +112,50 @@ public sealed class GameplayConfigStoreTests : IDisposable
 
         Assert.Equal(55, store.Current.Config.Prize.Value);
     }
+
+    private static GameplayConfig WithScript(string script, params string[] rooms) => new()
+    {
+        Perks = new PerkOptions
+        {
+            Perks = [new() { Id = "scripted", Name = "Scripted", FoodsRequired = 5, Script = script, Rooms = rooms.ToList() }]
+        }
+    };
+
+    [Fact]
+    public void Update_AcceptsAScriptedPerkAndKeepsItsRoomsAndScript()
+    {
+        var store = new GameplayConfigStore();
+
+        store.Update(WithScript("function modify() { return { extraShots: 1 }; }", "ABC234"));
+
+        var perk = store.Current.Config.Perks.Perks.Single();
+        Assert.Equal(new[] { "ABC234" }, perk.Rooms);
+        Assert.Contains("extraShots", perk.Script);
+        Assert.Empty(perk.Effects);
+    }
+
+    [Fact]
+    public void Update_ABrokenScriptIsRefusedAndTheOldConfigStays()
+    {
+        var store = new GameplayConfigStore();
+        var before = store.Current;
+
+        var failure = Assert.Throws<ArgumentException>(() => store.Update(WithScript("function modify( {", "ABC234")));
+
+        Assert.Contains("scripted", failure.Message);
+        Assert.Equal(before, store.Current);
+    }
+
+    [Fact]
+    public void Update_AScriptedPerkSurvivesARestart()
+    {
+        var first = new GameplayConfigStore(StorePath);
+        first.Update(WithScript("function modify() { return { extraShots: 2 }; }", "ABC234"));
+
+        var second = new GameplayConfigStore(StorePath);
+
+        var perk = second.Current.Config.Perks.Perks.Single();
+        Assert.Equal(new[] { "ABC234" }, perk.Rooms);
+        Assert.Contains("extraShots: 2", perk.Script);
+    }
 }

@@ -8,8 +8,8 @@ const config = (overrides: Partial<GameplayConfig["prize"]> = {}): GameplayConfi
     shotSpreadDegrees: 12,
     burstIntervalMilliseconds: 80,
     perks: [
-      { id: "magnet", name: "Magnet", foodsRequired: 6, effects: [{ effect: "Magnet", amount: 60 }], rooms: [] },
-      { id: "twin", name: "Twin shot", foodsRequired: 15, effects: [{ effect: "ExtraShots", amount: 1 }], rooms: [] },
+      { id: "magnet", name: "Magnet", foodsRequired: 6, effects: [{ effect: "Magnet", amount: 60 }], rooms: [], excludedRooms: [] },
+      { id: "twin", name: "Twin shot", foodsRequired: 15, effects: [{ effect: "ExtraShots", amount: 1 }], rooms: [], excludedRooms: [] },
     ],
   },
   prize: { enabled: true, spawnIntervalSeconds: 60, lifetimeSeconds: 45, value: 20, foodsCredit: 8, minPlayers: 2, ...overrides },
@@ -149,7 +149,7 @@ describe("useAdminGameplay", () => {
     const perks = gameplay.draft.value!.perks.perks;
     expect(perks).toHaveLength(4);
     expect(new Set(perks.map((perk) => perk.id)).size).toBe(4);
-    expect(perks[2]).toMatchObject({ foodsRequired: 10, effects: [{ effect: "ExtraShots", amount: 1 }], rooms: [] });
+    expect(perks[2]).toMatchObject({ foodsRequired: 10, effects: [{ effect: "ExtraShots", amount: 1 }], rooms: [], excludedRooms: [] });
   });
 
   it("removes a perk", async () => {
@@ -233,6 +233,30 @@ describe("useAdminGameplay", () => {
 
     const sent = http.put.mock.calls[0][2] as GameplayConfig;
     expect(sent.perks.perks.find((perk) => perk.id === "twin")!.rooms).toEqual(["ABC234"]);
+  });
+
+  it("does not send blank left-out rooms either", async () => {
+    const gameplay = create();
+    await gameplay.load();
+    gameplay.draft.value!.perks.perks[1].excludedRooms = ["ABC234", " "];
+
+    await gameplay.save();
+
+    const sent = http.put.mock.calls[0][2] as GameplayConfig;
+    expect(sent.perks.perks.find((perk) => perk.id === "twin")!.excludedRooms).toEqual(["ABC234"]);
+  });
+
+  it("fills in the rooms of a perk an older server sent without them", async () => {
+    http.get.mockResolvedValue({
+      ...payload,
+      current: { revision: "r1", config: { ...config(), perks: { ...config().perks, perks: [{ id: "old", name: "Old", foodsRequired: 3, effects: [{ effect: "Magnet", amount: 1 }] }] } } },
+    });
+    const gameplay = create();
+
+    await gameplay.load();
+
+    expect(gameplay.draft.value!.perks.perks[0].rooms).toEqual([]);
+    expect(gameplay.draft.value!.perks.perks[0].excludedRooms).toEqual([]);
   });
 
   it("does not send an empty script", async () => {

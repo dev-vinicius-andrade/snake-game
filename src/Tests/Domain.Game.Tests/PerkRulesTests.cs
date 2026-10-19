@@ -574,4 +574,43 @@ public sealed class PerkRulesTests
 
         Assert.Equal(1, rules.EffectsFor(1, Room(code: "ABC234"), Here).ExtraShots);
     }
+
+    [Fact]
+    public void ExcludedRooms_APerkForEveryRoomCanLeaveSomeOut()
+    {
+        var rules = new PerkRules(new PerkOptions
+        {
+            Perks = [new PerkDefinition { Id = "a", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 10, ExcludedRooms = ["abc234", "Friends"] }]
+        });
+
+        Assert.Empty(rules.UnlockedIds(1, Room(code: "ABC234")));
+        Assert.Empty(rules.UnlockedIds(1, Room(name: "friends")));
+        Assert.Equal(new[] { "a" }, rules.UnlockedIds(1, Room(code: "OTHER1")));
+        Assert.Equal(new[] { "a" }, rules.UnlockedIds(1));
+    }
+
+    [Fact]
+    public void ExcludedRooms_WinOverTheRoomsAPerkIsFor()
+    {
+        var perk = new PerkDefinition { Id = "a", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 10, Rooms = ["ABC234"], ExcludedRooms = ["ABC234"] };
+
+        Assert.False(perk.AppliesTo(Room(code: "ABC234")));
+    }
+
+    [Fact]
+    public void ExcludedRooms_APerkWithAScriptStaysOffUntilRoomsAreNamed()
+    {
+        var perk = new PerkDefinition { Id = "a", FoodsRequired = 1, Script = "function modify(){return {};}", ExcludedRooms = ["X"] };
+
+        Assert.False(perk.AppliesTo(Room(code: "ABC234")));
+    }
+
+    [Fact]
+    public void Constructor_ABlankExcludedRoomIsRefused()
+    {
+        Assert.Throws<ArgumentException>(() => new PerkRules(new PerkOptions
+        {
+            Perks = [new PerkDefinition { Id = "a", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 1, ExcludedRooms = [""] }]
+        }));
+    }
 }

@@ -18,6 +18,8 @@ export interface PerkDefinition {
   effects: PerkEffectEntry[];
   /** Invite codes, names or ids of the rooms the perk works in. Empty: every room (a perk with a script: none). */
   rooms: string[];
+  /** Rooms the perk does not work in, even where `rooms` would allow it. */
+  excludedRooms: string[];
   /** JavaScript for logic the effects cannot say. The perk is off everywhere until it names rooms. */
   script?: string;
 }
@@ -137,10 +139,21 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     error.value = code === 400 ? ((failure as { serverMessage?: string }).serverMessage ?? "unavailable") : "unavailable";
   }
 
+  /** A server that does not know a field yet sends none: the lists are then empty. */
+  function complete(config: GameplayConfig): GameplayConfig {
+    const copy = clone(config);
+    for (const perk of copy.perks.perks) {
+      perk.effects ??= [];
+      perk.rooms ??= [];
+      perk.excludedRooms ??= [];
+    }
+    return copy;
+  }
+
   function take(document: GameplayDocument) {
     revision.value = document.revision;
-    saved.value = clone(document.config);
-    draft.value = clone(document.config);
+    saved.value = complete(document.config);
+    draft.value = complete(document.config);
   }
 
   async function load() {
@@ -167,6 +180,7 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     body.perks.perks.sort((first, second) => first.foodsRequired - second.foodsRequired);
     for (const perk of body.perks.perks) {
       perk.rooms = perk.rooms.map((room) => room.trim()).filter((room) => room.length > 0);
+      perk.excludedRooms = perk.excludedRooms.map((room) => room.trim()).filter((room) => room.length > 0);
       if (!perk.script?.trim()) delete perk.script;
     }
     try {
@@ -178,7 +192,7 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
   }
 
   function useDefaults() {
-    if (defaults.value) draft.value = clone(defaults.value);
+    if (defaults.value) draft.value = complete(defaults.value);
   }
 
   function revert() {
@@ -195,7 +209,7 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
   function addPerk() {
     if (!draft.value) return;
     const perks = draft.value.perks.perks;
-    perks.push({ id: freeId(perks), name: "New perk", foodsRequired: 10, effects: [newEffect()], rooms: [] });
+    perks.push({ id: freeId(perks), name: "New perk", foodsRequired: 10, effects: [newEffect()], rooms: [], excludedRooms: [] });
   }
 
   const newEffect = (): PerkEffectEntry => ({ effect: effects.value[0] ?? "ExtraShots", amount: 1 });
