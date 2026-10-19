@@ -142,7 +142,7 @@ onBeforeUnmount(() => {
       @toggle-mouse-aim="toggleMouseAim"
       @toggle-details="showDetails = !showDetails"
     />
-    <PerkList :perks="ownSnake?.perks ?? []" :catalog="perkCatalog.perks.value" />
+    <PerkList :perks="ownSnake?.perks ?? []" :tiers="ownSnake?.perkTiers" :catalog="perkCatalog.perks.value" />
     <PrizeHint :compass="compass" />
     <StrikeHint :warning="strikes" />
     <BossHint :compass="boss" />

@@ -16,6 +16,7 @@ function snake(path: Array<[number, number]>, overrides: Partial<SnakeSnapshot> 
     isAlive: true,
     isBoosting: false,
     perks: [],
+    perkTiers: [],
     autoFire: false,
     foodsEaten: 0,
     score: 0,

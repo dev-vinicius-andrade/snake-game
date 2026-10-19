@@ -2,12 +2,14 @@
 import { computed } from "vue";
 import type { CatalogPerk } from "@/composables/usePerkCatalog";
 import { perkLabel } from "@/game/perks";
-import { perkIcon, perkIconOf, perkParams, perkTooltipKey } from "@/game/perkInfo";
+import { perkIcon, perkIconOf, perkParams, perkTooltipKey, tierInfo, tierLabel } from "@/game/perkInfo";
 import { getText } from "@/helpers";
 
 const props = defineProps<{
   /** Ids of the perks the snake has, in the order it earned them. */
   perks: string[];
+  /** The tier of each of `perks`, in the same order. Missing: the first for all. */
+  tiers?: number[];
   /** What each perk is and does. Without it a perk is shown by its id. */
   catalog: CatalogPerk[];
 }>();
@@ -18,25 +20,32 @@ interface Shown {
   title: string;
   /** One sentence for each thing the perk does. */
   lines: string[];
+  /** The roman numeral of the tier, only for a perk that has gone past the first. */
+  badge: string;
 }
 
-function describe(id: string): Shown {
+function describe(id: string, index: number): Shown {
   const perk = props.catalog.find((candidate) => candidate.id === id);
-  if (!perk) return { id, icon: perkIcon(""), title: perkLabel(id), lines: [] };
+  const tier = props.tiers?.[index] ?? 1;
+  if (!perk) return { id, icon: perkIcon(""), title: perkLabel(id), lines: [], badge: tier > 1 ? tierLabel(tier) : "" };
+  const { multiplier, nextFoods } = tierInfo(perk, tier);
+  const hasTiers = perk.tiers.length > 0;
   return {
     id,
     icon: perkIconOf(perk),
-    title: perk.name || perkLabel(id),
+    title: hasTiers ? `${perk.name || perkLabel(id)} ${tierLabel(tier)}` : perk.name || perkLabel(id),
     lines: [
       ...(perk.description?.trim() ? [perk.description.trim()] : []),
       ...perk.effects.map((entry) =>
-        getText({ key: perkTooltipKey(entry.effect), params: perkParams({ ...entry, foodsRequired: perk.foodsRequired }) })
+        getText({ key: perkTooltipKey(entry.effect), params: perkParams({ ...entry, foodsRequired: perk.foodsRequired }, multiplier) })
       ),
+      ...(nextFoods === null ? [] : [getText({ key: "game.perkNextTier", params: { foods: nextFoods } })]),
     ],
+    badge: tier > 1 ? tierLabel(tier) : "",
   };
 }
 
-const shown = computed(() => props.perks.map(describe));
+const shown = computed(() => props.perks.map((id, index) => describe(id, index)));
 </script>
 
 <template>
@@ -45,6 +54,7 @@ const shown = computed(() => props.perks.map(describe));
       <template #activator="{ props: activator }">
         <span class="perk" tabindex="0" :aria-label="`${perk.title}. ${perk.lines.join('. ')}`" v-bind="activator">
           <VIcon size="small">{{ perk.icon }}</VIcon>
+          <span v-if="perk.badge" class="perk-tier" aria-hidden="true">{{ perk.badge }}</span>
         </span>
       </template>
       <div class="perk-title">{{ perk.title }}</div>
@@ -68,7 +78,20 @@ const shown = computed(() => props.perks.map(describe));
   max-width: min(60vw, 520px);
   transform: translateX(-50%);
 }
+.perk-tier {
+  position: absolute;
+  right: -4px;
+  bottom: -6px;
+  padding: 0 2px;
+  color: #ffd23f;
+  font-family: monospace;
+  font-size: 9px;
+  line-height: 11px;
+  background: #1b1405;
+  border: 1px solid #b8860b;
+}
 .perk {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;

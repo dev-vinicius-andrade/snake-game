@@ -55,10 +55,20 @@ function parseSingleColor(raw: unknown): GameColor {
   return color ? { fillColor: color, border: color } : { ...DEFAULT_COLOR };
 }
 
+/** The tier of each perk: one for each, the first when it says nothing or something that is not a tier from 1 to 5. */
+function parseTiers(raw: unknown, count: number): number[] {
+  const sent = asList(raw);
+  return Array.from({ length: count }, (_, index) => {
+    const tier = sent[index];
+    return isFinite(tier) && Number.isInteger(tier) && tier >= 1 && tier <= 5 ? tier : 1;
+  });
+}
+
 function parseSnake(player: unknown): SnakeSnapshot | null {
   if (!isDictionary(player)) return null;
   const path = parsePath(player.path);
   if (path.length === 0) return null;
+  const perks = asList(player.perks).filter((perk): perk is string => typeof perk === "string");
   return {
     guid: asString(player.guid) ?? "",
     connectionId: asString(player.id) ?? "",
@@ -68,7 +78,8 @@ function parseSnake(player: unknown): SnakeSnapshot | null {
     segmentHealth: alignHealth(player.health, path.length),
     isAlive: player.dead !== true,
     isBoosting: player.boost === true,
-    perks: asList(player.perks).filter((perk): perk is string => typeof perk === "string"),
+    perks,
+    perkTiers: parseTiers(player.pt, perks.length),
     autoFire: player.autoFire === true,
     foodsEaten: isFinite(player.foodsEaten) ? player.foodsEaten : 0,
     score: isFinite(player.score) ? player.score : 0,

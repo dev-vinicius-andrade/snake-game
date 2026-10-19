@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import en from "@/locales/messages/en";
 import pt from "@/locales/messages/pt";
-import { PERK_EFFECTS, PERK_ICON_CHOICES, perkIcon, perkIconOf, perkParams, perkTooltipKey } from "./perkInfo";
+import { PERK_EFFECTS, PERK_ICON_CHOICES, perkIcon, perkIconOf, perkParams, perkTooltipKey, tierInfo, tierLabel } from "./perkInfo";
 
 describe("perkInfo", () => {
   it("knows an icon for every effect the server has, and a fallback for others", () => {
@@ -51,5 +51,43 @@ describe("perkInfo", () => {
   it("rounds odd amounts so a tooltip stays readable", () => {
     expect(perkParams({ effect: "Armor", amount: 0.3333333, foodsRequired: 20 }).percent).toBe(33);
     expect(perkParams({ effect: "BoostSpeed", amount: 0.25000001, foodsRequired: 8 }).amount).toBe(0.25);
+  });
+});
+
+describe("tierLabel", () => {
+  it("is the roman numeral of the tier", () => {
+    expect([1, 2, 3, 4, 5].map(tierLabel)).toEqual(["I", "II", "III", "IV", "V"]);
+    expect(tierLabel(7)).toBe("7");
+  });
+});
+
+describe("tierInfo", () => {
+  const perk = { foodsRequired: 6, tiers: [{ foodsRequired: 24, multiplier: 2 }, { foodsRequired: 12, multiplier: 1.5 }] };
+
+  it("says what a tier multiplies by and what the next one asks for, whatever order the tiers came in", () => {
+    expect(tierInfo(perk, 1)).toEqual({ multiplier: 1, nextFoods: 12 });
+    expect(tierInfo(perk, 2)).toEqual({ multiplier: 1.5, nextFoods: 24 });
+    expect(tierInfo(perk, 3)).toEqual({ multiplier: 2, nextFoods: null });
+  });
+
+  it("is the first tier for a perk that has none, or a tier that does not exist", () => {
+    expect(tierInfo({ foodsRequired: 6 }, 1)).toEqual({ multiplier: 1, nextFoods: null });
+    expect(tierInfo(perk, 9)).toEqual({ multiplier: 2, nextFoods: null });
+    expect(tierInfo(perk, 0)).toEqual({ multiplier: 1, nextFoods: 12 });
+  });
+});
+
+describe("perkParams with a tier", () => {
+  it("scales the amount by the tier", () => {
+    expect(perkParams({ effect: "Magnet", amount: 60, foodsRequired: 6 }, 1.5)).toMatchObject({ amount: 90, foods: 6 });
+    expect(perkParams({ effect: "ExtraShots", amount: 1, foodsRequired: 6 }, 2)).toMatchObject({ count: 3 });
+  });
+
+  it("keeps a ratio under what the game allows", () => {
+    expect(perkParams({ effect: "Armor", amount: 0.6, foodsRequired: 6 }, 4)).toMatchObject({ amount: 0.95, percent: 95 });
+  });
+
+  it("is what it always was without a tier", () => {
+    expect(perkParams({ effect: "Magnet", amount: 60, foodsRequired: 6 })).toMatchObject({ amount: 60 });
   });
 });

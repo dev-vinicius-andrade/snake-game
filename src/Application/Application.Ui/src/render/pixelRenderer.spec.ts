@@ -52,6 +52,7 @@ function snake(overrides: Partial<SnakeSnapshot> = {}): SnakeSnapshot {
     isAlive: true,
     isBoosting: false,
     perks: [],
+    perkTiers: [],
     autoFire: false,
     foodsEaten: 0,
     score: 0,

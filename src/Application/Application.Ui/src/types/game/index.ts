@@ -30,6 +30,8 @@ export interface SnakeSnapshot {
   isBoosting: boolean;
   /** Ids of the perks the snake has earned, in the order it earned them. */
   perks: string[];
+  /** The tier of each of `perks`, 1 for the first, in the same order. */
+  perkTiers: number[];
   /** True with the auto fire perk: holding the shoot control keeps shooting. */
   autoFire: boolean;
   /** Foods eaten in this life; perks are earned from it. */

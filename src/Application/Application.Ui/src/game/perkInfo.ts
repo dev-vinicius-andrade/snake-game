@@ -91,12 +91,32 @@ interface PerkLike {
 
 const rounded = (value: number, decimals = 2) => Math.round(value * 10 ** decimals) / 10 ** decimals;
 
-/** The numbers a tooltip talks about: the amount, the same as a percent, the shots in a volley or burst, the foods needed. */
-export function perkParams(perk: PerkLike) {
+/** The effects whose amount is a share, which the game never lets a tier push past this. */
+const RATIO_EFFECTS = ["FasterReload", "EfficientBoost", "Armor"];
+const MAX_SCALED_RATIO = 0.95;
+
+/** The numbers a tooltip talks about: the amount, the same as a percent, the shots in a volley or burst, the foods needed. A tier scales the amount. */
+export function perkParams(perk: PerkLike, multiplier = 1) {
+  const scaled = RATIO_EFFECTS.includes(perk.effect) ? Math.min(MAX_SCALED_RATIO, perk.amount * multiplier) : perk.amount * multiplier;
   return {
-    amount: rounded(perk.amount),
-    percent: Math.round(perk.amount * 100),
-    count: Math.round(perk.amount) + 1,
+    amount: rounded(scaled),
+    percent: Math.round(scaled * 100),
+    count: Math.round(scaled) + 1,
     foods: perk.foodsRequired,
   };
+}
+
+interface Tiered {
+  foodsRequired: number;
+  tiers?: Array<{ foodsRequired: number; multiplier: number }>;
+}
+
+/** The roman numeral of a tier, for the badge on a perk. */
+export const tierLabel = (tier: number): string => ["I", "II", "III", "IV", "V"][tier - 1] ?? String(tier);
+
+/** What a tier of a perk multiplies its amounts by (1 for the first) and how many foods the next tier asks for (null at the top). */
+export function tierInfo(perk: Tiered, tier: number): { multiplier: number; nextFoods: number | null } {
+  const steps = [...(perk.tiers ?? [])].sort((first, second) => first.foodsRequired - second.foodsRequired);
+  const at = Math.min(Math.max(tier, 1), steps.length + 1);
+  return { multiplier: at === 1 ? 1 : steps[at - 2].multiplier, nextFoods: steps[at - 1]?.foodsRequired ?? null };
 }

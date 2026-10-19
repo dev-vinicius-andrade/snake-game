@@ -14,6 +14,7 @@ const snake = (x: number, y: number, overrides: Partial<SnakeSnapshot> = {}): Sn
   isAlive: true,
   isBoosting: false,
   perks: [],
+    perkTiers: [],
   autoFire: false,
   foodsEaten: 0,
   score: 0,

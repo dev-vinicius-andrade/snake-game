@@ -289,6 +289,7 @@ export const messages = {
     ping: "Ping",
     perks: "Poderes",
     prize: "Prêmio",
+    perkNextTier: "Próximo nível com {foods} comidas. Abates e chefes também contam.",
     lightning: { warning: "Raio a caminho!", danger: "Raio! Saia do círculo!" },
     boss: { name: "Torre" },
     zone: {

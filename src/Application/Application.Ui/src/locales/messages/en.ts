@@ -289,6 +289,7 @@ export const messages = {
     ping: "Ping",
     perks: "Perks",
     prize: "Prize",
+    perkNextTier: "Next tier at {foods} foods. Kills and bosses count too.",
     lightning: { warning: "Lightning incoming!", danger: "Lightning! Get out of the circle!" },
     boss: { name: "Turret" },
     zone: {
