@@ -50,14 +50,37 @@ onMounted(() => void gameplay.load());
           </VCol>
         </VRow>
 
-        <div v-for="(perk, index) in draft.perks.perks" :key="index" class="perk-row">
-          <VTextField v-model="perk.id" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkId' })" />
-          <VTextField v-model="perk.name" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkName' })" />
-          <VTextField v-model.number="perk.foodsRequired" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkFoods' })" />
-          <VSelect v-model="perk.effect" :items="effectItems" item-title="title" item-value="value" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkEffect' })" />
-          <VTextField v-model.number="perk.amount" type="number" step="any" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkAmount' })" />
-          <VBtn size="small" variant="text" color="error" @click="gameplay.removePerk(index)">{{ getText({ key: "admin.gameplay.removePerk" }) }}</VBtn>
-          <div class="perk-help">{{ effectHelp(perk.effect) }}</div>
+        <div v-for="(perk, index) in draft.perks.perks" :key="index" class="perk-card">
+          <div class="perk-row">
+            <VTextField v-model="perk.id" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkId' })" />
+            <VTextField v-model="perk.name" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkName' })" />
+            <VTextField v-model.number="perk.foodsRequired" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkFoods' })" />
+            <VBtn size="small" variant="text" color="error" @click="gameplay.removePerk(index)">{{ getText({ key: "admin.gameplay.removePerk" }) }}</VBtn>
+          </div>
+
+          <template v-for="(entry, effectIndex) in perk.effects" :key="effectIndex">
+            <div class="perk-row perk-effect">
+              <VSelect v-model="entry.effect" :items="effectItems" item-title="title" item-value="value" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkEffect' })" />
+              <VTextField v-model.number="entry.amount" type="number" step="any" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkAmount' })" />
+              <VBtn size="small" variant="text" :disabled="perk.effects.length <= 1 && !perk.script?.trim()" @click="gameplay.removeEffect(index, effectIndex)">
+                {{ getText({ key: "admin.gameplay.removeEffect" }) }}
+              </VBtn>
+              <div class="perk-help">{{ effectHelp(entry.effect) }}</div>
+            </div>
+          </template>
+          <VBtn size="x-small" variant="text" class="mt-1" @click="gameplay.addEffect(index)">{{ getText({ key: "admin.gameplay.addEffect" }) }}</VBtn>
+
+          <VCombobox
+            v-model="perk.rooms"
+            multiple
+            chips
+            closable-chips
+            density="compact"
+            class="mt-2"
+            :label="getText({ key: 'admin.gameplay.rooms' })"
+            :hint="getText({ key: 'admin.gameplay.roomsHint' })"
+            persistent-hint
+          />
         </div>
 
         <VBtn class="mt-2" size="small" @click="gameplay.addPerk">{{ getText({ key: "admin.gameplay.addPerk" }) }}</VBtn>
@@ -106,26 +129,28 @@ onMounted(() => void gameplay.load());
 </template>
 
 <style scoped>
-/* One row per perk: the fields side by side, wrapping onto more lines as the screen narrows, with what the effect means underneath. */
+/* One card per perk. Inside it the fields sit side by side and wrap onto more lines as the screen narrows. */
+.perk-card {
+  margin-top: 14px;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--snake-line);
+}
 .perk-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  margin-top: 12px;
+  margin-top: 8px;
 }
 .perk-row > * {
   flex: 1 1 130px;
   min-width: 0;
 }
-.perk-row > :nth-child(3) {
-  flex: 0 1 120px;
-}
-.perk-row > :nth-child(4) {
-  flex: 2 1 190px;
-}
-.perk-row > :nth-child(6) {
+.perk-row > :last-child:is(button) {
   flex: 0 0 auto;
+}
+.perk-effect {
+  margin-left: 14px;
 }
 .perk-help {
   flex-basis: 100%;

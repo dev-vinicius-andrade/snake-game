@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { usePerkCatalog, type PerkCatalogHttp } from "./usePerkCatalog";
 
-const perk = { id: "magnet", name: "Magnet", foodsRequired: 6, effect: "Magnet", amount: 60 };
+const perk = { id: "magnet", name: "Magnet", foodsRequired: 6, effects: [{ effect: "Magnet", amount: 60 }] };
 
 const create = (get: PerkCatalogHttp["get"]) => usePerkCatalog({ managerUrl: "http://manager.test/", http: { get } });
 
@@ -51,7 +51,7 @@ describe("usePerkCatalog", () => {
   });
 
   it("drops entries that are not perks", async () => {
-    const catalog = create(async () => ({ revision: "r1", perks: [perk, null, { id: 5 }] }) as never);
+    const catalog = create(async () => ({ revision: "r1", perks: [perk, null, { id: 5 }, { id: "x", effects: "nope" }] }) as never);
 
     await catalog.load();
 

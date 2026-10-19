@@ -8,8 +8,8 @@ const config = (overrides: Partial<GameplayConfig["prize"]> = {}): GameplayConfi
     shotSpreadDegrees: 12,
     burstIntervalMilliseconds: 80,
     perks: [
-      { id: "magnet", name: "Magnet", foodsRequired: 6, effect: "Magnet", amount: 60 },
-      { id: "twin", name: "Twin shot", foodsRequired: 15, effect: "ExtraShots", amount: 1 },
+      { id: "magnet", name: "Magnet", foodsRequired: 6, effects: [{ effect: "Magnet", amount: 60 }], rooms: [] },
+      { id: "twin", name: "Twin shot", foodsRequired: 15, effects: [{ effect: "ExtraShots", amount: 1 }], rooms: [] },
     ],
   },
   prize: { enabled: true, spawnIntervalSeconds: 60, lifetimeSeconds: 45, value: 20, foodsCredit: 8, minPlayers: 2, ...overrides },
@@ -149,7 +149,7 @@ describe("useAdminGameplay", () => {
     const perks = gameplay.draft.value!.perks.perks;
     expect(perks).toHaveLength(4);
     expect(new Set(perks.map((perk) => perk.id)).size).toBe(4);
-    expect(perks[2]).toMatchObject({ foodsRequired: 10, effect: "ExtraShots", amount: 1 });
+    expect(perks[2]).toMatchObject({ foodsRequired: 10, effects: [{ effect: "ExtraShots", amount: 1 }], rooms: [] });
   });
 
   it("removes a perk", async () => {
@@ -176,8 +176,73 @@ describe("useAdminGameplay", () => {
     const gameplay = create();
     await gameplay.load();
 
-    gameplay.draft.value!.perks.perks[0].amount = 1;
+    gameplay.draft.value!.perks.perks[0].effects[0].amount = 1;
 
-    expect(gameplay.saved.value!.perks.perks[0].amount).toBe(60);
+    expect(gameplay.saved.value!.perks.perks[0].effects[0].amount).toBe(60);
+  });
+
+  it("adds an effect to a perk, so a perk can do several things", async () => {
+    const gameplay = create();
+    await gameplay.load();
+
+    gameplay.addEffect(0);
+
+    const effects = gameplay.draft.value!.perks.perks[0].effects;
+    expect(effects).toHaveLength(2);
+    expect(effects[1]).toEqual({ effect: "ExtraShots", amount: 1 });
+  });
+
+  it("removes an effect of a perk, but never the last one", async () => {
+    const gameplay = create();
+    await gameplay.load();
+    gameplay.addEffect(0);
+
+    gameplay.removeEffect(0, 0);
+    gameplay.removeEffect(0, 0);
+
+    expect(gameplay.draft.value!.perks.perks[0].effects).toHaveLength(1);
+  });
+
+  it("a perk with a script may have no effect of its own", async () => {
+    const gameplay = create();
+    await gameplay.load();
+    gameplay.draft.value!.perks.perks[0].script = "function modify() { return {}; }";
+
+    gameplay.removeEffect(0, 0);
+
+    expect(gameplay.draft.value!.perks.perks[0].effects).toHaveLength(0);
+  });
+
+  it("keeps the rooms of a perk through a save", async () => {
+    const gameplay = create();
+    await gameplay.load();
+    gameplay.draft.value!.perks.perks[1].rooms = ["ABC234"];
+
+    await gameplay.save();
+
+    const sent = http.put.mock.calls[0][2] as GameplayConfig;
+    expect(sent.perks.perks.find((perk) => perk.id === "twin")!.rooms).toEqual(["ABC234"]);
+  });
+
+  it("does not send blank rooms", async () => {
+    const gameplay = create();
+    await gameplay.load();
+    gameplay.draft.value!.perks.perks[1].rooms = ["ABC234", "  ", ""];
+
+    await gameplay.save();
+
+    const sent = http.put.mock.calls[0][2] as GameplayConfig;
+    expect(sent.perks.perks.find((perk) => perk.id === "twin")!.rooms).toEqual(["ABC234"]);
+  });
+
+  it("does not send an empty script", async () => {
+    const gameplay = create();
+    await gameplay.load();
+    gameplay.draft.value!.perks.perks[0].script = "   ";
+
+    await gameplay.save();
+
+    const sent = http.put.mock.calls[0][2] as GameplayConfig;
+    expect(sent.perks.perks[0].script).toBeUndefined();
   });
 });

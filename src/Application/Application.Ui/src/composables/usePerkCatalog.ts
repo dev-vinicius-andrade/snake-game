@@ -2,12 +2,16 @@ import axios from "axios";
 import { shallowRef } from "vue";
 import { resolveManagerUrl } from "@/config/env";
 
+export interface CatalogEffect {
+  effect: string;
+  amount: number;
+}
+
 export interface CatalogPerk {
   id: string;
   name: string;
   foodsRequired: number;
-  effect: string;
-  amount: number;
+  effects: CatalogEffect[];
 }
 
 export interface PerkCatalogReply {
@@ -30,8 +34,8 @@ const isPerk = (value: unknown): value is CatalogPerk =>
   typeof value === "object" &&
   value !== null &&
   typeof (value as CatalogPerk).id === "string" &&
-  typeof (value as CatalogPerk).effect === "string" &&
-  Number.isFinite((value as CatalogPerk).amount);
+  Array.isArray((value as CatalogPerk).effects) &&
+  (value as CatalogPerk).effects.every((entry) => typeof entry?.effect === "string" && Number.isFinite(entry.amount));
 
 /** What each perk is and does, so a perk id from a snapshot can be shown as an icon with a tooltip. */
 export function usePerkCatalog(options: UsePerkCatalogOptions = {}) {

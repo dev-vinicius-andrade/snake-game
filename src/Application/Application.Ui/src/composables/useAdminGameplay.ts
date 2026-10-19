@@ -5,12 +5,21 @@ import { ADMIN_KEY_STORAGE_KEY, type KeyStorage } from "./useAdminRooms";
 
 export type PerkEffect = string;
 
+export interface PerkEffectEntry {
+  effect: PerkEffect;
+  amount: number;
+}
+
 export interface PerkDefinition {
   id: string;
   name: string;
   foodsRequired: number;
-  effect: PerkEffect;
-  amount: number;
+  /** Everything the perk does. Empty only for a perk whose script does it. */
+  effects: PerkEffectEntry[];
+  /** Invite codes, names or ids of the rooms the perk works in. Empty: every room (a perk with a script: none). */
+  rooms: string[];
+  /** JavaScript for logic the effects cannot say. The perk is off everywhere until it names rooms. */
+  script?: string;
 }
 
 export interface GameplayConfig {
@@ -156,6 +165,10 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     error.value = null;
     const body = clone(draft.value);
     body.perks.perks.sort((first, second) => first.foodsRequired - second.foodsRequired);
+    for (const perk of body.perks.perks) {
+      perk.rooms = perk.rooms.map((room) => room.trim()).filter((room) => room.length > 0);
+      if (!perk.script?.trim()) delete perk.script;
+    }
     try {
       take(await http.put(url, adminKey, body));
       status.value = "saved";
@@ -182,12 +195,25 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
   function addPerk() {
     if (!draft.value) return;
     const perks = draft.value.perks.perks;
-    perks.push({ id: freeId(perks), name: "New perk", foodsRequired: 10, effect: effects.value[0] ?? "ExtraShots", amount: 1 });
+    perks.push({ id: freeId(perks), name: "New perk", foodsRequired: 10, effects: [newEffect()], rooms: [] });
+  }
+
+  const newEffect = (): PerkEffectEntry => ({ effect: effects.value[0] ?? "ExtraShots", amount: 1 });
+
+  function addEffect(perkIndex: number) {
+    draft.value?.perks.perks[perkIndex]?.effects.push(newEffect());
+  }
+
+  /** A perk keeps its last effect, unless a script is there to do the work. */
+  function removeEffect(perkIndex: number, effectIndex: number) {
+    const perk = draft.value?.perks.perks[perkIndex];
+    if (!perk || (perk.effects.length <= 1 && !perk.script?.trim())) return;
+    perk.effects.splice(effectIndex, 1);
   }
 
   function removePerk(index: number) {
     draft.value?.perks.perks.splice(index, 1);
   }
 
-  return { status, error, draft, saved, effects, revision, dirty, load, save, useDefaults, revert, addPerk, removePerk };
+  return { status, error, draft, saved, effects, revision, dirty, load, save, useDefaults, revert, addPerk, removePerk, addEffect, removeEffect };
 }
