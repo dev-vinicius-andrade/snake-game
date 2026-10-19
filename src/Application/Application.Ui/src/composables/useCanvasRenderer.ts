@@ -11,7 +11,12 @@ export interface RenderSource {
  * Redraws the canvas every animation frame from the latest source. The canvas bitmap stays at logical
  * (pixel art) size; CSS scales it up without smoothing.
  */
-export function useCanvasRenderer(canvas: Ref<HTMLCanvasElement | null>, source: () => RenderSource) {
+export function useCanvasRenderer(
+  canvas: Ref<HTMLCanvasElement | null>,
+  source: () => RenderSource,
+  /** Told after each frame is drawn: when, and how long the drawing took. */
+  onFrame?: (nowMs: number, drawMs: number) => void
+) {
   let frame = 0;
 
   function tick() {
@@ -25,7 +30,10 @@ export function useCanvasRenderer(canvas: Ref<HTMLCanvasElement | null>, source:
     if (element.width !== size.width) element.width = size.width;
     if (element.height !== size.height) element.height = size.height;
     context.imageSmoothingEnabled = false;
+    const started = performance.now();
     drawFrame(context, snapshot, options);
+    const finished = performance.now();
+    onFrame?.(finished, finished - started);
   }
 
   onMounted(() => {

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { useElementSize } from "@vueuse/core";
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import PerfOverlay from "@/components/game/PerfOverlay.vue";
+import { FramePerf } from "@/render/framePerf";
 import { useCanvasRenderer } from "@/composables/useCanvasRenderer";
 import { followCamera, viewLayout, type Camera } from "@/render/camera";
 import { StrikeTracker } from "@/render/strikes";
@@ -36,6 +38,21 @@ function target(snapshot: GameSnapshot): GamePoint {
 const buffer = new SnapshotBuffer({ jitterCorrection: 0.1 });
 /** The camera follows the snake a little behind, so quickly turning left and right does not shake the screen. */
 const smoother = new CameraSmoother();
+
+/** How smooth the game is: also at `window.__snakePerf`, so it can be read from the console. */
+const perf = new FramePerf();
+const showPerf = ref(new URLSearchParams(window.location.search).has("perf"));
+function togglePerf(event: KeyboardEvent) {
+  if (event.key === "F3") {
+    event.preventDefault();
+    showPerf.value = !showPerf.value;
+  }
+}
+onMounted(() => {
+  (window as unknown as { __snakePerf?: FramePerf }).__snakePerf = perf;
+  window.addEventListener("keydown", togglePerf);
+});
+onBeforeUnmount(() => window.removeEventListener("keydown", togglePerf));
 /** Lightning warnings are shown as they arrive, not a moment in the past: the countdown is the server's, not the snakes' motion. */
 const strikeTracker = new StrikeTracker();
 watch(
@@ -43,6 +60,10 @@ watch(
   (snapshot) => {
     if (snapshot) {
       buffer.push(snapshot, performance.now());
+      perf.snapshot(
+        performance.now(),
+        snapshot.snakes.reduce((total, snake) => total + snake.path.length, 0)
+      );
       strikeTracker.observeFrame(snapshot, performance.now());
     } else {
       buffer.clear();
@@ -57,17 +78,34 @@ interface Frame {
   camera: Camera | null;
 }
 
+/** The last frame worked out, and when: the aim sources ask where the camera is far more often than a frame is drawn. */
+let worked: { frame: Frame | null; at: number } | null = null;
+/** Something that only asks where the camera is may use a frame this old. */
+const REUSE_FRAME_MS = 8;
+
 /** What to draw now, and where the camera is. Null until there is a snapshot. */
-function currentFrame(): Frame | null {
-  const snapshot = buffer.sample(performance.now());
+function workOutFrame(): Frame | null {
+  const now = performance.now();
+  perf.sampled(now);
+  const snapshot = buffer.sample(now);
   if (!snapshot) return null;
   if (!layout.value) return { snapshot, camera: null };
   const focus = target(snapshot);
-  const center = smoother.step(focus, performance.now(), snapshot.room);
-  return { snapshot, camera: followCamera(layout.value, snapshot.room, focus, center) };
+  const center = smoother.step(focus, now, snapshot.room);
+  const camera = followCamera(layout.value, snapshot.room, focus, center);
+  perf.camera(camera.origin, now);
+  return { snapshot, camera };
 }
 
-const currentCamera = (): Camera | null => currentFrame()?.camera ?? null;
+/** A frame for drawing is always fresh; a question about the camera is answered from the last frame when that is recent. */
+function currentFrame(fresh = true): Frame | null {
+  const now = performance.now();
+  if (!fresh && worked && now - worked.at < REUSE_FRAME_MS) return worked.frame;
+  worked = { frame: workOutFrame(), at: now };
+  return worked.frame;
+}
+
+const currentCamera = (): Camera | null => currentFrame(false)?.camera ?? null;
 
 /** Where the canvas is on the page, so pointer positions can be turned into positions on the screen. */
 function getRect(): StageRect | null {
@@ -77,7 +115,9 @@ function getRect(): StageRect | null {
 
 defineExpose({ getRect, getCamera: currentCamera });
 
-useCanvasRenderer(canvas, () => {
+useCanvasRenderer(
+  canvas,
+  () => {
   const frame = currentFrame();
   return {
     snapshot: frame?.snapshot ?? null,
@@ -90,11 +130,14 @@ useCanvasRenderer(canvas, () => {
       view: frame?.camera?.view,
     },
   };
-});
+  },
+  (now, drawMs) => perf.frame(now, drawMs, buffer.starved)
+);
 </script>
 
 <template>
   <canvas ref="canvas" class="game-stage" />
+  <PerfOverlay v-if="showPerf" :perf="perf" />
 </template>
 
 <style scoped>

@@ -88,6 +88,7 @@ export class SnapshotBuffer {
   private stamped: Stamped[] = [];
   private lastArrival = 0;
   private intervalMs = 0;
+  private wasStarved = false;
 
   constructor(options: SnapshotBufferOptions = {}) {
     this.delayMs = options.delayMs ?? DEFAULT_DELAY_MS;
@@ -97,6 +98,11 @@ export class SnapshotBuffer {
 
   get size() {
     return this.stamped.length;
+  }
+
+  /** True when the last `sample` had no newer snapshot to blend toward, so the world was shown standing still. */
+  get starved() {
+    return this.wasStarved;
   }
 
   /** Adds a snapshot that arrived at `atMs`. One that arrives with an earlier time than the newest is ignored. */
@@ -128,7 +134,8 @@ export class SnapshotBuffer {
     if (this.stamped.length === 0) return null;
     const shown = nowMs - this.delayMs;
     const newest = this.stamped[this.stamped.length - 1];
-    if (shown >= newest.at) return newest.snapshot;
+    this.wasStarved = shown >= newest.at;
+    if (this.wasStarved) return newest.snapshot;
 
     const next = this.stamped.findIndex((entry) => entry.at >= shown);
     if (next <= 0) return this.stamped[0].snapshot;

@@ -152,6 +152,17 @@ describe("SnapshotBuffer", () => {
     expect(new SnapshotBuffer().sample(100)).toBeNull();
   });
 
+  it("says when there was nothing newer to blend toward", () => {
+    const buffer = new SnapshotBuffer({ delayMs: 50 });
+    buffer.push(at(100), 1000);
+    buffer.push(at(130), 1033);
+
+    buffer.sample(1060);
+    expect(buffer.starved).toBe(false);
+    buffer.sample(1200);
+    expect(buffer.starved).toBe(true);
+  });
+
   it("shows the only snapshot it has", () => {
     const buffer = new SnapshotBuffer({ delayMs: 50 });
     buffer.push(at(100), 1000);
