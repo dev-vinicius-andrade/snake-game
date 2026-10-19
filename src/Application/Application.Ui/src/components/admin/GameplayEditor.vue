@@ -50,26 +50,15 @@ onMounted(() => void gameplay.load());
           </VCol>
         </VRow>
 
-        <VRow v-for="(perk, index) in draft.perks.perks" :key="index" dense class="perk-row" align="start">
-          <VCol cols="6" md="2">
-            <VTextField v-model="perk.id" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkId' })" />
-          </VCol>
-          <VCol cols="6" md="2">
-            <VTextField v-model="perk.name" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkName' })" />
-          </VCol>
-          <VCol cols="4" md="1">
-            <VTextField v-model.number="perk.foodsRequired" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkFoods' })" />
-          </VCol>
-          <VCol cols="8" md="2">
-            <VSelect v-model="perk.effect" :items="effectItems" item-title="title" item-value="value" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkEffect' })" />
-          </VCol>
-          <VCol cols="8" md="3">
-            <VTextField v-model.number="perk.amount" type="number" step="any" density="compact" :hint="effectHelp(perk.effect)" persistent-hint :label="getText({ key: 'admin.gameplay.perkAmount' })" />
-          </VCol>
-          <VCol cols="4" md="2">
-            <VBtn size="small" variant="text" color="error" @click="gameplay.removePerk(index)">{{ getText({ key: "admin.gameplay.removePerk" }) }}</VBtn>
-          </VCol>
-        </VRow>
+        <div v-for="(perk, index) in draft.perks.perks" :key="index" class="perk-row">
+          <VTextField v-model="perk.id" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkId' })" />
+          <VTextField v-model="perk.name" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkName' })" />
+          <VTextField v-model.number="perk.foodsRequired" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkFoods' })" />
+          <VSelect v-model="perk.effect" :items="effectItems" item-title="title" item-value="value" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkEffect' })" />
+          <VTextField v-model.number="perk.amount" type="number" step="any" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkAmount' })" />
+          <VBtn size="small" variant="text" color="error" @click="gameplay.removePerk(index)">{{ getText({ key: "admin.gameplay.removePerk" }) }}</VBtn>
+          <div class="perk-help">{{ effectHelp(perk.effect) }}</div>
+        </div>
 
         <VBtn class="mt-2" size="small" @click="gameplay.addPerk">{{ getText({ key: "admin.gameplay.addPerk" }) }}</VBtn>
       </VCardText>
@@ -115,3 +104,34 @@ onMounted(() => void gameplay.load());
   </div>
   <div v-else-if="errorText" class="text-error" role="alert">{{ errorText }}</div>
 </template>
+
+<style scoped>
+/* One row per perk: the fields side by side, wrapping onto more lines as the screen narrows, with what the effect means underneath. */
+.perk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+.perk-row > * {
+  flex: 1 1 130px;
+  min-width: 0;
+}
+.perk-row > :nth-child(3) {
+  flex: 0 1 120px;
+}
+.perk-row > :nth-child(4) {
+  flex: 2 1 190px;
+}
+.perk-row > :nth-child(6) {
+  flex: 0 0 auto;
+}
+.perk-help {
+  flex-basis: 100%;
+  margin-top: -2px;
+  padding-left: 2px;
+  font-size: 12px;
+  opacity: 0.65;
+}
+</style>
