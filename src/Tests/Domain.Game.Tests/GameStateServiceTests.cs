@@ -1717,4 +1717,63 @@ public sealed class GameStateServiceTests
         Assert.Empty(died);
         Assert.Equal(10, dead.Score);
     }
+
+    // The snake that is struck or left outside the zone is told how much mass it lost, at its head.
+
+    [Fact]
+    public void StrikeArea_TellsTheSnakeHowMuchMassTheStrikeCost_AtItsHead()
+    {
+        var victim = AddPlayer("victim", 500, 500, length: 11, score: 10);
+
+        _service.StrikeArea(_state, Middle(victim.Path[1].X), Middle(500), HeadSize * 1.2);
+
+        var lost = Assert.Single(_state.Hits, hit => hit.Kind == DamageKind.Lost);
+        Assert.Equal((Guid.Empty, victim.Guid, 3.0), (lost.ShooterGuid, lost.TargetGuid, lost.Damage));
+        Assert.Equal((victim.CurrentPosition.X, victim.CurrentPosition.Y), (lost.X, lost.Y));
+    }
+
+    [Fact]
+    public void StrikeArea_AHeadHit_TellsTheSnakeItLostItsWholeMass()
+    {
+        var victim = AddPlayer("victim", 500, 500, length: 11, score: 10);
+
+        _service.StrikeArea(_state, Middle(500), Middle(500), 5);
+
+        var lost = Assert.Single(_state.Hits, hit => hit.Kind == DamageKind.Lost);
+        Assert.Equal((victim.Guid, 10.0), (lost.TargetGuid, lost.Damage));
+    }
+
+    [Fact]
+    public void StrikeArea_NothingHit_TellsNobody()
+    {
+        AddPlayer("other", 500, 500, length: 11, score: 10);
+
+        _service.StrikeArea(_state, 1500, 900, 100);
+
+        Assert.Empty(_state.Hits);
+    }
+
+    [Fact]
+    public void ApplyZoneDamage_TellsTheSnakeHowMuchItLost_AtItsHead()
+    {
+        var outside = AddPlayer("outside", 1500, 900, score: 10);
+
+        _service.ApplyZoneDamage(_state, 300, 300, 100, 4);
+
+        var lost = Assert.Single(_state.Hits);
+        Assert.Equal((DamageKind.Lost, outside.Guid, 4.0), (lost.Kind, lost.TargetGuid, lost.Damage));
+        Assert.Equal(Guid.Empty, lost.ShooterGuid);
+        Assert.Equal((outside.CurrentPosition.X, outside.CurrentPosition.Y), (lost.X, lost.Y));
+    }
+
+    [Fact]
+    public void ApplyZoneDamage_ASnakeInsideOrOneThatDies_GetsNoLossNotice()
+    {
+        AddPlayer("inside", 300, 300, score: 10);
+        AddPlayer("broke", 1500, 900, score: 0);
+
+        _service.ApplyZoneDamage(_state, 300, 300, 100, 4);
+
+        Assert.Empty(_state.Hits);
+    }
 }

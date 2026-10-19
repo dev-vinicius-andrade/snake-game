@@ -553,6 +553,7 @@ public class GameStateService : IGameStateService
             var lost = Math.Min(player.Score, mass);
             player.Score -= lost;
             AddPellet(gameState, new PelletDrop(new Point(player.CurrentPosition.X, player.CurrentPosition.Y), lost), player.BackgroundColor);
+            TellLoss(gameState, player, lost);
             UpdatePlayer(player);
         }
         return died;
@@ -569,13 +570,26 @@ public class GameStateService : IGameStateService
             var hit = WorldEventRules.Resolve(ToPoints(player.Path), new Point(x, y), radius, headSize, InitialLength);
             if (hit.HeadHit)
             {
+                var mass = player.Score;
                 KillPlayer(gameState, player);
                 died.Add(player);
+                TellLoss(gameState, player, mass);
             }
             else if (hit.BrokenSegments.Count > 0)
+            {
+                var before = player.Score;
                 BreakSegments(gameState, player, hit.BrokenSegments);
+                TellLoss(gameState, player, before - player.Score);
+            }
         }
         return died;
+    }
+
+    /// <summary>Tells a snake how much mass it lost to something that is not a shot, at its head. Nothing when it lost none.</summary>
+    private static void TellLoss(IGameState gameState, IPlayer player, long mass)
+    {
+        if (mass <= 0) return;
+        gameState.Hits.Enqueue(new DamageDealt(Guid.Empty, player.Guid, player.CurrentPosition.X, player.CurrentPosition.Y, mass, DamageKind.Lost));
     }
 
     private void BreakSegments(IGameState gameState, IPlayer player, IReadOnlyList<int> indices)

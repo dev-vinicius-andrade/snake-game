@@ -13,5 +13,10 @@ public enum DamageKind
     /// <summary>A segment lost all its HP and broke off.</summary>
     Broke,
     /// <summary>The shot hit the head and the snake died.</summary>
-    Kill
+    Kill,
+    /// <summary>
+    /// Not a shot: the snake lost mass to lightning, a meteor or the zone. <c>Damage</c> is the mass lost and the position is the head.
+    /// Sent only to the snake that lost it.
+    /// </summary>
+    Lost
 }
