@@ -4,6 +4,7 @@ import type { ScriptCheck, useAdminGameplay } from "@/composables/useAdminGamepl
 import { getText } from "@/helpers";
 import { PERK_EFFECTS, PERK_ICON_CHOICES, perkIconOf } from "@/game/perkInfo";
 import { SCRIPT_TEMPLATES } from "@/game/scriptTemplates";
+import WorldEventsEditor from "./WorldEventsEditor.vue";
 
 /** The code editor is big, so it is loaded only when a script is opened. */
 const ScriptEditor = defineAsyncComponent(() => import("./ScriptEditor.vue"));
@@ -264,27 +265,7 @@ onMounted(() => {
       </VCardText>
     </VCard>
 
-    <VCard v-show="section === 'events'" variant="outlined" class="mb-4">
-      <VCardTitle>{{ getText({ key: "admin.gameplay.worldEventsTitle" }) }}</VCardTitle>
-      <VCardText>
-        <VSwitch v-model="draft.worldEvents.enabled" color="primary" hide-details :label="getText({ key: 'admin.gameplay.worldEventsOn' })" />
-        <div class="perk-card" :class="{ 'is-off': !draft.worldEvents.lightning.enabled }">
-          <div class="perk-row">
-            <strong>{{ getText({ key: "admin.gameplay.lightningTitle" }) }}</strong>
-            <VSwitch v-model="draft.worldEvents.lightning.enabled" class="switch-field" color="primary" hide-details :label="getText({ key: 'admin.gameplay.lightningOn' })" />
-          </div>
-          <div class="perk-help">{{ getText({ key: "admin.gameplay.lightningHelp" }) }}</div>
-          <div class="field-grid">
-            <VTextField v-model.number="draft.worldEvents.lightning.minIntervalSeconds" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.lightningMin' })" />
-            <VTextField v-model.number="draft.worldEvents.lightning.maxIntervalSeconds" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.lightningMax' })" />
-            <VTextField v-model.number="draft.worldEvents.lightning.radius" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.lightningRadius' })" />
-            <VTextField v-model.number="draft.worldEvents.lightning.telegraphMilliseconds" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.lightningTelegraph' })" />
-          </div>
-          <VCombobox v-model="draft.worldEvents.lightning.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.lightningRooms' })" />
-          <VCombobox v-model="draft.worldEvents.lightning.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
-        </div>
-      </VCardText>
-    </VCard>
+    <WorldEventsEditor v-show="section === 'events'" :gameplay="gameplay" />
 
     <VCard v-show="section === 'rooms'" variant="outlined" class="mb-4">
       <VCardTitle>{{ getText({ key: "admin.gameplay.roomsTitle" }) }}</VCardTitle>
