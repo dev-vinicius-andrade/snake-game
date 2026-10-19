@@ -26,6 +26,7 @@
 
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Domain\Domain.Game\Domain.Game.csproj" />
     <ProjectReference Include="..\..\Library\Library.Commons.Eventbus.RabbitMq\Library.Commons.Eventbus.RabbitMq.csproj" />
     <ProjectReference Include="..\..\Library\Library.Commons.Game.Server\Library.Commons.Game.Server.csproj" />
   </ItemGroup>

@@ -12,4 +12,7 @@ public interface IManagementApiService
 
     /// <summary>Tells the manager which rooms this server has, so it can list them and find them by code.</summary>
     Task<bool> SendHeartbeatAsync(IReadOnlyCollection<RoomSnapshot> rooms);
+
+    /// <summary>The gameplay config (perks and prize) as the manager serves it, as JSON; null when it could not be fetched.</summary>
+    Task<string?> GetGameplayJsonAsync();
 }

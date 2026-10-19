@@ -84,6 +84,9 @@ namespace Application.Game.Server
             services.AddServerConfiguration(configuration);
             services.AddFoodConfiguration(configuration);
             services.AddSnakeConfiguration(configuration,$"{ServerConfiguration.SectionName}:{SnakeConfiguration.SectionName}");
+            services.AddSingleton<GameplayApplier>(provider => new GameplayApplier(
+                provider.GetRequiredService<PerkRules>(), provider.GetRequiredService<PrizeRules>(), provider.GetRequiredService<Serilog.ILogger>()));
+            services.AddHostedService<GameplaySyncWorkerService>();
             services.AddHostedService<FoodGeneratorWorkerService>();
             services.AddSingleton<JoinRequestHandler>();
             services.AddSingleton<RoomCreateRequestHandler>();

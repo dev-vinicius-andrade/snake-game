@@ -1,0 +1,90 @@
+using System.Text.Json;
+using Application.Game.Server.Services;
+using Domain.Game.Rules;
+
+namespace Application.Game.Server.Tests;
+
+public sealed class GameplayApplierTests
+{
+    private readonly PerkRules _perks = new(new PerkOptions());
+    private readonly PrizeRules _prize = new(new PrizeOptions());
+    private readonly GameplayApplier _applier;
+
+    public GameplayApplierTests()
+    {
+        _applier = new GameplayApplier(_perks, _prize);
+    }
+
+    private static string Document(string revision, GameplayConfig config)
+        => JsonSerializer.Serialize(new GameplayDocument(revision, config), GameplayConfig.Json);
+
+    private static GameplayConfig Config(long prizeValue = 77, int foods = 3) => new()
+    {
+        Perks = new PerkOptions { Perks = [new() { Id = "a", Name = "A", FoodsRequired = foods, Effect = PerkEffect.Magnet, Amount = 90 }] },
+        Prize = new PrizeOptions { Value = prizeValue }
+    };
+
+    [Fact]
+    public void Apply_SwitchesThePerkAndPrizeRules()
+    {
+        var applied = _applier.Apply(Document("r1", Config()));
+
+        Assert.True(applied);
+        Assert.Equal(77, _prize.Options.Value);
+        Assert.Equal(90, _perks.EffectsFor(3).MagnetRadius);
+        Assert.Equal("r1", _applier.Revision);
+    }
+
+    [Fact]
+    public void Apply_TheSameRevisionAgain_ChangesNothing()
+    {
+        _applier.Apply(Document("r1", Config(prizeValue: 77)));
+
+        var applied = _applier.Apply(Document("r1", Config(prizeValue: 5)));
+
+        Assert.False(applied);
+        Assert.Equal(77, _prize.Options.Value);
+    }
+
+    [Fact]
+    public void Apply_ANewRevisionReplacesTheOldOne()
+    {
+        _applier.Apply(Document("r1", Config(prizeValue: 77)));
+
+        Assert.True(_applier.Apply(Document("r2", Config(prizeValue: 5))));
+
+        Assert.Equal(5, _prize.Options.Value);
+        Assert.Equal("r2", _applier.Revision);
+    }
+
+    [Fact]
+    public void Apply_ValuesThatCannotWork_AreRefusedAndTheRulesStay()
+    {
+        _applier.Apply(Document("r1", Config(prizeValue: 77)));
+
+        var applied = _applier.Apply(Document("r2", Config(foods: 0)));
+
+        Assert.False(applied);
+        Assert.Equal(77, _prize.Options.Value);
+        Assert.Equal("r1", _applier.Revision);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not json")]
+    [InlineData("{}")]
+    public void Apply_SomethingThatIsNotADocument_ChangesNothing(string? json)
+    {
+        Assert.False(_applier.Apply(json));
+        Assert.Null(_applier.Revision);
+    }
+
+    [Fact]
+    public void Apply_AfterARefusedRevision_TheSameOneIsTriedAgainLater()
+    {
+        _applier.Apply(Document("r2", Config(foods: 0)));
+
+        Assert.True(_applier.Apply(Document("r2", Config())));
+    }
+}

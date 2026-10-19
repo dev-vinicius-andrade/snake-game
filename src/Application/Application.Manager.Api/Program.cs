@@ -1,6 +1,7 @@
 
 using Application.Manager.Api.Entities.Configurations;
 using Application.Manager.Api.Hubs;
+using Application.Manager.Api.Gameplay;
 using Application.Manager.Api.Rooms;
 using Docker.DotNet;
 using Library.Commons.Api.Contants;
@@ -55,6 +56,8 @@ namespace Application.Manager.Api
             services.AddSingleton<RoomCreationService>();
             services.AddHttpClient<IGameServerClient, HttpGameServerClient>(client => client.Timeout = TimeSpan.FromSeconds(5));
             services.AddSingleton<RoomAdminService>();
+            services.AddSingleton(provider => new GameplayConfigStore(
+                configuration["GameplayConfiguration:StorePath"], provider.GetRequiredService<ILoggerFactory>().CreateLogger<GameplayConfigStore>()));
             services.AddHostedService<RoomRegistryPruneService>();
             
 

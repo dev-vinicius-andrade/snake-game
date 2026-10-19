@@ -94,6 +94,20 @@ internal class ManagementApiService: IManagementApiService
         });
     }
 
+    public async Task<string?> GetGameplayJsonAsync()
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync("gameplay");
+            return response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync() : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error while fetching the gameplay config from the management api");
+            return null;
+        }
+    }
+
     private async Task<bool> PostAsync<T>(string path, T body)
     {
         try

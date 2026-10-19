@@ -16,6 +16,7 @@ COPY ["Library/Library.Commons.Api/Library.Commons.Api.csproj", "Library/Library
 COPY ["Library/Library.Commons/Library.Commons.csproj", "Library/Library.Commons/"]
 COPY ["Library/Library.Extensions.DependencyInjection/Library.Extensions.DependencyInjection.csproj", "Library/Library.Extensions.DependencyInjection/"]
 COPY ["Library/Library.Commons.Game.Domain/Library.Commons.Game.Domain.csproj", "Library/Library.Commons.Game.Domain/"]
+COPY ["Domain/Domain.Game/Domain.Game.csproj", "Domain/Domain.Game/"]
 RUN dotnet restore "./Application/Application.Manager.Api/./Application.Manager.Api.csproj"
 COPY . .
 WORKDIR "/src/Application/Application.Manager.Api"
