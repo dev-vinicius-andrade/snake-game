@@ -62,14 +62,42 @@ All bodies are JSON, property names in camel case. Errors are `{ "error": "<code
 
 | Call | Body | Success | Errors |
 | --- | --- | --- | --- |
-| `POST /accounts` | `{ username, tag?: number, phrase?: string }` | `201 { username, tag, display, token, recoveryPhrase }` | `400 invalidUsername`, `400 invalidTag`, `400 weakPhrase`, `409 noTagsLeft`, `429 throttled` |
+| `POST /accounts` | `{ username, tag?: number, phrase?: string }` | `201 { username, tag, display, token, recoveryPhrase }` | `400 invalidUsername`, `400 invalidTag`, `400 weakPhrase`, `409 noTagsLeft`, `429 throttled` (+ `retryAfterSeconds`) |
 | `POST /accounts/login` | `{ username, tag, phrase }` | `200 { username, tag, display, token }` | `401 invalidCredentials`, `429 throttled` (+ `retryAfterSeconds`) |
 | `GET /accounts/me` | header `Authorization: Bearer <token>` | `200 { id, username, tag, display, createdAt }` | `401 invalidToken` |
 | `POST /accounts/logout` | bearer | `204` | `401 invalidToken` |
-| `GET /accounts/availability?username=&tag=` | | `200 { available: boolean, username }` (`username` as it would be kept) | `400 invalidUsername` |
+| `GET /accounts/availability?username=&tag=` | | `200 { available: boolean, username }` (`username` as it would be kept) | `400 invalidUsername`, `400 invalidTag`, `429 throttled` (+ `retryAfterSeconds`) |
 
-`recoveryPhrase` is the phrase to show the player **once** (the random one made for them, or the one they chose, echoed back so the screen can confirm it).
-`invalidCredentials` is the same answer for an unknown account and a wrong phrase.
+`recoveryPhrase` is the phrase to show the player **once** (the random one made for them, or the one they chose, echoed back as sent so the
+screen can confirm it). A blank `phrase` is the same as none: a random one is made.
+`invalidCredentials` is the same answer for an unknown account and a wrong phrase (also for a missing or impossible username or tag), and it
+costs the same time: an unknown account is checked against a dummy hash.
+A `429` body is `{ "error": "throttled", "retryAfterSeconds": <whole seconds, rounded up> }` and the response has the same number in a
+`Retry-After` header. Other error bodies have no `retryAfterSeconds`.
+`tag` in the availability query is read like a typed tag (`09291`, `9291`, `#09291`); left out or blank, `available` says whether any tag is
+still free for the name. A body that is not JSON of the right shape (for example `tag: "abc"`) gets the framework's `400` problem details, not
+an `{ error }` body.
+
+### Server side (`AccountService`, `AccountsController`)
+
+- **Throttles** (`AccountThrottles`), three `AttemptThrottle`s with their own tuning; a key is checked first and a waiting key is refused
+  without doing the work:
+  - sign-in: keys `acct:<lowercase username>#<tag>` and `ip:<address>`. A wrong phrase or an unknown account counts a failure on both; the
+    answer to a waiting caller is the longer of the two waits. Success forgets the account key, never the IP key. Tuning as in "Throttle" above.
+  - registration: key `reg:<address>`. Every registration that passes validation counts (invalid input costs nothing and does not count):
+    10 free, then 1 min doubling up to 15 min, forgotten after 1 h without one.
+  - availability: key `avail:<address>`. Every check counts: 60 free, then 1 s doubling up to 1 min, forgotten after 10 min without one.
+- **Client address**: `HttpContext.Connection.RemoteIpAddress` (IPv4-mapped IPv6 read as IPv4). `X-Forwarded-For` is not trusted: the app
+  has no forwarded headers setup. Behind a reverse proxy every player would share the proxy's address, so add `UseForwardedHeaders` with
+  the proxy listed as known before relying on the IP throttles there.
+- **Devices**: at most 10 per account; signing in an 11th drops the oldest. Two sign-ins of the same account at once never lose each other's device.
+- **Tag races**: when another registration takes the tag between the check and the add, the add is tried again with a new free tag, up to 5
+  times, then `409 noTagsLeft`.
+- **Rehash**: a login whose stored hash has fewer iterations than the current setting stores a new hash of the phrase.
+
+### Configuration
+
+`AccountsConfiguration:StorePath` (env `AccountsConfiguration__StorePath`): the accounts JSON file. Empty or missing: memory only, gone at restart.
 
 ## Later
 

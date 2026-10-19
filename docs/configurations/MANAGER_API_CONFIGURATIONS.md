@@ -127,5 +127,13 @@ As I said before, I didn't focus on adding a reliable authentication mechanism, 
 
 If the ApiKeys is not set, the manager api will not require any api key to authenticate the game server.
 
+## Accounts Configuration
+Where the player accounts are kept (see [ACCOUNTS.md](../ACCOUNTS.md)). Like `AuthConfiguration`, this section is at the root of the
+appsettings, not inside `AppSettings`.
+
+| Property | Description | Default Value | Required |
+| --- | --- | --- | --- |
+| StorePath | The JSON file the accounts are kept in (env `AccountsConfiguration__StorePath`). Empty: memory only, the accounts are gone at restart | "" | false |
+
 
 
