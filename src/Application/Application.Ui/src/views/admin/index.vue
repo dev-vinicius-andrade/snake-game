@@ -2,6 +2,7 @@
 import { useIntervalFn } from "@vueuse/core";
 import { computed, onMounted, ref } from "vue";
 import GameplayEditor from "@/components/admin/GameplayEditor.vue";
+import RoomGameplayDialog from "@/components/admin/RoomGameplayDialog.vue";
 import RoomPerksDialog from "@/components/admin/RoomPerksDialog.vue";
 import { useAdminGameplay } from "@/composables/useAdminGameplay";
 import { useAdminRooms, type AdminRoom } from "@/composables/useAdminRooms";
@@ -12,6 +13,7 @@ const admin = useAdminRooms();
 /** One gameplay editor for the Gameplay tab and for the perks of a room, so what is edited in one shows in the other. */
 const gameplay = useAdminGameplay();
 const perksOf = ref<AdminRoom | null>(null);
+const gameplayOf = ref<AdminRoom | null>(null);
 const keyInput = ref("");
 const tab = ref<"rooms" | "gameplay">("rooms");
 const confirming = ref<AdminRoom | null>(null);
@@ -92,6 +94,7 @@ onMounted(() => void admin.refresh());
                   <th>{{ getText({ key: "admin.colServer" }) }}</th>
                   <th />
                   <th />
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -102,6 +105,7 @@ onMounted(() => void admin.refresh());
                   <td>{{ ageOf(entry) }}</td>
                   <td>{{ entry.server }}</td>
                   <td><VBtn size="small" @click="openPerks(entry)">{{ getText({ key: "admin.roomPerks" }) }}</VBtn></td>
+                  <td><VBtn size="small" data-room-gameplay @click="gameplayOf = entry">{{ getText({ key: "gameplayPicker.button" }) }}</VBtn></td>
                   <td><VBtn size="small" color="error" @click="confirming = entry">{{ getText({ key: "admin.delete" }) }}</VBtn></td>
                 </tr>
               </tbody>
@@ -118,6 +122,7 @@ onMounted(() => void admin.refresh());
     </VRow>
 
     <RoomPerksDialog :target="perksOf" :gameplay="gameplay" @close="perksOf = null" />
+    <RoomGameplayDialog :target="gameplayOf" :admin="admin" @close="gameplayOf = null" />
 
     <VDialog :model-value="confirming !== null" max-width="420" @update:model-value="confirming = null">
       <VCard :title="getText({ key: 'admin.delete' })">

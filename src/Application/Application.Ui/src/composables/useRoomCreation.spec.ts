@@ -115,4 +115,24 @@ describe("useRoomCreation", () => {
     await failed;
     expect(creation.status.value).toBe("idle");
   });
+
+  it("asks for the gameplay the host picked, and only what differs from the default", async () => {
+    const holder: { client?: { emit: (name: string, payload: unknown) => void } } = {};
+    const { client, postCreate, creation } = setup({ postCreate: async () => holder.client!.emit("onRoomCreated", { roomId: "r", code: "ABC234" }) });
+    holder.client = client;
+
+    await creation.create({ name: "", maxPlayers: 0, gameplay: { turret: "off", lightning: "wild" } });
+
+    expect(postCreate).toHaveBeenCalledWith("http://manager.test/rooms", { id: "conn-1", name: undefined, maxPlayers: 0, gameplay: { turret: "off", lightning: "wild" } });
+  });
+
+  it("leaves the gameplay out when the host picked nothing", async () => {
+    const holder: { client?: { emit: (name: string, payload: unknown) => void } } = {};
+    const { client, postCreate, creation } = setup({ postCreate: async () => holder.client!.emit("onRoomCreated", { roomId: "r", code: "ABC234" }) });
+    holder.client = client;
+
+    await creation.create({ name: "", maxPlayers: 0, gameplay: {} });
+
+    expect(Object.keys(postCreate.mock.calls[0][1] as object)).not.toContain("gameplay");
+  });
 });

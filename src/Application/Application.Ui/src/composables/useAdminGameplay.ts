@@ -261,8 +261,8 @@ const DEFAULT_METEORS: MeteorConfig = {
 /** What the turret starts as, and what a server that does not send it yet gets. */
 const DEFAULT_TURRET: TurretConfig = {
   enabled: true,
-  minIntervalSeconds: 180,
-  maxIntervalSeconds: 420,
+  minIntervalSeconds: 120,
+  maxIntervalSeconds: 300,
   lifetimeSeconds: 90,
   hitPoints: 40,
   size: 60,
@@ -270,7 +270,7 @@ const DEFAULT_TURRET: TurretConfig = {
   arms: 6,
   spinDegrees: 11,
   shotSpeed: 0.5,
-  minPlayers: 2,
+  minPlayers: 1,
   rewardMass: 60,
   foodsCredit: 15,
   rooms: [],

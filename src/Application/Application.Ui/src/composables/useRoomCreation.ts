@@ -10,6 +10,8 @@ export interface NewRoom {
   name: string;
   /** Zero means the server default. */
   maxPlayers: number;
+  /** What the room does differently from the default gameplay: feature to preset. Only what differs is sent. */
+  gameplay?: Record<string, string>;
 }
 
 export interface CreatedRoom {
@@ -19,7 +21,10 @@ export interface CreatedRoom {
   maxPlayers: number;
 }
 
-export type PostCreate = (url: string, body: { id: string; name: string | undefined; maxPlayers: number }) => Promise<void>;
+export type PostCreate = (
+  url: string,
+  body: { id: string; name: string | undefined; maxPlayers: number; gameplay?: Record<string, string> }
+) => Promise<void>;
 
 export interface UseRoomCreationOptions {
   managerUrl?: string;
@@ -125,7 +130,8 @@ export function useRoomCreation(options: UseRoomCreationOptions = {}) {
     if (!client.connectionId) throw new Error("The manager hub did not provide a connection id");
     status.value = "waiting";
     const name = newRoom.name.trim();
-    await postCreate(`${managerUrl}/rooms`, { id: client.connectionId, name: name || undefined, maxPlayers: newRoom.maxPlayers });
+    const gameplay = newRoom.gameplay && Object.keys(newRoom.gameplay).length > 0 ? { gameplay: newRoom.gameplay } : {};
+    await postCreate(`${managerUrl}/rooms`, { id: client.connectionId, name: name || undefined, maxPlayers: newRoom.maxPlayers, ...gameplay });
     const created = await waiter.promise;
     status.value = "created";
     return created;

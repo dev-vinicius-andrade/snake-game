@@ -82,6 +82,33 @@ export const messages = {
   home: {
     tagline: "Multiplayer pixel snake. Eat, grow, shoot, or play with just your face.",
   },
+  gameplayPicker: {
+    title: "Gameplay of this room",
+    hint: "Everything is as the administrator set it unless you change it here.",
+    features: {
+      perks: "Perks",
+      prizes: "Prizes",
+      lightning: "Lightning storms",
+      meteors: "Meteor rain",
+      turret: "Turret boss",
+      zone: "Shrinking safe zone",
+    },
+    presets: {
+      inherit: "Default",
+      off: "Off",
+      calm: "Calm",
+      normal: "On",
+      wild: "Wild",
+    },
+    trigger: "Start now",
+    triggerHint: "Start an event in this room right now, for testing.",
+    started: "Started.",
+    notNow: "Not now: it is off in this room, nobody is in it, or it is already going.",
+    close: "Close",
+    roomTitle: "Gameplay of {name}",
+    roomHint: "What this room does differently from the default. Changes apply at once to the room.",
+    button: "Gameplay",
+  },
   rooms: {
     orCode: "or join friends",
     create: "Create private room",

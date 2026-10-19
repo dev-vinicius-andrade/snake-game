@@ -82,6 +82,33 @@ export const messages = {
   home: {
     tagline: "Cobrinha multiplayer em pixel art. Coma, cresça, atire, ou jogue só com o rosto.",
   },
+  gameplayPicker: {
+    title: "Jogabilidade desta sala",
+    hint: "Tudo fica como o administrador definiu, a menos que você mude aqui.",
+    features: {
+      perks: "Perks",
+      prizes: "Prêmios",
+      lightning: "Tempestade de raios",
+      meteors: "Chuva de meteoros",
+      turret: "Chefe torre",
+      zone: "Zona segura que encolhe",
+    },
+    presets: {
+      inherit: "Padrão",
+      off: "Desligado",
+      calm: "Calmo",
+      normal: "Ligado",
+      wild: "Selvagem",
+    },
+    trigger: "Começar agora",
+    triggerHint: "Começa um evento nesta sala agora, para testar.",
+    started: "Começou.",
+    notNow: "Agora não: está desligado nesta sala, não há ninguém nela, ou já está em andamento.",
+    close: "Fechar",
+    roomTitle: "Jogabilidade de {name}",
+    roomHint: "O que esta sala faz de diferente do padrão. As mudanças valem na hora para a sala.",
+    button: "Jogo",
+  },
   rooms: {
     orCode: "ou entre com amigos",
     create: "Criar sala privada",

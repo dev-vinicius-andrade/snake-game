@@ -11,12 +11,16 @@ export interface AdminRoom {
   maxPlayers: number;
   createdAt: string;
   server: string;
+  /** What the room does differently from the default gameplay: feature to preset. */
+  gameplay?: Record<string, string> | null;
 }
 
 /** Requests carry the admin key; a failure has the HTTP status in `status`. */
 export interface AdminHttp {
   get(url: string, adminKey: string): Promise<AdminRoom[]>;
   delete(url: string, adminKey: string): Promise<void>;
+  put(url: string, adminKey: string, body: unknown): Promise<void>;
+  post(url: string, adminKey: string): Promise<void>;
 }
 
 export interface KeyStorage {
@@ -27,6 +31,9 @@ export interface KeyStorage {
 
 export type AdminStatus = "signedOut" | "loading" | "ready" | "error";
 export type AdminError = "invalidKey" | "unavailable" | "serverUnreachable" | "notFound";
+
+/** What starting a world event in a room came to. `notNow`: it is off there, nobody is in the room, or it is already going. */
+export type TriggerResult = "started" | "notNow" | AdminError;
 
 export const ADMIN_KEY_STORAGE_KEY = "snake.adminKey";
 const ADMIN_KEY_HEADER = "X-Admin-Key";
@@ -47,6 +54,20 @@ const axiosHttp: AdminHttp = {
   async delete(url, adminKey) {
     try {
       await axios.delete(url, { headers: { [ADMIN_KEY_HEADER]: adminKey } });
+    } catch (failure) {
+      throw withStatus(failure);
+    }
+  },
+  async put(url, adminKey, body) {
+    try {
+      await axios.put(url, body, { headers: { [ADMIN_KEY_HEADER]: adminKey } });
+    } catch (failure) {
+      throw withStatus(failure);
+    }
+  },
+  async post(url, adminKey) {
+    try {
+      await axios.post(url, null, { headers: { [ADMIN_KEY_HEADER]: adminKey } });
     } catch (failure) {
       throw withStatus(failure);
     }
@@ -139,6 +160,40 @@ export function useAdminRooms(options: UseAdminRoomsOptions = {}) {
     await refresh();
   }
 
+  const errorOf = (code: number | undefined): AdminError => (code === 502 ? "serverUnreachable" : code === 404 ? "notFound" : "unavailable");
+
+  /** Changes what a room does with the gameplay. Only what differs from the default is sent. True when the room took it. */
+  async function setGameplay(id: string, choices: Record<string, string>): Promise<boolean> {
+    if (!key) return false;
+    const body = Object.fromEntries(Object.entries(choices).filter(([, preset]) => preset !== "inherit"));
+    try {
+      await http.put(`${managerUrl}/admin/rooms/${id}/gameplay`, key, body);
+    } catch (failure) {
+      const code = (failure as { status?: number }).status;
+      if (code === 401) rejectKey();
+      else error.value = errorOf(code);
+      return false;
+    }
+    await refresh();
+    return true;
+  }
+
+  /** Starts a world event (lightning, meteors, turret, zone) in a room now. */
+  async function trigger(id: string, kind: string): Promise<TriggerResult> {
+    if (!key) return "invalidKey";
+    try {
+      await http.post(`${managerUrl}/admin/rooms/${id}/events/${kind}`, key);
+    } catch (failure) {
+      const code = (failure as { status?: number }).status;
+      if (code === 401) {
+        rejectKey();
+        return "invalidKey";
+      }
+      return code === 409 ? "notNow" : errorOf(code);
+    }
+    return "started";
+  }
+
   function signOut() {
     writeKey(null);
     rooms.value = [];
@@ -146,5 +201,5 @@ export function useAdminRooms(options: UseAdminRoomsOptions = {}) {
     status.value = "signedOut";
   }
 
-  return { status, error, rooms, signIn, refresh, remove, signOut, hasKey: () => key !== null };
+  return { status, error, rooms, signIn, refresh, remove, setGameplay, trigger, signOut, hasKey: () => key !== null };
 }

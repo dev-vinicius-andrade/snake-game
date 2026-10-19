@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
+import RoomGameplayPicker from "@/components/rooms/RoomGameplayPicker.vue";
 import { useRoomCreation } from "@/composables/useRoomCreation";
+import { choicesBody, defaultChoices } from "@/game/roomGameplay";
 import { getText } from "@/helpers";
 import { isValidInviteCode, normalizeInviteCode } from "@/game/invite";
 
@@ -13,6 +15,7 @@ const creation = useRoomCreation();
 const dialog = ref(false);
 const roomName = ref("");
 const maxPlayers = ref(0);
+const gameplay = ref(defaultChoices());
 const codeInput = ref("");
 
 const MAX_PLAYER_CHOICES = [0, 2, 4, 6, 8, 10, 12, 16, 20];
@@ -28,7 +31,7 @@ const creating = computed(() => creation.status.value === "connecting" || creati
 
 async function createRoom() {
   try {
-    const created = await creation.create({ name: roomName.value, maxPlayers: maxPlayers.value });
+    const created = await creation.create({ name: roomName.value, maxPlayers: maxPlayers.value, gameplay: choicesBody(gameplay.value) });
     dialog.value = false;
     await router.push({ name: "/game/snake/2d", query: { room: created.roomId, code: created.code } });
   } catch {
@@ -71,11 +74,19 @@ function close() {
     </div>
   </div>
 
-  <VDialog v-model="dialog" max-width="440" width="92vw" persistent>
+  <VDialog v-model="dialog" max-width="560" width="92vw" persistent>
     <VCard :title="getText({ key: 'rooms.createTitle' })">
       <VCardText class="dialog-body">
         <VTextField v-model="roomName" :label="getText({ key: 'rooms.name' })" maxlength="32" />
         <VSelect v-model="maxPlayers" :items="playerChoices" :label="getText({ key: 'rooms.maxPlayers' })" />
+        <VExpansionPanels variant="accordion">
+          <VExpansionPanel>
+            <VExpansionPanelTitle>{{ getText({ key: "gameplayPicker.title" }) }}</VExpansionPanelTitle>
+            <VExpansionPanelText>
+              <RoomGameplayPicker v-model="gameplay" />
+            </VExpansionPanelText>
+          </VExpansionPanel>
+        </VExpansionPanels>
         <div v-if="creating" class="note" role="status">{{ getText({ key: "rooms.creating" }) }}</div>
         <div v-else-if="creation.error.value" class="note error" role="alert">{{ creation.error.value }}</div>
       </VCardText>
