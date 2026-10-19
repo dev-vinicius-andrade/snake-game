@@ -14,6 +14,9 @@ namespace Domain.Game.Services;
 /// </summary>
 public sealed class WorldEventRunner
 {
+    /// <summary>The most spots marked at once in a room, whatever is going on, so a snapshot stays small.</summary>
+    public const int MaxActiveStrikes = 40;
+
     private readonly WorldEventRules _rules;
     private readonly IGameStateService _gameStates;
     private readonly TimeProvider _time;
@@ -65,6 +68,8 @@ public sealed class WorldEventRunner
 
     private static void Mark(IGameState gameState, Storm storm, StormStrike strike, WorldEventKind kind)
     {
+        // Past the cap the strike is dropped: it is never shown, so it never falls.
+        if (gameState.Strikes.Count >= MaxActiveStrikes) return;
         var id = Guid.NewGuid();
         storm.Marked.Add((strike, id));
         gameState.Strikes[id] = new WorldStrike(strike.X, strike.Y, strike.Radius, strike.StrikesAt, ToStrikeKind(kind));
@@ -73,11 +78,9 @@ public sealed class WorldEventRunner
     private IReadOnlyList<IPlayer> Strike(IGameState gameState, Storm storm, StormStrike strike)
     {
         var index = storm.Marked.FindIndex(marked => marked.Strike == strike);
-        if (index >= 0)
-        {
-            gameState.Strikes.TryRemove(storm.Marked[index].Id, out _);
-            storm.Marked.RemoveAt(index);
-        }
+        if (index < 0) return [];
+        gameState.Strikes.TryRemove(storm.Marked[index].Id, out _);
+        storm.Marked.RemoveAt(index);
         return _gameStates.StrikeArea(gameState, strike.X, strike.Y, strike.Radius);
     }
 

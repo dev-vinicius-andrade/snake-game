@@ -265,6 +265,22 @@ public sealed class WorldEventRunnerTests
     }
 
     [Fact]
+    public void Update_NeverShowsMoreThanTheCapAtOnce_AndStrikesOnlyWhatWasShown()
+    {
+        AddPlayer();
+        var options = Options(lightning => lightning with { MinStrikes = 40, MaxStrikes = 40 }, OneMeteor());
+        var runner = Runner(options, random: 0);
+        runner.Update(_state);
+
+        Pass(runner, 30);
+
+        Assert.Equal(WorldEventRunner.MaxActiveStrikes, _state.Strikes.Count);
+        Pass(runner, 2);
+        Assert.Empty(_state.Strikes);
+        _gameStates.Received(WorldEventRunner.MaxActiveStrikes).StrikeArea(Arg.Any<IGameState>(), Arg.Any<double>(), Arg.Any<double>(), Arg.Any<double>());
+    }
+
+    [Fact]
     public void Update_OneKindSwitchedOff_LeavesTheOthersWarningsUp()
     {
         AddPlayer();
