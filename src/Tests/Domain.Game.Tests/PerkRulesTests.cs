@@ -1,3 +1,4 @@
+using Domain.Game.Scripting;
 using NSubstitute;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 using Domain.Game.Rules;
@@ -405,5 +406,172 @@ public sealed class PerkRulesTests
         {
             Perks = [new PerkDefinition { Id = "a", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 1, Rooms = [" "] }]
         }));
+    }
+
+    private static readonly ScriptSnake ASnake = new("ana", 12, 30, 9, 1.0, 1.0, false, []);
+    private static readonly ScriptRoom ARoom = new(2, "Friends", "ABC234", 1920, 1080);
+    private static readonly ScriptContext Here = new(ASnake, ARoom);
+
+    private static PerkDefinition Scripted(string id, string script, params string[] rooms)
+        => new() { Id = id, Name = id, FoodsRequired = 1, Script = script, Rooms = rooms.ToList() };
+
+    private static PerkRules WithPerks(params PerkDefinition[] perks) => new(new PerkOptions { Perks = perks.ToList() });
+
+    [Fact]
+    public void Scripts_AddToWhatTheEffectsGive_InTheRoomsTheyNameOnly()
+    {
+        var rules = WithPerks(new PerkDefinition
+        {
+            Id = "s", Name = "s", FoodsRequired = 1, Effects = [Entry(PerkEffect.ExtraShots, 1)], Rooms = ["ABC234"],
+            Script = "function modify(snake) { return { extraShots: 2, regenPerSecond: 3 }; }"
+        });
+
+        var inside = rules.EffectsFor(1, Room(code: "ABC234"), Here);
+        var outside = rules.EffectsFor(1, Room(code: "OTHER1"), Here);
+
+        Assert.Equal(3, inside.ExtraShots);
+        Assert.Equal(3, inside.RegenPerSecond);
+        Assert.Equal(0, outside.ExtraShots);
+        Assert.Equal(0, outside.RegenPerSecond);
+    }
+
+    [Fact]
+    public void Scripts_AreOffEverywhereWhenNoRoomIsNamed()
+    {
+        var rules = WithPerks(Scripted("s", "function modify() { return { extraShots: 4 }; }"));
+
+        Assert.Equal(0, rules.EffectsFor(1, Room(code: "ABC234"), Here).ExtraShots);
+        Assert.Empty(rules.UnlockedIds(1, Room(code: "ABC234")));
+    }
+
+    [Fact]
+    public void Scripts_FactorsMultiplyAndStayInRange()
+    {
+        var rules = WithPerks(
+            Scripted("a", "function modify() { return { reloadFactor: 0.5, damageFactor: 0.5, shotSpeedFactor: 2, boostLengthFactor: 2 }; }", "ABC234"),
+            Scripted("b", "function modify() { return { reloadFactor: 0.2, damageFactor: 0.2, shotSpeedFactor: 2, boostLengthFactor: 2 }; }", "ABC234"));
+
+        var effects = rules.EffectsFor(1, Room(code: "ABC234"), Here);
+
+        Assert.Equal(0.2, effects.ReloadFactor, 6);
+        Assert.Equal(0.2, effects.DamageFactor, 6);
+        Assert.Equal(4, effects.ShotSpeedFactor, 6);
+        Assert.Equal(4, effects.BoostLengthFactor, 6);
+    }
+
+    [Fact]
+    public void Scripts_SwitchesAreOrdered()
+    {
+        var rules = WithPerks(Scripted("a", "function modify() { return { autoFire: true, piercing: false }; }", "ABC234"));
+
+        var effects = rules.EffectsFor(1, Room(code: "ABC234"), Here);
+
+        Assert.True(effects.AutoFire);
+        Assert.False(effects.Piercing);
+    }
+
+    [Fact]
+    public void Scripts_ThatFailLeaveTheEffectsOfThePerkAlone()
+    {
+        var rules = WithPerks(new PerkDefinition
+        {
+            Id = "s", Name = "s", FoodsRequired = 1, Effects = [Entry(PerkEffect.ExtraShots, 1)], Rooms = ["ABC234"],
+            Script = "function modify(snake) { if (snake.name === 'ana') throw new Error('boom'); return {}; }"
+        });
+
+        Assert.Equal(1, rules.EffectsFor(1, Room(code: "ABC234"), Here).ExtraShots);
+    }
+
+    [Fact]
+    public void Scripts_ThatKeepFailingAreSwitchedOffAndNoLongerCalled()
+    {
+        var rules = WithPerks(Scripted("s", "function modify(snake) { if (snake.name === 'ana') throw new Error('boom'); return {}; }", "ABC234"));
+        var room = Room(code: "ABC234");
+
+        for (var call = 0; call < 5; call++) rules.EffectsFor(1, room, Here);
+
+        var script = rules.ScriptOf("s")!;
+        Assert.True(script.Disabled);
+        Assert.Equal(PerkScript.MaxFailuresInARow, script.Failures);
+    }
+
+    [Fact]
+    public void RewardsForEating_AddsUpWhatTheScriptsGive_InTheirRoomsOnly()
+    {
+        var rules = WithPerks(
+            Scripted("a", "function onEat(snake, food) { return { mass: 2, heal: 10 }; }", "ABC234"),
+            Scripted("b", "function onEat(snake, food) { return { mass: 3, heal: 5 }; }", "ABC234"),
+            Scripted("c", "function onEat(snake, food) { return { mass: 40 }; }", "OTHER1"));
+
+        var rewards = rules.RewardsForEating(1, Room(code: "ABC234"), Here, new ScriptFood(1, false));
+
+        Assert.Equal(5, rewards.Mass);
+        Assert.Equal(15, rewards.Heal, 6);
+    }
+
+    [Fact]
+    public void RewardsForEating_WithoutScriptsIsNothing()
+    {
+        var rewards = new PerkRules(new PerkOptions()).RewardsForEating(100, Room(code: "ABC234"), Here, new ScriptFood(1, false));
+
+        Assert.Equal(new ScriptRewards(0, 0), rewards);
+    }
+
+    [Fact]
+    public void HasScripts_SaysWhetherAnyScriptWorksForThisSnakeHere()
+    {
+        var rules = WithPerks(Scripted("s", "function modify() { return {}; }", "ABC234"), new PerkDefinition { Id = "n", Name = "n", FoodsRequired = 1, Effects = [Entry(PerkEffect.Magnet, 5)] });
+
+        Assert.True(rules.HasScripts(1, Room(code: "ABC234")));
+        Assert.False(rules.HasScripts(1, Room(code: "OTHER1")));
+        Assert.False(rules.HasScripts(0, Room(code: "ABC234")));
+    }
+
+    [Fact]
+    public void Constructor_AScriptThatDoesNotCompileIsRefused_NamingThePerk()
+    {
+        var failure = Assert.Throws<ArgumentException>(() => WithPerks(Scripted("broken", "function modify( {", "ABC234")));
+
+        Assert.Contains("broken", failure.Message);
+    }
+
+    [Fact]
+    public void Constructor_AScriptThatFailsItsCheckIsRefused()
+    {
+        var failure = Assert.Throws<ArgumentException>(() => WithPerks(Scripted("bad", "function modify(snake) { return snake.nothing.deeper; }", "ABC234")));
+
+        Assert.Contains("bad", failure.Message);
+    }
+
+    [Fact]
+    public void Constructor_APerkWithOnlyAScriptIsFine()
+    {
+        var rules = WithPerks(Scripted("only", "function modify() { return { extraShots: 1 }; }", "ABC234"));
+
+        Assert.Equal(1, rules.EffectsFor(1, Room(code: "ABC234"), Here).ExtraShots);
+    }
+
+    [Fact]
+    public void Reconfigure_StartsTheScriptsAgain_SoOldFailuresAreForgotten()
+    {
+        var rules = WithPerks(Scripted("s", "function modify(snake) { if (snake.name === 'ana') throw new Error('boom'); return {}; }", "ABC234"));
+        var room = Room(code: "ABC234");
+        for (var call = 0; call < 3; call++) rules.EffectsFor(1, room, Here);
+        Assert.True(rules.ScriptOf("s")!.Disabled);
+
+        rules.Reconfigure(new PerkOptions { Perks = [Scripted("s", "function modify() { return { extraShots: 1 }; }", "ABC234")] });
+
+        Assert.False(rules.ScriptOf("s")!.Disabled);
+        Assert.Equal(1, rules.EffectsFor(1, room, Here).ExtraShots);
+    }
+
+    [Fact]
+    public void Reconfigure_ABrokenScriptIsRefusedAndTheOldOnesKeepWorking()
+    {
+        var rules = WithPerks(Scripted("s", "function modify() { return { extraShots: 1 }; }", "ABC234"));
+
+        Assert.Throws<ArgumentException>(() => rules.Reconfigure(new PerkOptions { Perks = [Scripted("s", "function modify( {", "ABC234")] }));
+
+        Assert.Equal(1, rules.EffectsFor(1, Room(code: "ABC234"), Here).ExtraShots);
     }
 }

@@ -1,3 +1,4 @@
+using Domain.Game.Scripting;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 
 namespace Domain.Game.Rules;
@@ -34,7 +35,8 @@ public sealed class PerkRules
 
     /// <summary>Everything the rules read, kept together so a change of options swaps it all at once.</summary>
     private sealed record Settings(
-        PerkOptions Options, bool Enabled, double SpreadRadians, IReadOnlyList<PerkDefinition> Perks);
+        PerkOptions Options, bool Enabled, double SpreadRadians, IReadOnlyList<PerkDefinition> Perks,
+        IReadOnlyDictionary<string, PerkScript> Scripts);
 
     private volatile Settings _settings;
 
@@ -64,8 +66,78 @@ public sealed class PerkRules
         var perks = Validated(options.Perks.Count == 0 ? PerkOptions.BuiltIn : options.Perks)
             .OrderBy(perk => perk.FoodsRequired)
             .ToArray();
-        return new Settings(options, options.Enabled, options.ShotSpreadDegrees * Math.PI / 180, perks);
+        return new Settings(options, options.Enabled, options.ShotSpreadDegrees * Math.PI / 180, perks, CompileScripts(perks));
     }
+
+    /// <summary>Reads and checks every script. A script that cannot be used refuses the whole config, naming its perk.</summary>
+    private static Dictionary<string, PerkScript> CompileScripts(IEnumerable<PerkDefinition> perks)
+    {
+        var scripts = new Dictionary<string, PerkScript>();
+        foreach (var perk in perks.Where(perk => perk.HasScript))
+        {
+            try
+            {
+                var script = PerkScript.Compile(perk.Script!);
+                script.Check();
+                scripts[perk.Id] = script;
+            }
+            catch (ScriptException exception)
+            {
+                throw new ArgumentException($"Perk '{perk.Id}' script: {exception.Message}", nameof(perks), exception);
+            }
+        }
+        return scripts;
+    }
+
+    /// <summary>The compiled script of a perk, or null.</summary>
+    public PerkScript? ScriptOf(string perkId) => _settings.Scripts.GetValueOrDefault(perkId);
+
+    /// <summary>True when a script of a perk the snake has works in this room, so its effects must be asked for with a context.</summary>
+    public bool HasScripts(int foodsEaten, IRoom? room) => ScriptedPerks(foodsEaten, room).Any();
+
+    private IEnumerable<(PerkDefinition Perk, PerkScript Script)> ScriptedPerks(int foodsEaten, IRoom? room)
+    {
+        var settings = _settings;
+        return Unlocked(foodsEaten, room)
+            .Where(perk => perk.HasScript && settings.Scripts.ContainsKey(perk.Id))
+            .Select(perk => (perk, settings.Scripts[perk.Id]));
+    }
+
+    /// <summary>What the perks do for this snake, with what the scripts of its perks add in this room.</summary>
+    public PerkEffects EffectsFor(int foodsEaten, IRoom? room, ScriptContext context)
+    {
+        var effects = EffectsFor(foodsEaten, room);
+        foreach (var (_, script) in ScriptedPerks(foodsEaten, room))
+            if (script.Modify(context.Snake, context.Room) is { } added)
+                effects = Merge(effects, added);
+        return effects;
+    }
+
+    /// <summary>What the scripts of this snake's perks give for eating, added up.</summary>
+    public ScriptRewards RewardsForEating(int foodsEaten, IRoom? room, ScriptContext context, ScriptFood food)
+    {
+        var rewards = new ScriptRewards(0, 0);
+        foreach (var (_, script) in ScriptedPerks(foodsEaten, room))
+            if (script.OnEat(context.Snake, food, context.Room) is { } given)
+                rewards = new ScriptRewards(rewards.Mass + given.Mass, rewards.Heal + given.Heal);
+        return rewards;
+    }
+
+    /// <summary>Adds what a script returned: sums add, factors multiply (kept in range), switches are on when either says so.</summary>
+    private static PerkEffects Merge(PerkEffects effects, ScriptEffects added) => effects with
+    {
+        ExtraShots = effects.ExtraShots + (added.ExtraShots ?? 0),
+        BurstExtraShots = effects.BurstExtraShots + (added.BurstExtraShots ?? 0),
+        BoostSpeedBonus = effects.BoostSpeedBonus + (added.BoostSpeedBonus ?? 0),
+        RegenPerSecond = effects.RegenPerSecond + (added.RegenPerSecond ?? 0),
+        MagnetRadius = effects.MagnetRadius + (added.MagnetRadius ?? 0),
+        BoostLengthFactor = effects.BoostLengthFactor * (added.BoostLengthFactor ?? 1),
+        ShotSpeedFactor = effects.ShotSpeedFactor * (added.ShotSpeedFactor ?? 1),
+        ReloadFactor = Math.Max(MinReloadFactor, effects.ReloadFactor * (added.ReloadFactor ?? 1)),
+        DamageFactor = Math.Max(MinDamageFactor, effects.DamageFactor * (added.DamageFactor ?? 1)),
+        AutoFire = effects.AutoFire || added.AutoFire == true,
+        Piercing = effects.Piercing || added.Piercing == true,
+    };
 
     /// <summary>Ids of the perks earned with <paramref name="foodsEaten"/> foods, in the order they unlock.</summary>
     public IReadOnlyList<string> UnlockedIds(int foodsEaten, IRoom? room = null)
