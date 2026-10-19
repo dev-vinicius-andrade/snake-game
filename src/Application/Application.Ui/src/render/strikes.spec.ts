@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GameSnapshot, SnakeSnapshot, StrikeKind, StrikeSnapshot } from "@/types/game";
-import { FLASH_MS, StrikeTracker, discPoints, discRows, ringPoints, strikeWarning } from "./strikes";
+import { FLASH_MS, SPLASH_MS, StrikeTracker, discPoints, discRows, ringPoints, splashParticles, splashPoints, strikeWarning } from "./strikes";
 
 const room = { guid: null, width: 1920, height: 1080 };
 
@@ -151,7 +151,7 @@ describe("StrikeTracker", () => {
     tracker.clear();
     tracker.observe([], 100);
 
-    expect(tracker.view(100)).toEqual({ rings: [], flashes: [] });
+    expect(tracker.view(100)).toEqual({ rings: [], flashes: [], splashes: [] });
   });
 });
 
@@ -206,5 +206,99 @@ describe("discRows", () => {
 
   it("has one row for every row of pixels", () => {
     expect(new Set(rows.map((row) => row.y)).size).toBe(rows.length);
+  });
+});
+
+describe("splashPoints", () => {
+  const spot = { position: { x: 500, y: 400 }, radius: 90 };
+  const body = (...points: Array<[number, number]>) => snake(points[points.length - 1][0], points[points.length - 1][1], { path: points.map(([x, y]) => ({ x, y })) });
+
+  it("is where the segments inside the circle are: the middle of each, the head too", () => {
+    const hit = body([400, 400], [492.5, 392.5], [507.5, 392.5], [900, 900]);
+
+    const points = splashPoints(frame([], [hit]), spot);
+
+    expect(points).toEqual([
+      { x: 500, y: 400 },
+      { x: 515, y: 400 },
+    ]);
+  });
+
+  it("is nothing when nothing is inside, and the dead are left out", () => {
+    expect(splashPoints(frame([], [body([900, 900], [915, 900])]), spot)).toEqual([]);
+    expect(splashPoints(frame([], [snake(500, 400, { isAlive: false })]), spot)).toEqual([]);
+  });
+
+  it("goes the short way round the world, and never gives more than a handful", () => {
+    const edge = { position: { x: 10, y: 400 }, radius: 40 };
+    expect(splashPoints(frame([], [snake(1910, 392.5)]), edge)).toHaveLength(1);
+
+    const long = body(...Array.from({ length: 100 }, (_, index): [number, number] => [480 + (index % 10), 392.5]));
+    expect(splashPoints(frame([], [long]), spot).length).toBeLessThanOrEqual(40);
+  });
+});
+
+describe("splashParticles", () => {
+  const splash = (age: number, seed = 7) => ({ kind: "lightning" as const, center: { x: 500, y: 400 }, age, seed });
+
+  it("starts at the spot, throws bits outwards as it ages, and is the same every time", () => {
+    const fresh = splashParticles(splash(0));
+    const later = splashParticles(splash(0.5));
+
+    expect(fresh).toHaveLength(8);
+    fresh.forEach((particle) => expect(Math.hypot(particle.x - 500, particle.y - 400)).toBeLessThan(6));
+    expect(Math.max(...later.map((particle) => Math.hypot(particle.x - 500, particle.y - 400)))).toBeGreaterThan(20);
+    expect(splashParticles(splash(0.5))).toEqual(later);
+  });
+
+  it("does not reach further than the splash may, and differs with the seed", () => {
+    splashParticles(splash(1)).forEach((particle) => expect(Math.hypot(particle.x - 500, particle.y - 400)).toBeLessThanOrEqual(80));
+    expect(splashParticles(splash(0.5, 1))).not.toEqual(splashParticles(splash(0.5, 2)));
+  });
+
+  it("gives each bit a shade 0 to 2, the brightest at first", () => {
+    expect(splashParticles(splash(0.1)).every((particle) => [0, 1, 2].includes(particle.shade))).toBe(true);
+    expect(Math.max(...splashParticles(splash(0.1)).map((particle) => particle.shade))).toBeLessThanOrEqual(Math.max(...splashParticles(splash(0.9)).map((particle) => particle.shade)));
+  });
+});
+
+describe("StrikeTracker splashes", () => {
+  const victim = snake(500, 392.5, { path: [{ x: 485, y: 392.5 }, { x: 500, y: 392.5 }] });
+
+  it("splashes the bodies that were inside a strike when it falls, in the kind of the strike", () => {
+    const tracker = new StrikeTracker();
+    tracker.observeFrame(frame([strike(500, 400, 90, 100, "meteor")], [victim]), 1000);
+    tracker.observeFrame(frame([], [snake(900, 900)]), 1100);
+
+    const splashes = tracker.view(1100).splashes;
+    expect(splashes.map((splash) => splash.kind)).toEqual(["meteor", "meteor"]);
+    expect(splashes.every((splash) => splash.age === 0)).toBe(true);
+  });
+
+  it("ages the splash to nothing", () => {
+    const tracker = new StrikeTracker();
+    tracker.observeFrame(frame([strike(500, 400)], [victim]), 1000);
+    tracker.observeFrame(frame([], []), 1100);
+
+    expect(tracker.view(1100 + SPLASH_MS / 2).splashes[0].age).toBeCloseTo(0.5);
+    expect(tracker.view(1100 + SPLASH_MS).splashes).toEqual([]);
+  });
+
+  it("splashes nothing when nobody was inside", () => {
+    const tracker = new StrikeTracker();
+    tracker.observeFrame(frame([strike(100, 100)], [victim]), 1000);
+    tracker.observeFrame(frame([], [victim]), 1100);
+
+    expect(tracker.view(1100).splashes).toEqual([]);
+    expect(tracker.view(1100).flashes).toHaveLength(1);
+  });
+
+  it("clears the splashes with everything else", () => {
+    const tracker = new StrikeTracker();
+    tracker.observeFrame(frame([strike(500, 400)], [victim]), 0);
+    tracker.observeFrame(frame([], []), 100);
+    tracker.clear();
+
+    expect(tracker.view(100).splashes).toEqual([]);
   });
 });

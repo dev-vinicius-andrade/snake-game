@@ -14,6 +14,8 @@ import {
   LIGHTNING_FLASH_COLOR,
   LIGHTNING_RING_COLOR,
   METEOR_BODY_COLOR,
+  SPLASH_LIGHTNING_COLORS,
+  SPLASH_METEOR_COLORS,
   METEOR_FLASH_COLOR,
   METEOR_RING_COLOR,
   METEOR_SHADOW_COLOR,
@@ -281,7 +283,7 @@ describe("drawFrame", () => {
     });
 
     it("marks where the strike will reach, and grows a ring toward it", () => {
-      drawFrame(ctx, snapshot(), { strikes: { rings: [{ kind: "lightning", center: centre, radius: 90, progress: 0.5 }], flashes: [] }, timeMs: 0 });
+      drawFrame(ctx, snapshot(), { strikes: { rings: [{ kind: "lightning", center: centre, radius: 90, progress: 0.5 }], flashes: [], splashes: [] }, timeMs: 0 });
 
       const edge = styled(LIGHTNING_EDGE_COLOR);
       const ring = styled(LIGHTNING_RING_COLOR);
@@ -293,7 +295,7 @@ describe("drawFrame", () => {
     });
 
     it("flickers between yellow and white when the strike is close", () => {
-      const close: StrikeView = { rings: [{ kind: "lightning", center: centre, radius: 90, progress: 0.95 }], flashes: [] };
+      const close: StrikeView = { rings: [{ kind: "lightning", center: centre, radius: 90, progress: 0.95 }], flashes: [], splashes: [] };
 
       drawFrame(ctx, snapshot(), { strikes: close, timeMs: 0 });
       expect(styled(LIGHTNING_RING_COLOR).length).toBeGreaterThan(0);
@@ -306,10 +308,10 @@ describe("drawFrame", () => {
     });
 
     it("fills the struck circle with a flash that thins out as it ages", () => {
-      drawFrame(ctx, snapshot(), { strikes: { rings: [], flashes: [{ kind: "lightning", center: centre, radius: 90, age: 0 }] } });
+      drawFrame(ctx, snapshot(), { strikes: { rings: [], splashes: [], flashes: [{ kind: "lightning", center: centre, radius: 90, age: 0 }] } });
       const fresh = styled(LIGHTNING_FLASH_COLOR).length;
       ctx.calls = [];
-      drawFrame(ctx, snapshot(), { strikes: { rings: [], flashes: [{ kind: "lightning", center: centre, radius: 90, age: 0.6 }] } });
+      drawFrame(ctx, snapshot(), { strikes: { rings: [], splashes: [], flashes: [{ kind: "lightning", center: centre, radius: 90, age: 0.6 }] } });
       const fading = ctx.calls.slice(1).length;
 
       expect(fresh).toBeGreaterThan(Math.PI * 18 * 18 * 0.9);
@@ -319,7 +321,7 @@ describe("drawFrame", () => {
 
     it("draws the warning under the snakes and the flash over them", () => {
       drawFrame(ctx, snapshot({ snakes: [snake({ path: [{ x: 500, y: 400 }] })] }), {
-        strikes: { rings: [{ kind: "lightning", center: centre, radius: 90, progress: 0.5 }], flashes: [{ kind: "lightning", center: centre, radius: 90, age: 0 }] },
+        strikes: { rings: [{ kind: "lightning", center: centre, radius: 90, progress: 0.5 }], flashes: [{ kind: "lightning", center: centre, radius: 90, age: 0 }], splashes: [] },
         timeMs: 0,
       });
 
@@ -330,9 +332,50 @@ describe("drawFrame", () => {
     });
   });
 
+  describe("splashes", () => {
+    const view = (age: number, kind: "lightning" | "meteor" = "lightning"): StrikeView => ({
+      rings: [],
+      flashes: [],
+      splashes: [{ kind, center: { x: 500, y: 400 }, age, seed: 3 }],
+    });
+    const colours = (list: readonly string[]) => ctx.calls.filter((call) => list.includes(call.style));
+
+    it("throws bits of light from the body that was struck, in the colours of lightning", () => {
+      drawFrame(ctx, snapshot(), { strikes: view(0.3) });
+
+      expect(colours(SPLASH_LIGHTNING_COLORS).length).toBeGreaterThanOrEqual(8);
+      expect(colours(SPLASH_METEOR_COLORS.filter((colour) => !SPLASH_LIGHTNING_COLORS.includes(colour)))).toHaveLength(0);
+    });
+
+    it("throws burning bits for a meteor", () => {
+      drawFrame(ctx, snapshot(), { strikes: view(0.3, "meteor") });
+
+      expect(colours(SPLASH_METEOR_COLORS.filter((colour) => !SPLASH_LIGHTNING_COLORS.includes(colour))).length).toBeGreaterThanOrEqual(8);
+    });
+
+    it("draws a bright blob where it starts, and the bits spread as it ages", () => {
+      drawFrame(ctx, snapshot(), { strikes: view(0) });
+      const early = colours(SPLASH_LIGHTNING_COLORS).filter((call) => call.w === 2).length;
+      const spreadAt = (age: number) => {
+        ctx.calls = [];
+        drawFrame(ctx, snapshot(), { strikes: view(age) });
+        return Math.max(...colours(SPLASH_LIGHTNING_COLORS).map((call) => Math.hypot(call.x * 5 - 500, call.y * 5 - 400)));
+      };
+
+      expect(early).toBeGreaterThan(0);
+      expect(spreadAt(0.6)).toBeGreaterThan(spreadAt(0.1));
+    });
+
+    it("draws nothing without splashes", () => {
+      drawFrame(ctx, snapshot(), { strikes: { rings: [], flashes: [], splashes: [] } });
+
+      expect(ctx.calls).toHaveLength(1);
+    });
+  });
+
   describe("meteors", () => {
     const centre = { x: 500, y: 400 };
-    const rain = (progress: number) => ({ rings: [{ kind: "meteor" as const, center: centre, radius: 130, progress }], flashes: [] });
+    const rain = (progress: number) => ({ rings: [{ kind: "meteor" as const, center: centre, radius: 130, progress }], flashes: [], splashes: [] });
     const styled = (style: string) => ctx.calls.filter((call) => call.style === style);
     const world = (call: { x: number; y: number }) => ({ x: call.x * 5, y: call.y * 5 });
     const area = (calls: Array<{ w: number; h: number }>) => calls.reduce((sum, call) => sum + call.w * call.h, 0);
@@ -385,7 +428,7 @@ describe("drawFrame", () => {
     });
 
     it("flashes in fire colours where it lands, thinning out as it ages", () => {
-      const flash = (age: number) => ({ rings: [], flashes: [{ kind: "meteor" as const, center: centre, radius: 130, age }] });
+      const flash = (age: number) => ({ rings: [], splashes: [], flashes: [{ kind: "meteor" as const, center: centre, radius: 130, age }] });
       drawFrame(ctx, snapshot(), { strikes: flash(0) });
       const fresh = area(styled(METEOR_FLASH_COLOR));
       ctx.calls = [];
@@ -399,7 +442,7 @@ describe("drawFrame", () => {
     });
 
     it("draws a storm of many warnings", () => {
-      const view = { rings: [0, 1, 2, 3].map((index) => ({ kind: "lightning" as const, center: { x: 100 + index * 300, y: 400 }, radius: 90, progress: 0.5 })), flashes: [] };
+      const view = { rings: [0, 1, 2, 3].map((index) => ({ kind: "lightning" as const, center: { x: 100 + index * 300, y: 400 }, radius: 90, progress: 0.5 })), flashes: [], splashes: [] };
 
       drawFrame(ctx, snapshot(), { strikes: view, timeMs: 0 });
 

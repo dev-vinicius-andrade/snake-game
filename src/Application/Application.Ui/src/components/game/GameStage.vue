@@ -43,7 +43,7 @@ watch(
   (snapshot) => {
     if (snapshot) {
       buffer.push(snapshot, performance.now());
-      strikeTracker.observe(snapshot.strikes, performance.now());
+      strikeTracker.observeFrame(snapshot, performance.now());
     } else {
       buffer.clear();
       strikeTracker.clear();

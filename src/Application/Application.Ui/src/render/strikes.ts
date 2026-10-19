@@ -12,6 +12,13 @@ export interface StrikeWarning {
 
 /** How long the flash of a strike lasts on screen. */
 export const FLASH_MS = 450;
+/** How long the bits thrown off a struck body fly. */
+export const SPLASH_MS = 700;
+/** The most spots of bodies one strike splashes. */
+const MAX_SPLASH_POINTS = 40;
+/** The farthest a bit flies, in world units. */
+const SPLASH_REACH = 70;
+const SPLASH_PARTICLES = 8;
 
 const shortest = (delta: number, size: number) => (delta > size / 2 ? delta - size : delta < -size / 2 ? delta + size : delta);
 
@@ -49,9 +56,19 @@ export interface StrikeFlash {
   age: number;
 }
 
+/** Bits thrown off a body that was struck: `age` goes from 0 (just now) to 1 (gone). */
+export interface StrikeSplash {
+  kind: StrikeKind;
+  center: GamePoint;
+  age: number;
+  /** Makes the bits of one splash fly differently from those of another, the same every frame. */
+  seed: number;
+}
+
 export interface StrikeView {
   rings: StrikeRing[];
   flashes: StrikeFlash[];
+  splashes: StrikeSplash[];
 }
 
 interface Seen {
@@ -68,6 +85,9 @@ interface Seen {
 export class StrikeTracker {
   private seen = new Map<string, Seen>();
   private flashes: Array<{ kind: StrikeKind; center: GamePoint; radius: number; bornMs: number }> = [];
+  private splashes: Array<{ kind: StrikeKind; center: GamePoint; bornMs: number; seed: number }> = [];
+  private previous: GameSnapshot | null = null;
+  private gone: StrikeSnapshot[] = [];
 
   observe(strikes: StrikeSnapshot[], nowMs: number) {
     const next = new Map<string, Seen>();
@@ -76,13 +96,32 @@ export class StrikeTracker {
       const before = this.seen.get(key);
       next.set(key, { spot, total: Math.max(before?.total ?? 0, spot.msLeft, 1), seenAtMs: nowMs });
     }
+    this.gone = [];
     for (const [key, gone] of this.seen)
-      if (!next.has(key)) this.flashes.push({ kind: gone.spot.kind, center: gone.spot.position, radius: gone.spot.radius, bornMs: nowMs });
+      if (!next.has(key)) {
+        this.flashes.push({ kind: gone.spot.kind, center: gone.spot.position, radius: gone.spot.radius, bornMs: nowMs });
+        this.gone.push(gone.spot);
+      }
     this.seen = next;
+  }
+
+  /**
+   * Like observe, for a whole snapshot: the bodies the previous snapshot had inside a strike that is gone are splashed, each segment
+   * of them. Every player sees this, since it comes from what the snapshots say and not from a message to the one that was hit.
+   */
+  observeFrame(snapshot: GameSnapshot, nowMs: number) {
+    this.observe(snapshot.strikes, nowMs);
+    const before = this.previous;
+    if (before)
+      for (const spot of this.gone)
+        for (const center of splashPoints(before, spot))
+          this.splashes.push({ kind: spot.kind, center, bornMs: nowMs, seed: Math.abs(Math.round(center.x * 31 + center.y * 17)) });
+    this.previous = snapshot;
   }
 
   view(nowMs: number): StrikeView {
     this.flashes = this.flashes.filter((flash) => nowMs - flash.bornMs < FLASH_MS);
+    this.splashes = this.splashes.filter((splash) => nowMs - splash.bornMs < SPLASH_MS);
     return {
       rings: [...this.seen.values()].map(({ spot, total, seenAtMs }) => ({
         kind: spot.kind,
@@ -90,6 +129,9 @@ export class StrikeTracker {
         radius: spot.radius,
         progress: Math.min(1, Math.max(0, 1 - (spot.msLeft - (nowMs - seenAtMs)) / total)),
       })),
+      splashes: this.splashes
+        .filter((splash) => nowMs - splash.bornMs < SPLASH_MS)
+        .map((splash) => ({ kind: splash.kind, center: splash.center, age: (nowMs - splash.bornMs) / SPLASH_MS, seed: splash.seed })),
       flashes: this.flashes.map((flash) => ({ kind: flash.kind, center: flash.center, radius: flash.radius, age: (nowMs - flash.bornMs) / FLASH_MS })),
     };
   }
@@ -97,6 +139,9 @@ export class StrikeTracker {
   clear() {
     this.seen = new Map();
     this.flashes = [];
+    this.splashes = [];
+    this.previous = null;
+    this.gone = [];
   }
 }
 
@@ -137,4 +182,38 @@ export function discRows(center: GamePoint, radius: number, pixelSize: number): 
     rows.push({ x: left, y, width });
   }
   return rows;
+}
+
+/** The middle of every segment of every living snake that is inside a strike, the short way round the world. At most a handful. */
+export function splashPoints(snapshot: GameSnapshot, spot: Pick<StrikeSnapshot, "position" | "radius">): GamePoint[] {
+  const half = DEFAULT_HEAD_SIZE / 2;
+  const points: GamePoint[] = [];
+  for (const snake of snapshot.snakes) {
+    if (!snake.isAlive) continue;
+    for (const segment of snake.path) {
+      const middle = { x: segment.x + half, y: segment.y + half };
+      const dx = shortest(middle.x - spot.position.x, snapshot.room.width);
+      const dy = shortest(middle.y - spot.position.y, snapshot.room.height);
+      if (Math.hypot(dx, dy) <= spot.radius) points.push(middle);
+      if (points.length >= MAX_SPLASH_POINTS) return points;
+    }
+  }
+  return points;
+}
+
+const unit = (seed: number, index: number) => {
+  const value = Math.sin(seed * 12.9898 + index * 78.233) * 43758.5453;
+  return value - Math.floor(value);
+};
+
+/** The bits of a splash at its age: where each is, and how bright (0 brightest, 2 dimmest). The same every time for the same splash. */
+export function splashParticles(splash: StrikeSplash): Array<GamePoint & { shade: number }> {
+  const age = Math.min(1, Math.max(0, splash.age));
+  const travelled = 1 - (1 - age) * (1 - age);
+  const shade = age < 0.35 ? 0 : age < 0.7 ? 1 : 2;
+  return Array.from({ length: SPLASH_PARTICLES }, (_, index) => {
+    const angle = (index / SPLASH_PARTICLES) * 2 * Math.PI + (unit(splash.seed, index) - 0.5) * 0.8;
+    const reach = SPLASH_REACH * (0.5 + 0.5 * unit(splash.seed, index + 31));
+    return { x: splash.center.x + Math.cos(angle) * reach * travelled, y: splash.center.y + Math.sin(angle) * reach * travelled, shade };
+  });
 }

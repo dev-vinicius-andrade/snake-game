@@ -8,7 +8,7 @@ describe("parseDamage", () => {
     expect(parseDamage(raw)).toEqual({ shooterGuid: "s", targetGuid: "t", x: 100, y: 50, damage: 23.4, kind: "hit" });
   });
 
-  it.each(["hit", "broke", "kill"])("knows the kind %s", (kind) => {
+  it.each(["hit", "broke", "kill", "lost"])("knows the kind %s", (kind) => {
     expect(parseDamage({ ...raw, kind })?.kind).toBe(kind);
   });
 

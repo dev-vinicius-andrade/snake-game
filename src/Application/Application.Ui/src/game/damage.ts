@@ -1,6 +1,6 @@
 import type { DamageEvent, DamageKind } from "@/types/game";
 
-const KINDS: readonly DamageKind[] = ["hit", "broke", "kill"];
+const KINDS: readonly DamageKind[] = ["hit", "broke", "kill", "lost"];
 
 const isDictionary = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

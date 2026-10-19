@@ -23,13 +23,27 @@ describe("damageLabel", () => {
     expect(damageLabel(hit({ damage: 0.2 }))).toBe("1");
   });
 
+  it("says how much mass was lost, with a minus, for a loss at the head", () => {
+    expect(damageLabel(hit({ kind: "lost", damage: 4 }))).toBe("-4");
+    expect(damageLabel(hit({ kind: "lost", damage: 12.4 }))).toBe("-12");
+    expect(damageLabel(hit({ kind: "lost", damage: 0.2 }))).toBe("-1");
+  });
+
   it("is KO for a kill", () => {
     expect(damageLabel(hit({ kind: "kill", damage: 0 }))).toBe("KO");
   });
 });
 
+describe("damageColor for a loss", () => {
+  it("is the colour of damage taken, for the snake that lost it", () => {
+    expect(damageColor(hit({ kind: "lost", shooterGuid: "00000000-0000-0000-0000-000000000000", targetGuid: "me" }), "me")).toBe(
+      damageColor(hit({ shooterGuid: "x", targetGuid: "me" }), "me")
+    );
+  });
+});
+
 describe("glyphFor", () => {
-  it.each([..."0123456789KO"])("has a 3x5 picture for %s", (character) => {
+  it.each([..."0123456789KO-"])("has a 3x5 picture for %s", (character) => {
     const rows = glyphFor(character);
 
     expect(rows).toHaveLength(5);

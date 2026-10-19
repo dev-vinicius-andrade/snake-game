@@ -1,7 +1,7 @@
 import type { BossSnapshot, ZoneSnapshot, FloatingDamage, FoodSnapshot, GamePoint, GameSnapshot, RoomDimensions, ShotSnapshot, SnakeSnapshot } from "@/types/game";
 import { GLYPH_HEIGHT, GLYPH_WIDTH, damageColor as damageNumberColor, damageLabel, damagePosition, glyphFor, isVisible } from "./damageNumbers";
 import { armPixels, hpBarPixels } from "./boss";
-import { discPoints, discRows, ringPoints, type StrikeRing, type StrikeFlash, type StrikeView } from "./strikes";
+import { discPoints, discRows, ringPoints, splashParticles, type StrikeRing, type StrikeFlash, type StrikeSplash, type StrikeView } from "./strikes";
 import { DAMAGE_COLOR, contrastColor, headColor, lightenColor, segmentColor, shadeColor } from "./segmentColor";
 
 /** The 2D canvas methods the renderer needs, so it can be tested without a browser. */
@@ -267,10 +267,23 @@ function drawMeteorFlash(painter: Painter, flash: StrikeFlash, pixelSize: number
   }
 }
 
+export const SPLASH_LIGHTNING_COLORS: readonly string[] = ["#ffffff", "#ffe14d", "#9fc4ff"];
+export const SPLASH_METEOR_COLORS: readonly string[] = ["#ffe9c4", "#ff7a2f", "#c0392b"];
+/** A splash keeps a bright blob where the body was struck for this much of its life. */
+const SPLASH_BLOB_UNTIL = 0.25;
+
+/** The bits that fly off a body that was struck: a blob where it was, and bits flung outwards that dim as they go. */
+function drawSplash(painter: Painter, splash: StrikeSplash) {
+  const colors = splash.kind === "meteor" ? SPLASH_METEOR_COLORS : SPLASH_LIGHTNING_COLORS;
+  if (splash.age < SPLASH_BLOB_UNTIL) painter.block(colors[0], splash.center, 2);
+  splashParticles(splash).forEach((particle) => painter.block(colors[particle.shade], particle, 1));
+}
+
 function drawStrikeFlash(painter: Painter, view: StrikeView, pixelSize: number) {
   for (const flash of view.flashes)
     if (flash.kind === "meteor") drawMeteorFlash(painter, flash, pixelSize);
     else drawLightningFlash(painter, flash, pixelSize);
+  view.splashes.forEach((splash) => drawSplash(painter, splash));
 }
 
 export const ZONE_RING_COLOR = "#5fd0ff";

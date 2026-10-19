@@ -21,6 +21,7 @@ const GLYPHS: Readonly<Record<string, readonly string[]>> = {
   "7": ["###", "..#", ".#.", ".#.", ".#."],
   "8": ["###", "#.#", "###", "#.#", "###"],
   "9": ["###", "#.#", "###", "..#", "###"],
+  "-": ["...", "...", "###", "...", "..."],
   K: ["#.#", "#.#", "##.", "#.#", "#.#"],
   O: ["###", "#.#", "#.#", "#.#", "###"],
 };
@@ -30,9 +31,10 @@ export const GLYPH_HEIGHT = 5;
 
 export const glyphFor = (character: string): readonly string[] => GLYPHS[character] ?? [];
 
-/** The text of a damage number: the damage as a whole number, at least 1, or KO for a kill. */
+/** The text of a damage number: the damage as a whole number, at least 1, or KO for a kill, or a minus and the mass lost. */
 export function damageLabel(damage: FloatingDamage): string {
   if (damage.kind === "kill") return "KO";
+  if (damage.kind === "lost") return `-${Math.max(1, Math.round(damage.damage))}`;
   return String(Math.max(1, Math.round(damage.damage)));
 }
 

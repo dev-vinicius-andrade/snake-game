@@ -100,7 +100,8 @@ export interface ZoneSnapshot {
   msLeft: number;
 }
 
-export type DamageKind = "hit" | "broke" | "kill";
+/** `lost` is not a shot: the own snake lost mass to lightning, a meteor or the zone, at its head. */
+export type DamageKind = "hit" | "broke" | "kill" | "lost";
 
 /** A shot did damage: sent to the shooter and to the snake that was hit. */
 export interface DamageEvent {
