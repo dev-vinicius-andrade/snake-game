@@ -20,6 +20,7 @@ persistence:
 
 env:
   GameplayConfiguration__StorePath: "/data/gameplay.json"
+  AccountsConfiguration__StorePath: "/data/accounts.json"
   ASPNETCORE_URLS: "http://+:8080"
   ASPNETCORE_ENVIRONMENT: "Production"
   Serilog__MinimumLevel: "Information"
