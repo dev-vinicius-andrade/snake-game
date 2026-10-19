@@ -30,6 +30,19 @@ export interface PerkDefinition {
   script?: string;
 }
 
+/** Lightning: a spot is marked, and a moment later struck. Snake segments in it break off, a head in it dies. */
+export interface LightningConfig {
+  enabled: boolean;
+  minIntervalSeconds: number;
+  maxIntervalSeconds: number;
+  /** World units around the spot that the strike reaches. */
+  radius: number;
+  /** Milliseconds the spot is shown before the strike. */
+  telegraphMilliseconds: number;
+  rooms: string[];
+  excludedRooms: string[];
+}
+
 export interface GameplayConfig {
   perks: {
     enabled: boolean;
@@ -48,6 +61,12 @@ export interface GameplayConfig {
     emptyPrivateRoomMinutes: number;
     /** Minutes after which a private room is closed whoever is in it; 0 is no limit. */
     maxPrivateRoomMinutes: number;
+  };
+  /** Things that happen to a whole room now and then. */
+  worldEvents: {
+    /** Switches every world event off at once. */
+    enabled: boolean;
+    lightning: LightningConfig;
   };
 }
 
@@ -126,6 +145,17 @@ const axiosHttp: GameplayHttp = {
       throw withStatus(failure);
     }
   },
+};
+
+/** What lightning starts as, and what a server that does not send it yet gets. */
+const DEFAULT_LIGHTNING: LightningConfig = {
+  enabled: true,
+  minIntervalSeconds: 30,
+  maxIntervalSeconds: 90,
+  radius: 90,
+  telegraphMilliseconds: 1500,
+  rooms: [],
+  excludedRooms: [],
 };
 
 /** What a new kind of prize starts as. */
@@ -222,6 +252,11 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     }
     completePrizes(copy);
     copy.rooms ??= { emptyPrivateRoomMinutes: 10, maxPrivateRoomMinutes: 0 };
+    const events = (copy.worldEvents ??= { enabled: true, lightning: clone(DEFAULT_LIGHTNING) });
+    events.enabled ??= true;
+    events.lightning = { ...DEFAULT_LIGHTNING, ...events.lightning };
+    events.lightning.rooms ??= [];
+    events.lightning.excludedRooms ??= [];
     return copy;
   }
 
@@ -287,6 +322,9 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
       kind.excludedRooms = kind.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       if (!kind.grantsPerk?.trim()) delete kind.grantsPerk;
     }
+    const lightning = body.worldEvents.lightning;
+    lightning.rooms = lightning.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+    lightning.excludedRooms = lightning.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
     try {
       take(await http.put(url, adminKey, body));
       status.value = "saved";

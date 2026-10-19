@@ -32,6 +32,10 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
     ],
   },
   rooms: { emptyPrivateRoomMinutes: 10, maxPrivateRoomMinutes: 0 },
+  worldEvents: {
+    enabled: true,
+    lightning: { enabled: true, minIntervalSeconds: 30, maxIntervalSeconds: 90, radius: 90, telegraphMilliseconds: 1500, rooms: [], excludedRooms: [] },
+  },
 });
 
 const defaults = config({ value: 25 });
@@ -277,6 +281,57 @@ describe("useAdminGameplay", () => {
 
     expect(gameplay.draft.value!.perks.perks[0].rooms).toEqual([]);
     expect(gameplay.draft.value!.perks.perks[0].excludedRooms).toEqual([]);
+  });
+
+  describe("world events", () => {
+    it("fills in lightning for a server that does not know world events yet", async () => {
+      const { worldEvents: _unknown, ...older } = config();
+      http.get.mockResolvedValue({ ...payload, current: { revision: "r1", config: older } });
+      const gameplay = create();
+
+      await gameplay.load();
+
+      expect(gameplay.draft.value!.worldEvents).toEqual(config().worldEvents);
+    });
+
+    it("keeps what the server sent and fills in the rest of lightning", async () => {
+      http.get.mockResolvedValue({
+        ...payload,
+        current: { revision: "r1", config: { ...config(), worldEvents: { enabled: false, lightning: { radius: 150, rooms: ["ABC234"] } } } },
+      });
+      const gameplay = create();
+
+      await gameplay.load();
+
+      expect(gameplay.draft.value!.worldEvents).toEqual({
+        enabled: false,
+        lightning: { ...config().worldEvents.lightning, radius: 150, rooms: ["ABC234"] },
+      });
+    });
+
+    it("sends the lightning settings without blank rooms", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      gameplay.draft.value!.worldEvents.lightning.radius = 120;
+      gameplay.draft.value!.worldEvents.lightning.rooms = ["ABC234", " "];
+      gameplay.draft.value!.worldEvents.lightning.excludedRooms = ["", "calm "];
+
+      await gameplay.save();
+
+      const sent = http.put.mock.calls[0][2] as GameplayConfig;
+      expect(sent.worldEvents.lightning).toMatchObject({ radius: 120, rooms: ["ABC234"], excludedRooms: ["calm"] });
+    });
+
+    it("counts a change to lightning as unsaved, and takes it back on revert", async () => {
+      const gameplay = create();
+      await gameplay.load();
+
+      gameplay.draft.value!.worldEvents.lightning.enabled = false;
+      expect(gameplay.dirty.value).toBe(true);
+      gameplay.revert();
+
+      expect(gameplay.dirty.value).toBe(false);
+    });
   });
 
   it("does not send an empty script", async () => {
