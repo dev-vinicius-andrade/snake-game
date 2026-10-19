@@ -48,11 +48,26 @@ function togglePerf(event: KeyboardEvent) {
     showPerf.value = !showPerf.value;
   }
 }
+let longTaskObserver: PerformanceObserver | null = null;
+let heapTimer = 0;
 onMounted(() => {
   (window as unknown as { __snakePerf?: FramePerf }).__snakePerf = perf;
   window.addEventListener("keydown", togglePerf);
+  // What blocked the page, if the browser says: long tasks, and the memory in use (a fall of it is a garbage collection).
+  try {
+    longTaskObserver = new PerformanceObserver((list) => list.getEntries().forEach((entry) => perf.longTask(entry.startTime + entry.duration, entry.duration)));
+    longTaskObserver.observe({ entryTypes: ["longtask"] });
+  } catch {
+    longTaskObserver = null;
+  }
+  const memory = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
+  if (memory) heapTimer = window.setInterval(() => perf.heap(performance.now(), memory.usedJSHeapSize), 250);
 });
-onBeforeUnmount(() => window.removeEventListener("keydown", togglePerf));
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", togglePerf);
+  longTaskObserver?.disconnect();
+  window.clearInterval(heapTimer);
+});
 /** Lightning warnings are shown as they arrive, not a moment in the past: the countdown is the server's, not the snakes' motion. */
 const strikeTracker = new StrikeTracker();
 watch(

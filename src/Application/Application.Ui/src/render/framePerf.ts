@@ -10,6 +10,13 @@ export interface Spread {
   max: number;
 }
 
+/** A frame that took over 50 ms to arrive. */
+export interface Hitch {
+  /** How long ago it ended. */
+  agoMs: number;
+  frameMs: number;
+}
+
 export interface FramePerfStats {
   fps: number;
   /** Time from one frame to the next. */
@@ -28,6 +35,16 @@ export interface FramePerfStats {
   snapshotJitterMs: number;
   /** Gaps between snapshots over 100 ms. */
   stalls: number;
+  /** Stretches where the main thread was blocked for over 50 ms (the browser's long tasks): how many, the worst and the sum. */
+  longTasks: number;
+  longTaskMaxMs: number;
+  longTaskTotalMs: number;
+  /** Falls of the memory in use, which are garbage collections, and the least the page uses in MB a second (the rises between samples). */
+  gcs: number;
+  allocMBps: number;
+  heapMB: number;
+  /** The last frames that took over 50 ms, newest last. */
+  hitches: Hitch[];
   /** Body points in the latest snapshot, and the most in the window: the size of the snapshot grows with the snakes. */
   points: number;
   maxPoints: number;
@@ -47,6 +64,10 @@ const STALL_MS = 100;
 const LATE_FACTOR = 1.5;
 /** A camera step this much bigger than the usual is a teleport (a respawn), not motion. */
 const TELEPORT_STEP = 400;
+/** A fall of the memory in use by at least this much is taken for a garbage collection. */
+const GC_FALL_BYTES = 1024 * 1024;
+const MEGABYTE = 1024 * 1024;
+const MAX_HITCHES = 10;
 
 interface Sample<T> {
   at: number;
@@ -80,6 +101,9 @@ export class FramePerf {
   private sizes: Sample<number>[] = [];
   private steps: Sample<GamePoint>[] = [];
   private samples: number[] = [];
+  private tasks: Sample<number>[] = [];
+  private heaps: Sample<number>[] = [];
+  private hitchList: Array<{ at: number; frameMs: number }> = [];
   private lastFrameAt: number | null = null;
   private lastSnapshotAt: number | null = null;
   private lastCamera: GamePoint | null = null;
@@ -94,10 +118,24 @@ export class FramePerf {
     if (this.lastFrameAt !== null) {
       const gap = nowMs - this.lastFrameAt;
       this.worst = Math.max(this.worst, gap);
+      if (gap > LONG_FRAME_MS) {
+        this.hitchList.push({ at: nowMs, frameMs: gap });
+        if (this.hitchList.length > MAX_HITCHES) this.hitchList.shift();
+      }
       this.frames.push({ at: nowMs, value: { gap, drawMs, starved } });
     }
     this.lastFrameAt = nowMs;
     this.forget(nowMs);
+  }
+
+  /** The main thread was blocked for `durationMs`, until `endMs` (what the browser calls a long task). */
+  longTask(endMs: number, durationMs: number) {
+    this.tasks.push({ at: endMs, value: durationMs });
+  }
+
+  /** The memory in use by the page was `usedBytes` at `nowMs`. Only some browsers tell. */
+  heap(nowMs: number, usedBytes: number) {
+    this.heaps.push({ at: nowMs, value: usedBytes });
   }
 
   /** The world was blended and the camera stepped, for a frame or for something that asked where the camera is. */
@@ -134,6 +172,11 @@ export class FramePerf {
       snapshotMs: spread(snapshotGaps),
       snapshotJitterMs: deviation(snapshotGaps),
       stalls: snapshotGaps.filter((gap) => gap > STALL_MS).length,
+      longTasks: this.tasks.length,
+      longTaskMaxMs: maximum(this.tasks.map((sample) => sample.value)),
+      longTaskTotalMs: this.tasks.reduce((sum, sample) => sum + sample.value, 0),
+      ...this.memory(),
+      hitches: this.hitchList.map((hitch) => ({ agoMs: nowMs - hitch.at, frameMs: hitch.frameMs })),
       points: this.sizes.length === 0 ? 0 : this.sizes[this.sizes.length - 1].value,
       maxPoints: maximum(this.sizes.map((sample) => sample.value)),
       samplesPerFrame: this.frames.length === 0 ? 0 : this.samples.length / this.frames.length,
@@ -150,7 +193,7 @@ export class FramePerf {
     return (
       `${Math.round(stats.fps)} fps | frame ${one(stats.frameMs.avg)}/${one(stats.frameMs.max)} ms | draw ${one(stats.drawMs.avg)}/${one(stats.drawMs.max)} ms | ` +
       `drop ${stats.dropped} long ${stats.longFrames} | snap ${one(stats.snapshotMs.avg)} +-${one(stats.snapshotJitterMs)} ms stalls ${stats.stalls} pts ${stats.points}/${stats.maxPoints} | ` +
-      `starved ${Math.round(stats.starvedShare * 100)}% | cam jerk ${one(stats.cameraJerk)} rev ${stats.cameraReversals} | work ${one(stats.samplesPerFrame)}/frame`
+      `blocked ${stats.longTasks}x max ${one(stats.longTaskMaxMs)} ms | gc ${stats.gcs} mem ${stats.heapMB} MB +${one(stats.allocMBps)}/s | starved ${Math.round(stats.starvedShare * 100)}% | cam jerk ${one(stats.cameraJerk)} rev ${stats.cameraReversals} | work ${one(stats.samplesPerFrame)}/frame`
     );
   }
 
@@ -160,10 +203,26 @@ export class FramePerf {
     this.sizes = [];
     this.steps = [];
     this.samples = [];
+    this.tasks = [];
+    this.heaps = [];
+    this.hitchList = [];
     this.lastFrameAt = null;
     this.lastSnapshotAt = null;
     this.lastCamera = null;
     this.worst = 0;
+  }
+
+  private memory(): { gcs: number; allocMBps: number; heapMB: number } {
+    if (this.heaps.length === 0) return { gcs: 0, allocMBps: 0, heapMB: 0 };
+    let gcs = 0;
+    let rise = 0;
+    for (let index = 1; index < this.heaps.length; index++) {
+      const change = this.heaps[index].value - this.heaps[index - 1].value;
+      if (change <= -GC_FALL_BYTES) gcs++;
+      else if (change > 0) rise += change;
+    }
+    const seconds = (this.heaps[this.heaps.length - 1].at - this.heaps[0].at) / 1000;
+    return { gcs, allocMBps: seconds > 0 ? rise / MEGABYTE / seconds : 0, heapMB: Math.round(this.heaps[this.heaps.length - 1].value / MEGABYTE) };
   }
 
   /** A frame that took k periods missed k - 1 of them. */
@@ -198,5 +257,8 @@ export class FramePerf {
     this.sizes = this.sizes.filter((sample) => sample.at >= limit);
     this.steps = this.steps.filter((sample) => sample.at >= limit);
     this.samples = this.samples.filter((at) => at >= limit);
+    this.tasks = this.tasks.filter((sample) => sample.at >= limit);
+    this.heaps = this.heaps.filter((sample) => sample.at >= limit);
+    this.hitchList = this.hitchList.filter((hitch) => hitch.at >= nowMs - this.windowMs * 6);
   }
 }

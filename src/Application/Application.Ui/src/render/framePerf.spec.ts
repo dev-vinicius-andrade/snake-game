@@ -141,6 +141,72 @@ describe("FramePerf snapshots", () => {
   });
 });
 
+describe("FramePerf stalls of the page", () => {
+  it("counts long tasks: stretches where the browser's main thread was blocked", () => {
+    const perf = new FramePerf();
+    perf.longTask(2000, 330);
+    perf.longTask(3000, 60);
+
+    const stats = perf.stats(3100);
+
+    expect(stats.longTasks).toBe(2);
+    expect(stats.longTaskMaxMs).toBe(330);
+    expect(stats.longTaskTotalMs).toBe(390);
+  });
+
+  it("forgets long tasks older than the window", () => {
+    const perf = new FramePerf({ windowMs: 2000 });
+    perf.longTask(1000, 300);
+
+    expect(perf.stats(9000).longTasks).toBe(0);
+  });
+
+  it("reads a fall in the memory in use as a garbage collection, and the rises as the least the page uses a second", () => {
+    const perf = new FramePerf();
+    const MB = 1024 * 1024;
+    perf.heap(0, 50 * MB);
+    perf.heap(250, 54 * MB);
+    perf.heap(500, 58 * MB);
+    perf.heap(750, 40 * MB);
+    perf.heap(1000, 44 * MB);
+
+    const stats = perf.stats(1000);
+
+    expect(stats.gcs).toBe(1);
+    expect(stats.allocMBps).toBeCloseTo(12, 0);
+    expect(stats.heapMB).toBe(44);
+  });
+
+  it("does not take a small fall for a collection", () => {
+    const perf = new FramePerf();
+    perf.heap(0, 50 * 1024 * 1024);
+    perf.heap(250, 50 * 1024 * 1024 - 200_000);
+
+    expect(perf.stats(250).gcs).toBe(0);
+  });
+
+  it("says nothing about memory when the browser does not tell", () => {
+    const stats = new FramePerf().stats(1000);
+
+    expect(stats.gcs).toBe(0);
+    expect(stats.heapMB).toBe(0);
+  });
+
+  it("lists the recent hitches, newest last, with how long ago and how long", () => {
+    const perf = new FramePerf();
+    perf.frame(0, 1);
+    perf.frame(16, 1);
+    perf.frame(500, 1);
+    perf.frame(517, 1);
+    perf.frame(900, 1);
+
+    const hitches = perf.stats(1000).hitches;
+
+    expect(hitches.map((hitch) => Math.round(hitch.frameMs))).toEqual([484, 383]);
+    expect(hitches[1].agoMs).toBeCloseTo(100, 0);
+  });
+});
+
 describe("FramePerf snapshot size", () => {
   it("reports how many body points the latest snapshot carried and the biggest in the window", () => {
     const perf = new FramePerf();
