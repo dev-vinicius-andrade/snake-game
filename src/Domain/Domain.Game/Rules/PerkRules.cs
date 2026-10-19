@@ -1,3 +1,5 @@
+using Library.Commons.Game.Domain.Interfaces.Entities;
+
 namespace Domain.Game.Rules;
 
 /// <summary>The combined effect of every perk a snake has.</summary>
@@ -66,12 +68,13 @@ public sealed class PerkRules
     }
 
     /// <summary>Ids of the perks earned with <paramref name="foodsEaten"/> foods, in the order they unlock.</summary>
-    public IReadOnlyList<string> UnlockedIds(int foodsEaten)
-        => Unlocked(foodsEaten).Select(perk => perk.Id).ToArray();
+    public IReadOnlyList<string> UnlockedIds(int foodsEaten, IRoom? room = null)
+        => Unlocked(foodsEaten, room).Select(perk => perk.Id).ToArray();
 
-    public PerkEffects EffectsFor(int foodsEaten)
+    /// <summary>What the perks a snake has do, in the room it plays in.</summary>
+    public PerkEffects EffectsFor(int foodsEaten, IRoom? room = null)
     {
-        var unlocked = Unlocked(foodsEaten).ToArray();
+        var unlocked = Entries(Unlocked(foodsEaten, room));
         if (unlocked.Length == 0) return PerkEffects.None;
         return new PerkEffects
         {
@@ -97,20 +100,23 @@ public sealed class PerkRules
         return Enumerable.Range(0, shots).Select(index => (index - (shots - 1) / 2.0) * spread);
     }
 
-    private IEnumerable<PerkDefinition> Unlocked(int foodsEaten)
+    private IEnumerable<PerkDefinition> Unlocked(int foodsEaten, IRoom? room)
     {
         var settings = _settings;
-        return settings.Enabled ? settings.Perks.Where(perk => perk.FoodsRequired <= foodsEaten) : [];
+        return settings.Enabled ? settings.Perks.Where(perk => perk.FoodsRequired <= foodsEaten && perk.AppliesTo(room)) : [];
     }
 
-    private static bool Has(IEnumerable<PerkDefinition> perks, PerkEffect effect)
-        => perks.Any(perk => perk.Effect == effect);
+    private static PerkEffectEntry[] Entries(IEnumerable<PerkDefinition> perks)
+        => perks.SelectMany(perk => perk.AllEffects()).ToArray();
 
-    private static double Sum(IEnumerable<PerkDefinition> perks, PerkEffect effect)
-        => perks.Where(perk => perk.Effect == effect).Sum(perk => perk.Amount);
+    private static bool Has(IEnumerable<PerkEffectEntry> entries, PerkEffect effect)
+        => entries.Any(entry => entry.Effect == effect);
 
-    private static double Product(IEnumerable<PerkDefinition> perks, PerkEffect effect)
-        => perks.Where(perk => perk.Effect == effect).Aggregate(1.0, (factor, perk) => factor * (1 - perk.Amount));
+    private static double Sum(IEnumerable<PerkEffectEntry> entries, PerkEffect effect)
+        => entries.Where(entry => entry.Effect == effect).Sum(entry => entry.Amount);
+
+    private static double Product(IEnumerable<PerkEffectEntry> entries, PerkEffect effect)
+        => entries.Where(entry => entry.Effect == effect).Aggregate(1.0, (factor, entry) => factor * (1 - entry.Amount));
 
     private static IReadOnlyList<PerkDefinition> Validated(IReadOnlyList<PerkDefinition> perks)
     {
@@ -131,10 +137,20 @@ public sealed class PerkRules
             throw new ArgumentException("A perk needs an id.", nameof(perk));
         if (perk.FoodsRequired < 1)
             throw new ArgumentOutOfRangeException(nameof(perk), perk.FoodsRequired, $"Perk '{perk.Id}' needs at least 1 food.");
-        if (perk.Amount <= 0)
-            throw new ArgumentOutOfRangeException(nameof(perk), perk.Amount, $"Perk '{perk.Id}' needs an amount above zero.");
-        var isRatio = perk.Effect is PerkEffect.FasterReload or PerkEffect.EfficientBoost or PerkEffect.Armor;
-        if (isRatio && perk.Amount >= 1)
-            throw new ArgumentOutOfRangeException(nameof(perk), perk.Amount, $"Perk '{perk.Id}' needs an amount below 1.");
+        var effects = perk.AllEffects();
+        if (effects.Count == 0 && !perk.HasScript)
+            throw new ArgumentException($"Perk '{perk.Id}' needs at least one effect, or a script.", nameof(perk));
+        foreach (var entry in effects) EnsureValid(perk, entry);
+        if (perk.Rooms.Any(string.IsNullOrWhiteSpace))
+            throw new ArgumentException($"Perk '{perk.Id}' has a blank room.", nameof(perk));
+    }
+
+    private static void EnsureValid(PerkDefinition perk, PerkEffectEntry entry)
+    {
+        if (entry.Amount <= 0)
+            throw new ArgumentOutOfRangeException(nameof(perk), entry.Amount, $"Perk '{perk.Id}' needs an amount above zero.");
+        var isRatio = entry.Effect is PerkEffect.FasterReload or PerkEffect.EfficientBoost or PerkEffect.Armor;
+        if (isRatio && entry.Amount >= 1)
+            throw new ArgumentOutOfRangeException(nameof(perk), entry.Amount, $"Perk '{perk.Id}' needs an amount below 1.");
     }
 }

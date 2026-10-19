@@ -21,7 +21,7 @@ public sealed class GameplayConfigTests
         Assert.Matches("\"effect\": \"Magnet\"", json);
         var back = System.Text.Json.JsonSerializer.Deserialize<GameplayConfig>(json, GameplayConfig.Json)!;
         Assert.Equal(GameplayConfig.Defaults.Perks.Perks.Count, back.Perks.Perks.Count);
-        Assert.Equal(PerkEffect.Magnet, back.Perks.Perks.First(perk => perk.Id == "magnet").Effect);
+        Assert.Equal(PerkEffect.Magnet, back.Perks.Perks.First(perk => perk.Id == "magnet").Effects.Single().Effect);
         Assert.Equal(GameplayConfig.Defaults.Prize, back.Prize);
     }
 
@@ -52,5 +52,47 @@ public sealed class GameplayConfigTests
 
         Assert.Equal(PerkOptions.BuiltIn.Count, empty.Perks.Perks.Count);
         Assert.Single(custom.WithBuiltInPerks().Perks.Perks);
+    }
+
+    [Fact]
+    public void Normalized_MovesTheSingleOldEffectIntoTheList()
+    {
+        var config = new GameplayConfig
+        {
+            Perks = new PerkOptions { Perks = [new() { Id = "a", Name = "A", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 60 }] }
+        };
+
+        var perk = config.Normalized().Perks.Perks.Single();
+
+        Assert.Null(perk.Effect);
+        Assert.Equal(0, perk.Amount);
+        var entry = Assert.Single(perk.Effects);
+        Assert.Equal((PerkEffect.Magnet, 60.0), (entry.Effect, entry.Amount));
+    }
+
+    [Fact]
+    public void Defaults_ListEveryEffectInTheListAndNotInTheOldFields()
+    {
+        var perks = GameplayConfig.Defaults.Perks.Perks;
+
+        Assert.All(perks, perk =>
+        {
+            Assert.Null(perk.Effect);
+            Assert.NotEmpty(perk.Effects);
+        });
+    }
+
+    [Fact]
+    public void Normalized_LeavesRoomsAndScriptsAlone()
+    {
+        var config = new GameplayConfig
+        {
+            Perks = new PerkOptions { Perks = [new() { Id = "a", Name = "A", FoodsRequired = 1, Effects = [new() { Effect = PerkEffect.Magnet, Amount = 1 }], Rooms = ["R1"], Script = "x" }] }
+        };
+
+        var perk = config.Normalized().Perks.Perks.Single();
+
+        Assert.Equal(new[] { "R1" }, perk.Rooms);
+        Assert.Equal("x", perk.Script);
     }
 }

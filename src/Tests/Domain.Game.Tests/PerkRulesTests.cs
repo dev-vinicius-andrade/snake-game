@@ -1,3 +1,5 @@
+using NSubstitute;
+using Library.Commons.Game.Domain.Interfaces.Entities;
 using Domain.Game.Rules;
 
 namespace Domain.Game.Tests;
@@ -233,7 +235,7 @@ public sealed class PerkRulesTests
     [Fact]
     public void BuiltInSet_UsesEveryEffect()
     {
-        var effects = PerkOptions.BuiltIn.Select(perk => perk.Effect).ToHashSet();
+        var effects = PerkOptions.BuiltIn.SelectMany(perk => perk.AllEffects()).Select(entry => entry.Effect).ToHashSet();
 
         Assert.Equal(Enum.GetValues<PerkEffect>().ToHashSet(), effects);
     }
@@ -278,5 +280,130 @@ public sealed class PerkRulesTests
         var rules = new PerkRules(options);
 
         Assert.Same(options, rules.Options);
+    }
+
+    private static PerkDefinition Multi(string id, int foods, params PerkEffectEntry[] effects)
+        => new() { Id = id, Name = id, FoodsRequired = foods, Effects = effects.ToList() };
+
+    private static PerkEffectEntry Entry(PerkEffect effect, double amount) => new() { Effect = effect, Amount = amount };
+
+    private static IRoom Room(string? code = null, string? name = null, Guid? guid = null)
+    {
+        var room = Substitute.For<IRoom>();
+        room.Code.Returns(code);
+        room.Name.Returns(name);
+        room.Guid.Returns(guid ?? Guid.NewGuid());
+        return room;
+    }
+
+    [Fact]
+    public void EffectsFor_APerkWithSeveralEffects_GivesAllOfThem()
+    {
+        var rules = new PerkRules(new PerkOptions
+        {
+            Perks = [Multi("berserker", 5, Entry(PerkEffect.ExtraShots, 2), Entry(PerkEffect.FasterReload, 0.3), Entry(PerkEffect.BoostSpeed, 0.4))]
+        });
+
+        var effects = rules.EffectsFor(5);
+
+        Assert.Equal(2, effects.ExtraShots);
+        Assert.Equal(0.7, effects.ReloadFactor, 6);
+        Assert.Equal(0.4, effects.BoostSpeedBonus, 6);
+    }
+
+    [Fact]
+    public void EffectsFor_SeveralPerksAndSeveralEffectsAddUpTogether()
+    {
+        var rules = new PerkRules(new PerkOptions
+        {
+            Perks = [Multi("a", 1, Entry(PerkEffect.ExtraShots, 1), Entry(PerkEffect.Magnet, 30)), Multi("b", 2, Entry(PerkEffect.ExtraShots, 1), Entry(PerkEffect.Magnet, 20))]
+        });
+
+        var effects = rules.EffectsFor(2);
+
+        Assert.Equal(2, effects.ExtraShots);
+        Assert.Equal(50, effects.MagnetRadius, 6);
+    }
+
+    [Fact]
+    public void AllEffects_UsesTheListAndFallsBackToTheSingleOldEffect()
+    {
+        var single = new PerkDefinition { Id = "s", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 5 };
+        var several = new PerkDefinition { Id = "m", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 5, Effects = [Entry(PerkEffect.Armor, 0.2)] };
+        var none = new PerkDefinition { Id = "n", FoodsRequired = 1 };
+
+        Assert.Equal(new[] { PerkEffect.Magnet }, single.AllEffects().Select(entry => entry.Effect));
+        Assert.Equal(new[] { PerkEffect.Armor }, several.AllEffects().Select(entry => entry.Effect));
+        Assert.Empty(none.AllEffects());
+    }
+
+    [Fact]
+    public void Constructor_APerkWithNoEffectAtAll_IsRefused()
+    {
+        Assert.Throws<ArgumentException>(() => new PerkRules(new PerkOptions { Perks = [new PerkDefinition { Id = "x", Name = "x", FoodsRequired = 1 }] }));
+    }
+
+    [Fact]
+    public void Constructor_EveryEffectOfAPerkIsChecked()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new PerkRules(new PerkOptions { Perks = [Multi("x", 1, Entry(PerkEffect.ExtraShots, 1), Entry(PerkEffect.Armor, 1.5))] }));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new PerkRules(new PerkOptions { Perks = [Multi("x", 1, Entry(PerkEffect.ExtraShots, 1), Entry(PerkEffect.Magnet, 0))] }));
+    }
+
+    [Fact]
+    public void Rooms_APerkWithRoomsOnlyWorksInThoseRooms_ByCodeNameOrGuid()
+    {
+        var guid = Guid.NewGuid();
+        var rules = new PerkRules(new PerkOptions
+        {
+            Perks =
+            [
+                new PerkDefinition { Id = "by-code", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 10, Rooms = ["abc234"] },
+                new PerkDefinition { Id = "by-name", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 20, Rooms = ["Friends"] },
+                new PerkDefinition { Id = "by-guid", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 40, Rooms = [guid.ToString()] },
+                new PerkDefinition { Id = "everywhere", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 80 },
+            ]
+        });
+
+        Assert.Equal(new[] { "everywhere" }, rules.UnlockedIds(1, Room(code: "OTHER1")));
+        Assert.Equal(new[] { "by-code", "everywhere" }, rules.UnlockedIds(1, Room(code: "ABC234")));
+        Assert.Equal(new[] { "by-name", "everywhere" }, rules.UnlockedIds(1, Room(name: "friends")));
+        Assert.Equal(new[] { "by-guid", "everywhere" }, rules.UnlockedIds(1, Room(guid: guid)));
+        Assert.Equal(new[] { "everywhere" }, rules.UnlockedIds(1));
+    }
+
+    [Fact]
+    public void Rooms_EffectsFollowTheRoomToo()
+    {
+        var rules = new PerkRules(new PerkOptions
+        {
+            Perks = [new PerkDefinition { Id = "a", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 99, Rooms = ["ABC234"] }]
+        });
+
+        Assert.Equal(99, rules.EffectsFor(1, Room(code: "ABC234")).MagnetRadius);
+        Assert.Equal(0, rules.EffectsFor(1, Room(code: "OTHER1")).MagnetRadius);
+    }
+
+    [Fact]
+    public void AppliesTo_APerkWithAScriptIsOffEverywhereUntilRoomsAreNamed()
+    {
+        var scripted = new PerkDefinition { Id = "s", FoodsRequired = 1, Script = "function modify(){return {};}" };
+        var scopedScript = scripted with { Rooms = ["ABC234"] };
+
+        Assert.False(scripted.AppliesTo(Room(code: "ABC234")));
+        Assert.True(scopedScript.AppliesTo(Room(code: "ABC234")));
+        Assert.False(scopedScript.AppliesTo(Room(code: "OTHER1")));
+        Assert.False(scopedScript.AppliesTo(null));
+    }
+
+    [Fact]
+    public void Constructor_ARoomEntryThatIsBlankIsRefused()
+    {
+        Assert.Throws<ArgumentException>(() => new PerkRules(new PerkOptions
+        {
+            Perks = [new PerkDefinition { Id = "a", FoodsRequired = 1, Effect = PerkEffect.Magnet, Amount = 1, Rooms = [" "] }]
+        }));
     }
 }

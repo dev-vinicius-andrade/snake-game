@@ -1,4 +1,13 @@
+using Library.Commons.Game.Domain.Interfaces.Entities;
+
 namespace Domain.Game.Rules;
+
+/// <summary>One thing a perk does, and how much.</summary>
+public sealed record PerkEffectEntry
+{
+    public PerkEffect Effect { get; init; }
+    public double Amount { get; init; }
+}
 
 /// <summary>A reward a snake earns once it has eaten <see cref="FoodsRequired"/> foods in its life.</summary>
 public sealed record PerkDefinition
@@ -6,8 +15,42 @@ public sealed record PerkDefinition
     public string Id { get; init; } = string.Empty;
     public string Name { get; init; } = string.Empty;
     public int FoodsRequired { get; init; }
-    public PerkEffect Effect { get; init; }
+
+    /// <summary>Everything the perk does. Several effects can be combined in one perk.</summary>
+    public List<PerkEffectEntry> Effects { get; init; } = [];
+
+    /// <summary>The single effect of older configs, still read: used when <see cref="Effects"/> is empty.</summary>
+    public PerkEffect? Effect { get; init; }
+
+    /// <summary>The amount that goes with <see cref="Effect"/>.</summary>
     public double Amount { get; init; }
+
+    /// <summary>
+    /// The rooms the perk works in, by invite code, name or id. Empty means every room, except for a perk with a
+    /// <see cref="Script"/>: that one is off everywhere until rooms are named.
+    /// </summary>
+    public List<string> Rooms { get; init; } = [];
+
+    /// <summary>JavaScript that decides more of what the perk does while it runs in a room. See docs/PERK_SCRIPTS.md.</summary>
+    public string? Script { get; init; }
+
+    public bool HasScript => !string.IsNullOrWhiteSpace(Script);
+
+    /// <summary>The effects of the perk: the list, or the single old effect.</summary>
+    public IReadOnlyList<PerkEffectEntry> AllEffects()
+        => Effects.Count > 0 ? Effects : Effect is { } effect ? [new PerkEffectEntry { Effect = effect, Amount = Amount }] : [];
+
+    /// <summary>True when the perk works in <paramref name="room"/> (null: no room is known).</summary>
+    public bool AppliesTo(IRoom? room)
+    {
+        if (Rooms.Count == 0) return !HasScript;
+        return room is not null && Rooms.Any(entry => Matches(entry, room));
+    }
+
+    private static bool Matches(string entry, IRoom room)
+        => string.Equals(entry, room.Code, StringComparison.OrdinalIgnoreCase)
+           || string.Equals(entry, room.Name, StringComparison.OrdinalIgnoreCase)
+           || string.Equals(entry, room.Guid.ToString(), StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>Tunable perks. See docs/PERKS.md. Bound from the <c>PerkConfiguration</c> section.</summary>

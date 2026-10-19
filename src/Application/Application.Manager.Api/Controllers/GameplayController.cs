@@ -23,9 +23,12 @@ public class GameplayController(GameplayConfigStore store) : Controller
     public IActionResult Perks()
     {
         var current = store.Current;
+        // Only what a player may see: no scripts and no room names.
         var perks = current.Config.Perks.Enabled
-            ? current.Config.Perks.Perks.OrderBy(perk => perk.FoodsRequired).ToList()
-            : new List<PerkDefinition>();
+            ? current.Config.Perks.Perks.OrderBy(perk => perk.FoodsRequired)
+                .Select(perk => new { id = perk.Id, name = perk.Name, foodsRequired = perk.FoodsRequired, effects = perk.AllEffects() })
+                .ToList()
+            : [];
         return Json(new { revision = current.Revision, perks });
     }
 

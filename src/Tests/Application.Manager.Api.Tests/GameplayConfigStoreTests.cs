@@ -74,7 +74,7 @@ public sealed class GameplayConfigStoreTests : IDisposable
 
         Assert.Equal(77, second.Current.Config.Prize.Value);
         Assert.Equal(saved.Revision, second.Current.Revision);
-        Assert.Equal(PerkEffect.Magnet, second.Current.Config.Perks.Perks.Single().Effect);
+        Assert.Equal(PerkEffect.Magnet, second.Current.Config.Perks.Perks.Single().Effects.Single().Effect);
     }
 
     [Fact]

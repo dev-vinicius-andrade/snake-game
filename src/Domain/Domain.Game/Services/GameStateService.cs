@@ -156,7 +156,7 @@ public class GameStateService : IGameStateService
     public async Task MovePlayer(IGameState gameState, IPlayer player)
     {
         TurnTowardsTarget(player);
-        var perks = _perkRules.EffectsFor(player.FoodsEaten);
+        var perks = _perkRules.EffectsFor(player.FoodsEaten, gameState.Room);
         var boost = _boostRules.Step(player.IsBoosting, player.BoostTicks, player.Score, perks.BoostSpeedBonus, perks.BoostLengthFactor);
         player.BoostTicks = boost.BoostTicks;
         player.Score -= boost.MassSpent;
@@ -246,8 +246,8 @@ public class GameStateService : IGameStateService
         gameState.Foods.Remove(food.Guid);
         player.Score += food.Value;
         player.FoodsEaten += food.FoodsCredit;
-        player.Perks = _perkRules.UnlockedIds(player.FoodsEaten).ToList();
-        player.AutoFire = _perkRules.EffectsFor(player.FoodsEaten).AutoFire;
+        player.Perks = _perkRules.UnlockedIds(player.FoodsEaten, gameState.Room).ToList();
+        player.AutoFire = _perkRules.EffectsFor(player.FoodsEaten, gameState.Room).AutoFire;
         HealBody(player, food.Value);
 
     }
@@ -278,7 +278,7 @@ public class GameStateService : IGameStateService
     public async Task Shoot(IGameState gameState, IRoom room, IPlayer player)
     {
         if (!player.IsAlive || player.Score <= 0 || !_shotCooldownRules.CanShoot(player.ShotCooldownTicks)) return;
-        var perks = _perkRules.EffectsFor(player.FoodsEaten);
+        var perks = _perkRules.EffectsFor(player.FoodsEaten, gameState.Room);
         FireVolley(gameState, room, player, perks);
 
         player.Score = Math.Max(0, player.Score - 1);
@@ -325,7 +325,7 @@ public class GameStateService : IGameStateService
     /// <summary>Food close to a snake with a magnet drifts toward its head. The prize is left alone: it is to be fought for.</summary>
     private void PullFoodToward(IGameState gameState, IPlayer player)
     {
-        var radius = _perkRules.EffectsFor(player.FoodsEaten).MagnetRadius;
+        var radius = _perkRules.EffectsFor(player.FoodsEaten, gameState.Room).MagnetRadius;
         if (radius <= 0) return;
         foreach (var food in gameState.Foods.Values.Where(food => food.Kind != FoodKind.Prize))
             PullToward(food, player.CurrentPosition, radius);
@@ -423,7 +423,7 @@ public class GameStateService : IGameStateService
     {
         var targetLength = player.Path.Count;
         var shooterLength = GetPlayer(gameState, impact.Shot.CreatedyBy)?.Path.Count ?? InitialLength;
-        var damage = _damageCalculator.ShotDamage(shooterLength, targetLength) * _perkRules.EffectsFor(player.FoodsEaten).DamageFactor;
+        var damage = _damageCalculator.ShotDamage(shooterLength, targetLength) * _perkRules.EffectsFor(player.FoodsEaten, gameState.Room).DamageFactor;
         var maxHp = _damageCalculator.MaxSegmentHp(targetLength);
         var hitAt = player.Path[impact.Hit.SegmentIndex];
         var hpBefore = player.SegmentHealth[impact.Hit.SegmentIndex] * maxHp;
