@@ -8,6 +8,9 @@ public interface IGameState
     IDictionary<string, IColor> Colors { get; set; }
     IDictionary<Guid, IFood> Foods { get; set; }
     IDictionary<Guid,IObstacle> Obstacles { get; set; }
+    /// <summary>Spots that lightning is about to strike, by id: shown to the players until the strike.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    System.Collections.Concurrent.ConcurrentDictionary<Guid, Library.Commons.Game.Domain.Entities.WorldStrike> Strikes { get; }
     /// <summary>Damage dealt since the last time it was read; the game loop drains it and tells the players.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     System.Collections.Concurrent.ConcurrentQueue<Library.Commons.Game.Domain.Entities.DamageDealt> Hits { get; }

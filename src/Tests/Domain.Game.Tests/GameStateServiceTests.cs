@@ -1335,4 +1335,111 @@ public sealed class GameStateServiceTests
         await service.CheckObstacleCollision(_state, hero);
         Assert.False(hero.IsAlive);
     }
+
+    // StrikeArea: a bolt of lightning on a spot of the map.
+
+    private static double Middle(double position) => position + HeadSize / 2.0;
+
+    [Fact]
+    public void StrikeArea_ASegmentInsideTheRadius_BreaksOffAndDropsItsMassAsAPellet()
+    {
+        var victim = AddPlayer("victim", 500, 500, length: 11, score: 10);
+        var tail = victim.Path[0];
+
+        var died = _service.StrikeArea(_state, Middle(tail.X), Middle(tail.Y), 5);
+
+        Assert.Empty(died);
+        Assert.True(victim.IsAlive);
+        Assert.Equal(10, victim.Path.Count);
+        Assert.Equal(10, victim.SegmentHealth.Count);
+        Assert.Equal(9, victim.Score);
+        var pellet = Assert.Single(_state.Foods.Values);
+        Assert.Equal((tail.X, tail.Y, 1L), (pellet.Position.X, pellet.Position.Y, pellet.Value));
+    }
+
+    [Fact]
+    public void StrikeArea_SeveralSegments_EachDropsAPellet()
+    {
+        var victim = AddPlayer("victim", 500, 500, length: 11, score: 10);
+
+        _service.StrikeArea(_state, Middle(victim.Path[1].X), Middle(500), HeadSize * 1.2);
+
+        Assert.Equal(8, victim.Path.Count);
+        Assert.Equal(3, _state.Foods.Count);
+        Assert.Equal(7, victim.Score);
+    }
+
+    [Fact]
+    public void StrikeArea_TheHead_KillsTheSnakeAndDropsItsMass()
+    {
+        var victim = AddPlayer("victim", 500, 500, length: 11, score: 10);
+
+        var died = _service.StrikeArea(_state, Middle(500), Middle(500), 5);
+
+        Assert.Same(victim, Assert.Single(died));
+        Assert.False(victim.IsAlive);
+        Assert.Equal(10, _state.Foods.Values.Sum(food => food.Value));
+    }
+
+    [Fact]
+    public void StrikeArea_AWholeSnakeInsideTheRadius_DiesOnce()
+    {
+        var victim = AddPlayer("victim", 500, 500, length: 11, score: 10);
+
+        var died = _service.StrikeArea(_state, 450, 500, 500);
+
+        Assert.Same(victim, Assert.Single(died));
+        Assert.Equal(10, _state.Foods.Values.Sum(food => food.Value));
+    }
+
+    [Fact]
+    public void StrikeArea_NobodyInTheRadius_ChangesNothing()
+    {
+        var other = AddPlayer("other", 500, 500, length: 11, score: 10);
+
+        var died = _service.StrikeArea(_state, 1500, 900, 100);
+
+        Assert.Empty(died);
+        Assert.Equal(11, other.Path.Count);
+        Assert.Empty(_state.Foods);
+    }
+
+    [Fact]
+    public void StrikeArea_ASnakeAtItsStartingLength_KeepsItsBody()
+    {
+        var small = AddPlayer("small", 500, 500, length: InitialLength, score: 5);
+
+        _service.StrikeArea(_state, Middle(small.Path[0].X), Middle(500), 5);
+
+        Assert.Equal(InitialLength, small.Path.Count);
+        Assert.Empty(_state.Foods);
+        Assert.Equal(5, small.Score);
+    }
+
+    [Fact]
+    public void StrikeArea_AnInvulnerableSnake_IsUntouched()
+    {
+        var service = WithScript("function modify() { return { invulnerable: true }; }", _room.Guid.ToString());
+        var shielded = AddPlayer("shielded", 500, 500, length: 11, score: 10);
+        shielded.FoodsEaten = 1;
+
+        var died = service.StrikeArea(_state, 450, 500, 500);
+
+        Assert.Empty(died);
+        Assert.True(shielded.IsAlive);
+        Assert.Equal(11, shielded.Path.Count);
+        Assert.Empty(_state.Foods);
+    }
+
+    [Fact]
+    public void StrikeArea_ASnakeAlreadyDead_IsLeftAlone()
+    {
+        var dead = AddPlayer("dead", 500, 500, length: 11, score: 10);
+        dead.IsAlive = false;
+
+        var died = _service.StrikeArea(_state, 450, 500, 500);
+
+        Assert.Empty(died);
+        Assert.Empty(_state.Foods);
+    }
 }

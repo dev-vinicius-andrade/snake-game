@@ -23,4 +23,6 @@ internal record GameState:IGameState
     public IDictionary<Guid, IObstacle> Obstacles { get; set; }
     [JsonIgnore]
     public ConcurrentQueue<DamageDealt> Hits { get; } = new();
+    [JsonIgnore]
+    public ConcurrentDictionary<Guid, WorldStrike> Strikes { get; } = new();
 }

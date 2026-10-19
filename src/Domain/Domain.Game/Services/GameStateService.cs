@@ -462,6 +462,40 @@ public class GameStateService : IGameStateService
         UpdatePlayer(player);
     }
 
+    public IReadOnlyList<IPlayer> StrikeArea(IGameState gameState, double x, double y, double radius)
+    {
+        ArgumentNullException.ThrowIfNull(gameState);
+        var died = new List<IPlayer>();
+        var headSize = _snakeConfiguration.Value.HeadSize;
+        foreach (var player in gameState.Players.Values.Where(player => player.IsAlive).ToArray())
+        {
+            if (EffectsOf(gameState, player).Invulnerable) continue;
+            var hit = WorldEventRules.Resolve(ToPoints(player.Path), new Point(x, y), radius, headSize, InitialLength);
+            if (hit.HeadHit)
+            {
+                KillPlayer(gameState, player);
+                died.Add(player);
+            }
+            else if (hit.BrokenSegments.Count > 0)
+                BreakSegments(gameState, player, hit.BrokenSegments);
+        }
+        return died;
+    }
+
+    private void BreakSegments(IGameState gameState, IPlayer player, IReadOnlyList<int> indices)
+    {
+        var body = ToBodyState(player);
+        var lost = indices.ToHashSet();
+        var kept = Enumerable.Range(0, body.Segments.Count).Where(index => !lost.Contains(index)).ToArray();
+        ApplyBody(player, body with
+        {
+            Segments = kept.Select(index => body.Segments[index]).ToArray(),
+            Health = kept.Select(index => body.Health[index]).ToArray()
+        });
+        foreach (var index in indices) DropBrokenSegment(gameState, player, body.Segments[index]);
+        UpdatePlayer(player);
+    }
+
     private static void RecordDamage(IGameState gameState, ShotImpact impact, IPlayer target, IPointAxis at, double damage, bool broke)
         => gameState.Hits.Enqueue(new DamageDealt(
             impact.Shot.CreatedyBy.Guid, target.Guid, at.X, at.Y, damage, broke ? DamageKind.Broke : DamageKind.Hit));

@@ -44,6 +44,7 @@ public static class DependencyInjection
         services.AddSingleton<WorldEventRules>(provider => new WorldEventRules(provider.GetRequiredService<WorldEventOptions>()));
         services.AddSingleton<PrizeSpawner>();
         services.AddSingleton<PerkWorld>();
+        services.AddSingleton<WorldEventRunner>();
         services.AddSingleton<DamageCalculator>();
         services.AddSingleton<BodyHealer>();
         services.AddSingleton<BodyHealthRules>();

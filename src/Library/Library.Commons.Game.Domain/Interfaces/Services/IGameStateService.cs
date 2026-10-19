@@ -40,5 +40,10 @@ public interface IGameStateService
     Task CheckObstacleCollision(IGameState gameState, IPlayer player);
     Task MoveObstacles(IGameState gameState);
     Task ResolveSnakeCollisions(IGameState gameState);
+    /// <summary>
+    /// Lightning on a spot: body segments within the radius break off like a broken part, a head within it dies, and the mass
+    /// falls as pellets. Snakes that cannot be harmed are skipped. Returns the snakes that died, for the caller to notify and remove.
+    /// </summary>
+    IReadOnlyList<IPlayer> StrikeArea(IGameState gameState, double x, double y, double radius);
     IPlayer? GetPlayer(IGameState gameState, ITrackableId trackableId);
 }
