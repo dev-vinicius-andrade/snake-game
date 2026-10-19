@@ -1,13 +1,49 @@
 <script setup lang="ts">
-import { getText } from "@/helpers";
+import { computed } from "vue";
+import type { CatalogPerk } from "@/composables/usePerkCatalog";
 import { perkLabel } from "@/game/perks";
+import { perkIcon, perkParams, perkTooltipKey } from "@/game/perkInfo";
+import { getText } from "@/helpers";
 
-defineProps<{ perks: string[]; foodsEaten: number }>();
+const props = defineProps<{
+  /** Ids of the perks the snake has, in the order it earned them. */
+  perks: string[];
+  /** What each perk is and does. Without it a perk is shown by its id. */
+  catalog: CatalogPerk[];
+}>();
+
+interface Shown {
+  id: string;
+  icon: string;
+  title: string;
+  text: string;
+}
+
+function describe(id: string): Shown {
+  const perk = props.catalog.find((candidate) => candidate.id === id);
+  if (!perk) return { id, icon: perkIcon(""), title: perkLabel(id), text: "" };
+  return {
+    id,
+    icon: perkIcon(perk.effect),
+    title: perk.name || perkLabel(id),
+    text: getText({ key: perkTooltipKey(perk.effect), params: perkParams(perk) }),
+  };
+}
+
+const shown = computed(() => props.perks.map(describe));
 </script>
 
 <template>
-  <section v-if="perks.length > 0" class="perk-list" :aria-label="getText({ key: 'game.perks' })">
-    <span v-for="perk in perks" :key="perk" class="perk">{{ perkLabel(perk) }}</span>
+  <section v-if="shown.length > 0" class="perk-list" :aria-label="getText({ key: 'game.perks' })">
+    <VTooltip v-for="perk in shown" :key="perk.id" location="top">
+      <template #activator="{ props: activator }">
+        <span class="perk" tabindex="0" :aria-label="`${perk.title}. ${perk.text}`" v-bind="activator">
+          <VIcon size="small">{{ perk.icon }}</VIcon>
+        </span>
+      </template>
+      <div class="perk-title">{{ perk.title }}</div>
+      <div v-if="perk.text">{{ perk.text }}</div>
+    </VTooltip>
   </section>
 </template>
 
@@ -25,14 +61,22 @@ defineProps<{ perks: string[]; foodsEaten: number }>();
   width: max-content;
   max-width: min(60vw, 520px);
   transform: translateX(-50%);
-  pointer-events: none;
 }
 .perk {
-  padding: 1px 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   color: #1b1405;
-  font-family: monospace;
-  font-size: 11px;
   background: #ffd23f;
   border: 2px solid #b8860b;
+  cursor: default;
+}
+.perk:focus-visible {
+  outline: 2px solid #ffffff;
+}
+.perk-title {
+  font-weight: bold;
 }
 </style>

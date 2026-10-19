@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { useIntervalFn } from "@vueuse/core";
 import { computed, onMounted, ref } from "vue";
+import GameplayEditor from "@/components/admin/GameplayEditor.vue";
 import { useAdminRooms, type AdminRoom } from "@/composables/useAdminRooms";
 import { getText } from "@/helpers";
 
 const REFRESH_MS = 5000;
 const admin = useAdminRooms();
 const keyInput = ref("");
+const tab = ref<"rooms" | "gameplay">("rooms");
 const confirming = ref<AdminRoom | null>(null);
 
-const signedIn = computed(() => admin.status.value === "ready" || (admin.status.value === "error" && admin.rooms.value.length > 0));
+/** A refresh (status "loading") must not put the sign-in form back: the page would lose what is being edited. */
+const signedIn = computed(() => admin.status.value === "ready" || admin.status.value === "loading" || (admin.status.value === "error" && admin.rooms.value.length > 0));
 const errorText = computed(() => (admin.error.value ? getText({ key: `admin.${admin.error.value}` }) : ""));
 
 function ageOf(entry: AdminRoom) {
@@ -32,7 +35,10 @@ async function confirmDelete() {
   if (target) await admin.remove(target.id);
 }
 
-useIntervalFn(() => void admin.refresh(), REFRESH_MS);
+// The room list refreshes on its own; the gameplay editor must be left alone while it is being edited.
+useIntervalFn(() => {
+  if (tab.value === "rooms") void admin.refresh();
+}, REFRESH_MS);
 onMounted(() => void admin.refresh());
 </script>
 
@@ -54,7 +60,16 @@ onMounted(() => void admin.refresh());
             <VBtn color="primary" :disabled="!keyInput.trim()" @click="signIn">{{ getText({ key: "admin.signIn" }) }}</VBtn>
           </VCardText>
 
-          <VCardText v-else>
+          <VTabs v-if="signedIn" v-model="tab">
+            <VTab value="rooms">{{ getText({ key: "admin.tabRooms" }) }}</VTab>
+            <VTab value="gameplay">{{ getText({ key: "admin.tabGameplay" }) }}</VTab>
+          </VTabs>
+
+          <VCardText v-if="signedIn && tab === 'gameplay'">
+            <GameplayEditor />
+          </VCardText>
+
+          <VCardText v-else-if="signedIn">
             <div v-if="errorText" class="text-error mb-2" role="alert">{{ errorText }}</div>
             <div v-if="admin.rooms.value.length === 0">{{ getText({ key: "admin.empty" }) }}</div>
             <VTable v-else density="compact">

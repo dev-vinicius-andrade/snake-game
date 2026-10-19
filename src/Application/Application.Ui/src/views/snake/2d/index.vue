@@ -10,6 +10,7 @@ import PerkList from "@/components/game/PerkList.vue";
 import PrizeHint from "@/components/game/PrizeHint.vue";
 import { useEyeControl } from "@/composables/useEyeControl";
 import { useGameConnection } from "@/composables/useGameConnection";
+import { usePerkCatalog } from "@/composables/usePerkCatalog";
 import { useGazeControls } from "@/composables/useGazeControls";
 import { useManagerJoin } from "@/composables/useManagerJoin";
 import { useSnakeSession } from "@/composables/useSnakeSession";
@@ -31,6 +32,7 @@ const game = useGameConnection({ pingIntervalMs: 2000 });
 const ownAutoFire = () => !!game.snapshot.value?.snakes.find((snake) => snake.guid === game.self.value?.guid)?.autoFire;
 const session = useSnakeSession({ joiner: useManagerJoin(), game, autoFire: ownAutoFire });
 
+const perkCatalog = usePerkCatalog();
 const stage = ref<InstanceType<typeof GameStage> | null>(null);
 const ownSnake = computed(() => game.snapshot.value?.snakes.find((snake) => snake.guid === game.self.value?.guid) ?? null);
 const compass = computed(() => (game.snapshot.value ? prizeCompass(game.snapshot.value, game.self.value?.guid) : null));
@@ -107,6 +109,7 @@ const scrollLock = useScrollLock(document.body);
 
 onMounted(() => {
   scrollLock.value = true;
+  void perkCatalog.load();
   void aim.start();
   return nickname.value ? play() : router.replace({ name: "home" });
 });
@@ -130,7 +133,7 @@ onBeforeUnmount(() => {
       @toggle-mouse-aim="toggleMouseAim"
       @toggle-details="showDetails = !showDetails"
     />
-    <PerkList :perks="ownSnake?.perks ?? []" :foods-eaten="ownSnake?.foodsEaten ?? 0" />
+    <PerkList :perks="ownSnake?.perks ?? []" :catalog="perkCatalog.perks.value" />
     <PrizeHint :compass="compass" />
     <TouchControls v-if="session.phase.value === 'playing'" @intent="session.handleIntent" />
     <InviteBadge v-if="inviteCode" :code="inviteCode" />

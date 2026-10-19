@@ -31,6 +31,21 @@ Perks of the same effect add up. The snake's earned perk ids are sent in the sna
 
 Built-in set: magnet (6 foods), swift (8), quick-shot (12), twin-shot (15), armor (20), quick-reload (25), burst-shot (30), deep-lungs (35), regeneration (40), auto-fire (45), triple-shot (50), piercing-shot (60), turbo (70). A `Perks` list in the configuration replaces the whole set, so leave it out to get the built-in one.
 
+## Editing it while the game runs (admin page)
+
+Everything above, the perks and the prize, can be edited on the admin page (`/admin`, tab **Gameplay**) with the admin key. Save,
+and every game server applies it within a few seconds; no restart, and players already in a room keep playing.
+
+- The manager keeps the config and the game servers fetch it (`GET /gameplay`, every 5 s). **The manager's config wins** over
+  the `PerkConfiguration` and `PrizeConfiguration` sections of the game server's `appsettings.json`, which only apply until the
+  first fetch.
+- Values the game could not run (a perk that needs 0 foods, a prize that never appears) are refused when you save, with the
+  reason shown, and nothing changes.
+- **Load defaults** puts the built-in perks and prize in the form; **Undo edits** goes back to what is saved. Neither saves.
+- To keep the config when the manager restarts, set `GameplayConfiguration__StorePath` to a file on a volume that survives
+  restarts. Without it a restart goes back to the built-in defaults.
+- Players see their perks as icons with tooltips; the names and effects come from `GET /gameplay/perks` (public, nothing secret).
+
 ## The prize
 
 Every so often a gold prize appears at a random spot of a room. It is worth a lot of mass and counts as several foods toward perks, so snakes fight over it. The HUD shows an arrow and the distance to the nearest prize. If nobody takes it, it disappears and the next one comes after the interval. A room needs at least `MinPlayers` players for a prize to appear.

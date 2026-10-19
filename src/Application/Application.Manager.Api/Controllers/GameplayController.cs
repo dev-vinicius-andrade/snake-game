@@ -16,6 +16,20 @@ public class GameplayController(GameplayConfigStore store) : Controller
     [HttpGet]
     [ApiKeyAuth]
     public IActionResult Get() => Json(store.Current);
+
+    /// <summary>What the perks are and do, so the site can show a snake's perks as icons with tooltips. Nothing secret.</summary>
+    [HttpGet("perks")]
+    [AllowAnonymous]
+    public IActionResult Perks()
+    {
+        var current = store.Current;
+        var perks = current.Config.Perks.Enabled
+            ? current.Config.Perks.Perks.OrderBy(perk => perk.FoodsRequired).ToList()
+            : new List<PerkDefinition>();
+        return Json(new { revision = current.Revision, perks });
+    }
+
+    private new JsonResult Json(object value) => new(value, GameplayConfig.Json);
 }
 
 /// <summary>The administrator's view of the gameplay config: read it and change it.</summary>
