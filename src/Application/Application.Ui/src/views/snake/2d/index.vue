@@ -7,6 +7,7 @@ import type { JoinTarget } from "@/composables/useManagerJoin";
 import GameStage from "@/components/game/GameStage.vue";
 import TouchControls from "@/components/game/TouchControls.vue";
 import PerkList from "@/components/game/PerkList.vue";
+import BossHint from "@/components/game/BossHint.vue";
 import StrikeHint from "@/components/game/StrikeHint.vue";
 import PrizeHint from "@/components/game/PrizeHint.vue";
 import { useEyeControl } from "@/composables/useEyeControl";
@@ -22,6 +23,7 @@ import { createMediaPipeGazeSource } from "@/input/gaze/mediapipeGazeSource";
 import { createPointerSource } from "@/input/gaze/pointerSource";
 import { targetOnScreen } from "@/render/camera";
 import { strikeWarning } from "@/render/strikes";
+import { bossCompass } from "@/render/boss";
 import { prizeCompass } from "@/render/prizeCompass";
 import { DEFAULT_HEAD_SIZE } from "@/render/pixelRenderer";
 import { usePlayerStore } from "@/store/usePlayerStore";
@@ -38,6 +40,7 @@ const perkCatalog = usePerkCatalog();
 const stage = ref<InstanceType<typeof GameStage> | null>(null);
 const ownSnake = computed(() => game.snapshot.value?.snakes.find((snake) => snake.guid === game.self.value?.guid) ?? null);
 const compass = computed(() => (game.snapshot.value ? prizeCompass(game.snapshot.value, game.self.value?.guid) : null));
+const boss = computed(() => (game.snapshot.value ? bossCompass(game.snapshot.value, game.self.value?.guid) : null));
 const strikes = computed(() => (game.snapshot.value ? strikeWarning(game.snapshot.value, game.self.value?.guid) : null));
 const mouseAim = useStorage("snake.mouseAim", false);
 /** Controls, mouse aim and face control settings: out of the way until asked for. */
@@ -139,6 +142,7 @@ onBeforeUnmount(() => {
     <PerkList :perks="ownSnake?.perks ?? []" :catalog="perkCatalog.perks.value" />
     <PrizeHint :compass="compass" />
     <StrikeHint :warning="strikes" />
+    <BossHint :compass="boss" />
     <TouchControls v-if="session.phase.value === 'playing'" @intent="session.handleIntent" />
     <InviteBadge v-if="inviteCode" :code="inviteCode" />
     <EyeControlPanel

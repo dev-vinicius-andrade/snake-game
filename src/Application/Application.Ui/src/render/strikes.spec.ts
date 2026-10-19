@@ -33,7 +33,7 @@ function snake(headX: number, headY: number, overrides: Partial<SnakeSnapshot> =
   };
 }
 
-const frame = (strikes: StrikeSnapshot[], snakes: SnakeSnapshot[] = []): GameSnapshot => ({ room, snakes, foods: [], shots: [], strikes });
+const frame = (strikes: StrikeSnapshot[], snakes: SnakeSnapshot[] = []): GameSnapshot => ({ room, snakes, foods: [], shots: [], strikes, boss: null });
 
 describe("strikeWarning", () => {
   it("is null while no spot is marked", () => {

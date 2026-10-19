@@ -70,6 +70,21 @@ export interface StrikeSnapshot {
   msLeft: number;
 }
 
+/** A boss standing in the room: snakes shoot it down for a reward, and it fires back. Its shots have `guid` as their owner. */
+export interface BossSnapshot {
+  guid: string;
+  /** The middle of it, in world units. */
+  position: GamePoint;
+  /** Side of its square, in world units. */
+  size: number;
+  /** Hit points left, 0..1. */
+  hpRatio: number;
+  /** Where the first arm points, in radians: 0 is right, positive turns clockwise on screen. */
+  angle: number;
+  /** Arms, evenly spread. */
+  arms: number;
+}
+
 export type DamageKind = "hit" | "broke" | "kill";
 
 /** A shot did damage: sent to the shooter and to the snake that was hit. */
@@ -105,6 +120,8 @@ export interface GameSnapshot {
   shots: ShotSnapshot[];
   /** Lightning warnings. Empty when the server sends none. */
   strikes: StrikeSnapshot[];
+  /** The boss in the room, or null. */
+  boss: BossSnapshot | null;
 }
 
 export interface LeaderboardEntry {

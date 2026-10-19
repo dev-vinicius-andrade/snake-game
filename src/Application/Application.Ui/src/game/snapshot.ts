@@ -2,6 +2,7 @@ import type {
   FoodSnapshot,
   GameColor,
   GamePoint,
+  BossSnapshot,
   GameSnapshot,
   LeaderboardEntry,
   RoomDimensions,
@@ -109,6 +110,19 @@ function parseStrike(strike: unknown): StrikeSnapshot | null {
   };
 }
 
+/** The boss: where (`x`, `y`), how big (`s`), the percent of it left (`hp`), where its arms point in degrees (`a`) and how many (`n`). */
+function parseBoss(boss: unknown): BossSnapshot | null {
+  if (!isDictionary(boss) || !isFinite(boss.x) || !isFinite(boss.y) || !isFinite(boss.s) || boss.s <= 0) return null;
+  return {
+    guid: asString(boss.guid) ?? "",
+    position: { x: boss.x, y: boss.y },
+    size: boss.s,
+    hpRatio: isFinite(boss.hp) ? clamp01(boss.hp / 100) : 1,
+    angle: isFinite(boss.a) ? (boss.a * Math.PI) / 180 : 0,
+    arms: isFinite(boss.n) && boss.n >= 1 ? Math.floor(boss.n) : 1,
+  };
+}
+
 export function parseRoomSize(raw: unknown): RoomDimensions | null {
   if (!isDictionary(raw) || !isFinite(raw.width) || !isFinite(raw.height)) return null;
   return raw.width > 0 && raw.height > 0 ? { width: raw.width, height: raw.height } : null;
@@ -127,6 +141,7 @@ export function parseSnapshot(raw: unknown): GameSnapshot | null {
     foods: asList(raw.foods).map(parseFood).filter((f): f is FoodSnapshot => f !== null),
     shots: asList(raw.shots).map(parseShot).filter((s): s is ShotSnapshot => s !== null),
     strikes: asList(raw.strikes).map(parseStrike).filter((s): s is StrikeSnapshot => s !== null),
+    boss: parseBoss(raw.boss),
   };
 }
 

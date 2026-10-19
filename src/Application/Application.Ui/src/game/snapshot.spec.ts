@@ -75,6 +75,47 @@ describe("parseSnapshot", () => {
     expect(parseSnapshot(raw)!.strikes).toEqual([{ guid: "3,4", kind: "lightning", position: { x: 3, y: 4 }, radius: 50, msLeft: 0 }]);
   });
 
+  it("has no boss when the server sends none", () => {
+    expect(parseSnapshot(fixture)!.boss).toBeNull();
+  });
+
+  it("reads the boss: where it stands, how big, how much is left and where its arms point", () => {
+    const raw = clone(fixture) as any;
+    raw.boss = { guid: "b1", x: 800, y: 400, s: 60, hp: 38, a: 90, n: 6 };
+
+    expect(parseSnapshot(raw)!.boss).toEqual({
+      guid: "b1",
+      position: { x: 800, y: 400 },
+      size: 60,
+      hpRatio: 0.38,
+      angle: Math.PI / 2,
+      arms: 6,
+    });
+  });
+
+  it("keeps a boss's hit points between nothing and everything", () => {
+    const raw = clone(fixture) as any;
+    raw.boss = { guid: "b1", x: 1, y: 2, s: 60, hp: 250, a: 0, n: 1 };
+    expect(parseSnapshot(raw)!.boss!.hpRatio).toBe(1);
+    raw.boss.hp = -5;
+    expect(parseSnapshot(raw)!.boss!.hpRatio).toBe(0);
+  });
+
+  it("ignores a boss that is not usable", () => {
+    const raw = clone(fixture) as any;
+    for (const boss of ["nope", { x: 1 }, { guid: "b", x: 1, y: 2, s: 0, hp: 50, a: 0, n: 1 }, { guid: "b", x: "1", y: 2, s: 60, hp: 50, a: 0, n: 1 }]) {
+      raw.boss = boss;
+      expect(parseSnapshot(raw)!.boss).toBeNull();
+    }
+  });
+
+  it("gives a boss at least one arm", () => {
+    const raw = clone(fixture) as any;
+    raw.boss = { guid: "b1", x: 1, y: 2, s: 60, hp: 50, a: 0 };
+
+    expect(parseSnapshot(raw)!.boss!.arms).toBe(1);
+  });
+
   it("reads the prize kind of a food", () => {
     const raw = clone(fixture) as any;
     raw.foods[0].k = 1;

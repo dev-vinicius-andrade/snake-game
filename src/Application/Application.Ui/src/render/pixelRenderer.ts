@@ -1,5 +1,6 @@
-import type { FloatingDamage, FoodSnapshot, GamePoint, GameSnapshot, RoomDimensions, ShotSnapshot, SnakeSnapshot } from "@/types/game";
+import type { BossSnapshot, FloatingDamage, FoodSnapshot, GamePoint, GameSnapshot, RoomDimensions, ShotSnapshot, SnakeSnapshot } from "@/types/game";
 import { GLYPH_HEIGHT, GLYPH_WIDTH, damageColor as damageNumberColor, damageLabel, damagePosition, glyphFor, isVisible } from "./damageNumbers";
+import { armPixels, hpBarPixels } from "./boss";
 import { discPoints, discRows, ringPoints, type StrikeRing, type StrikeFlash, type StrikeView } from "./strikes";
 import { DAMAGE_COLOR, contrastColor, headColor, lightenColor, segmentColor, shadeColor } from "./segmentColor";
 
@@ -272,8 +273,35 @@ function drawStrikeFlash(painter: Painter, view: StrikeView, pixelSize: number) 
     else drawLightningFlash(painter, flash, pixelSize);
 }
 
-function drawShot(painter: Painter, shot: ShotSnapshot) {
-  painter.block(SHOT_COLOR, shot.position, SHOT_PIXELS);
+export const BOSS_BODY_COLOR = "#3b2f4a";
+const BOSS_CORE_COLOR = "#ff9ab0";
+export const BOSS_BARREL_COLOR = "#c9b6e8";
+export const BOSS_SHOT_COLOR = "#ff4d6d";
+const BOSS_BAR_BACK_COLOR = "#14101c";
+export const BOSS_BAR_GOOD_COLOR = "#4cd964";
+export const BOSS_BAR_HURT_COLOR = "#ffcc33";
+export const BOSS_BAR_LOW_COLOR = "#ff4d4d";
+const BOSS_BAR_ROWS = 2;
+
+/** A square with a glowing core, barrels sticking out of it, and a hit point bar above that goes from green to red. */
+function drawBoss(painter: Painter, boss: BossSnapshot, pixelSize: number) {
+  const pixels = Math.max(1, Math.round(boss.size / pixelSize));
+  const corner = { x: boss.position.x - boss.size / 2, y: boss.position.y - boss.size / 2 };
+  painter.block(BOSS_BODY_COLOR, corner, pixels);
+  painter.block(BOSS_CORE_COLOR, { x: boss.position.x - pixelSize, y: boss.position.y - pixelSize }, 2);
+  armPixels(boss, pixelSize).forEach((point) => painter.block(BOSS_BARREL_COLOR, point, 1));
+
+  const bar = hpBarPixels(boss, pixelSize);
+  const fill = boss.hpRatio > 0.5 ? BOSS_BAR_GOOD_COLOR : boss.hpRatio > 0.25 ? BOSS_BAR_HURT_COLOR : BOSS_BAR_LOW_COLOR;
+  for (let row = 0; row < BOSS_BAR_ROWS; row++) {
+    const at = { x: bar.origin.x, y: bar.origin.y + row * pixelSize };
+    painter.row(BOSS_BAR_BACK_COLOR, at, bar.width);
+    painter.row(fill, at, bar.filled);
+  }
+}
+
+function drawShot(painter: Painter, shot: ShotSnapshot, bossGuid?: string) {
+  painter.block(bossGuid !== undefined && shot.ownerGuid === bossGuid ? BOSS_SHOT_COLOR : SHOT_COLOR, shot.position, SHOT_PIXELS);
 }
 
 type Facing = "right" | "left" | "up" | "down";
@@ -346,7 +374,8 @@ export function drawFrame(ctx: PixelContext, snapshot: GameSnapshot, options: Re
 
   if (options.strikes) drawStrikeWarning(painter, options.strikes, pixelSize, options.timeMs ?? 0);
   snapshot.foods.forEach((food) => drawFood(painter, food, options.timeMs ?? 0));
-  snapshot.shots.forEach((shot) => drawShot(painter, shot));
+  if (snapshot.boss) drawBoss(painter, snapshot.boss, pixelSize);
+  snapshot.shots.forEach((shot) => drawShot(painter, shot, snapshot.boss?.guid));
   const living = snapshot.snakes.filter((snake) => snake.isAlive);
   const others = living.filter((snake) => snake.guid !== options.selfGuid);
   const own = living.filter((snake) => snake.guid === options.selfGuid);

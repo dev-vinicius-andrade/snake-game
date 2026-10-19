@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { FloatingDamage, FoodSnapshot, GameSnapshot, ShotSnapshot, SnakeSnapshot } from "@/types/game";
+import type { BossSnapshot, FloatingDamage, FoodSnapshot, GameSnapshot, ShotSnapshot, SnakeSnapshot } from "@/types/game";
 import {
+  BOSS_BAR_GOOD_COLOR,
+  BOSS_BAR_HURT_COLOR,
+  BOSS_BAR_LOW_COLOR,
+  BOSS_BARREL_COLOR,
+  BOSS_BODY_COLOR,
+  BOSS_SHOT_COLOR,
   LIGHTNING_EDGE_COLOR,
   LIGHTNING_FLASH_COLOR,
   LIGHTNING_RING_COLOR,
@@ -51,7 +57,7 @@ function snake(overrides: Partial<SnakeSnapshot> = {}): SnakeSnapshot {
 }
 
 function snapshot(parts: Partial<GameSnapshot> = {}): GameSnapshot {
-  return { room, snakes: [], foods: [], shots: [], strikes: [], ...parts };
+  return { room, snakes: [], foods: [], shots: [], strikes: [], boss: null, ...parts };
 }
 
 const food = (value = 1, x = 100, y = 50): FoodSnapshot => ({
@@ -395,6 +401,73 @@ describe("drawFrame", () => {
       drawFrame(ctx, snapshot(), { strikes: view, timeMs: 0 });
 
       expect(styled(LIGHTNING_RING_COLOR).length).toBeGreaterThan(40);
+    });
+  });
+
+  describe("boss", () => {
+    const turret = (overrides: Partial<BossSnapshot> = {}): BossSnapshot => ({
+      guid: "b1",
+      position: { x: 800, y: 400 },
+      size: 60,
+      hpRatio: 1,
+      angle: 0,
+      arms: 4,
+      ...overrides,
+    });
+    const styled = (style: string) => ctx.calls.filter((call) => call.style === style);
+
+    it("draws the body as a square as big as the boss, on the pixel grid", () => {
+      drawFrame(ctx, snapshot({ boss: turret() }));
+
+      expect(styled(BOSS_BODY_COLOR)).toContainEqual({ style: BOSS_BODY_COLOR, x: 154, y: 74, w: 12, h: 12 });
+    });
+
+    it("draws its barrels over the body, reaching past it", () => {
+      drawFrame(ctx, snapshot({ boss: turret({ arms: 4, angle: 0 }) }));
+
+      const barrels = styled(BOSS_BARREL_COLOR);
+      expect(barrels.length).toBeGreaterThan(12);
+      expect(Math.max(...barrels.map((call) => call.x))).toBeGreaterThan(166);
+      expect(ctx.calls.indexOf(styled(BOSS_BARREL_COLOR)[0])).toBeGreaterThan(ctx.calls.indexOf(styled(BOSS_BODY_COLOR)[0]));
+    });
+
+    it("shows a hit point bar above it as wide as what is left, green, then amber, then red", () => {
+      const width = (hpRatio: number, style: string) => {
+        ctx.calls = [];
+        drawFrame(ctx, snapshot({ boss: turret({ hpRatio }) }));
+        return Math.max(0, ...styled(style).map((call) => call.w));
+      };
+
+      expect(width(0.9, BOSS_BAR_GOOD_COLOR)).toBe(11);
+      expect(width(0.4, BOSS_BAR_HURT_COLOR)).toBe(5);
+      expect(width(0.1, BOSS_BAR_LOW_COLOR)).toBe(2);
+      expect(width(0.9, BOSS_BAR_LOW_COLOR)).toBe(0);
+    });
+
+    it("keeps the bar above the body", () => {
+      drawFrame(ctx, snapshot({ boss: turret() }));
+
+      expect(Math.max(...styled(BOSS_BAR_GOOD_COLOR).map((call) => call.y))).toBeLessThan(74);
+    });
+
+    it("draws the shots of the boss in their own colour and the others in white", () => {
+      drawFrame(ctx, snapshot({ boss: turret(), shots: [{ guid: "s1", position: { x: 100, y: 50 }, size: 15, ownerGuid: "b1" }, shot(300, 150)] }));
+
+      expect(styled(BOSS_SHOT_COLOR)).toEqual([{ style: BOSS_SHOT_COLOR, x: 20, y: 10, w: 2, h: 2 }]);
+      expect(ctx.calls).toContainEqual({ style: "#ffffff", x: 60, y: 30, w: 2, h: 2 });
+    });
+
+    it("draws the boss under the snakes", () => {
+      drawFrame(ctx, snapshot({ boss: turret(), snakes: [snake({ path: [{ x: 800, y: 400 }] })] }));
+
+      const styles = ctx.calls.map((call) => call.style);
+      expect(styles.lastIndexOf(BOSS_BODY_COLOR)).toBeLessThan(styles.lastIndexOf(headColor("#00ff00")));
+    });
+
+    it("draws nothing without a boss", () => {
+      drawFrame(ctx, snapshot());
+
+      expect(styled(BOSS_BODY_COLOR)).toHaveLength(0);
     });
   });
 

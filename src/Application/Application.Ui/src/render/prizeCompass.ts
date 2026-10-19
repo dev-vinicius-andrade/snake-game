@@ -12,7 +12,7 @@ function shortestDelta(delta: number, size: number): number {
   return delta < -size / 2 ? delta + size : delta;
 }
 
-function offsetTo(from: GamePoint, to: GamePoint, world: RoomDimensions): GamePoint {
+export function offsetTo(from: GamePoint, to: GamePoint, world: RoomDimensions): GamePoint {
   return { x: shortestDelta(to.x - from.x, world.width), y: shortestDelta(to.y - from.y, world.height) };
 }
 
