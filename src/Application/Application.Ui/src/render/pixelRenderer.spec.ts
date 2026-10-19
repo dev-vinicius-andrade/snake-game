@@ -39,7 +39,7 @@ function snake(overrides: Partial<SnakeSnapshot> = {}): SnakeSnapshot {
 }
 
 function snapshot(parts: Partial<GameSnapshot> = {}): GameSnapshot {
-  return { room, snakes: [], foods: [], shots: [], ...parts };
+  return { room, snakes: [], foods: [], shots: [], strikes: [], ...parts };
 }
 
 const food = (value = 1, x = 100, y = 50): FoodSnapshot => ({

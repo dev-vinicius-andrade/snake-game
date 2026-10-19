@@ -57,6 +57,15 @@ export interface ShotSnapshot {
   ownerGuid?: string;
 }
 
+/** A spot lightning is about to strike. `msLeft` is the time left when the snapshot was sent. */
+export interface StrikeSnapshot {
+  guid: string;
+  position: GamePoint;
+  /** World units around the spot that the strike reaches. */
+  radius: number;
+  msLeft: number;
+}
+
 export type DamageKind = "hit" | "broke" | "kill";
 
 /** A shot did damage: sent to the shooter and to the snake that was hit. */
@@ -90,6 +99,8 @@ export interface GameSnapshot {
   snakes: SnakeSnapshot[];
   foods: FoodSnapshot[];
   shots: ShotSnapshot[];
+  /** Lightning warnings. Empty when the server sends none. */
+  strikes: StrikeSnapshot[];
 }
 
 export interface LeaderboardEntry {

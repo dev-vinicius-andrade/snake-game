@@ -26,7 +26,7 @@ function snake(path: Array<[number, number]>, overrides: Partial<SnakeSnapshot> 
 }
 
 const shot = (guid: string, x: number, y: number): ShotSnapshot => ({ guid, position: { x, y }, size: 15 });
-const frame = (parts: Partial<GameSnapshot> = {}): GameSnapshot => ({ room, snakes: [], foods: [], shots: [], ...parts });
+const frame = (parts: Partial<GameSnapshot> = {}): GameSnapshot => ({ room, snakes: [], foods: [], shots: [], strikes: [], ...parts });
 
 describe("blendSnapshots", () => {
   it("is the first snapshot at 0 and the second at 1", () => {

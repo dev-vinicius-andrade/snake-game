@@ -50,6 +50,24 @@ describe("parseSnapshot", () => {
     ]);
   });
 
+  it("reads lightning warnings as a spot, a radius and the time left", () => {
+    const raw = clone(fixture) as any;
+    raw.strikes = [{ x: 100, y: 200, r: 90, t: 1200 }];
+
+    expect(parseSnapshot(raw)!.strikes).toEqual([{ guid: "100,200", position: { x: 100, y: 200 }, radius: 90, msLeft: 1200 }]);
+  });
+
+  it("has no lightning warnings when the server sends none", () => {
+    expect(parseSnapshot(fixture)!.strikes).toEqual([]);
+  });
+
+  it("drops lightning warnings that are not usable", () => {
+    const raw = clone(fixture) as any;
+    raw.strikes = ["nope", { x: 1 }, { x: 1, y: 2, r: 0, t: 5 }, { x: 3, y: 4, r: 50, t: -10 }];
+
+    expect(parseSnapshot(raw)!.strikes).toEqual([{ guid: "3,4", position: { x: 3, y: 4 }, radius: 50, msLeft: 0 }]);
+  });
+
   it("reads the prize kind of a food", () => {
     const raw = clone(fixture) as any;
     raw.foods[0].k = 1;

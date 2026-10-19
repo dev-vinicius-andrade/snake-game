@@ -8,6 +8,7 @@ import type {
   ShotSnapshot,
   SnakeDirection,
   SnakeSnapshot,
+  StrikeSnapshot,
 } from "@/types/game";
 
 type Dictionary = Record<string, unknown>;
@@ -96,6 +97,17 @@ function parseShot(shot: unknown): ShotSnapshot | null {
   };
 }
 
+/** A lightning warning: where, how far it reaches (`r`) and the milliseconds left (`t`). Like food, the place is its identity. */
+function parseStrike(strike: unknown): StrikeSnapshot | null {
+  if (!isDictionary(strike) || !isFinite(strike.x) || !isFinite(strike.y) || !isFinite(strike.r) || strike.r <= 0) return null;
+  return {
+    guid: `${strike.x},${strike.y}`,
+    position: { x: strike.x, y: strike.y },
+    radius: strike.r,
+    msLeft: isFinite(strike.t) ? Math.max(0, strike.t) : 0,
+  };
+}
+
 export function parseRoomSize(raw: unknown): RoomDimensions | null {
   if (!isDictionary(raw) || !isFinite(raw.width) || !isFinite(raw.height)) return null;
   return raw.width > 0 && raw.height > 0 ? { width: raw.width, height: raw.height } : null;
@@ -113,6 +125,7 @@ export function parseSnapshot(raw: unknown): GameSnapshot | null {
     snakes: asList(raw.snakes).map(parseSnake).filter((s): s is SnakeSnapshot => s !== null),
     foods: asList(raw.foods).map(parseFood).filter((f): f is FoodSnapshot => f !== null),
     shots: asList(raw.shots).map(parseShot).filter((s): s is ShotSnapshot => s !== null),
+    strikes: asList(raw.strikes).map(parseStrike).filter((s): s is StrikeSnapshot => s !== null),
   };
 }
 
