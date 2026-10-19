@@ -18,6 +18,29 @@ public sealed record StormState(DateTimeOffset? NextAt, IReadOnlyList<DateTimeOf
 /// <param name="Fired">Strikes whose warning ran out this time: carry them out.</param>
 public sealed record StormStep(StormState State, IReadOnlyList<StormStrike> Started, IReadOnlyList<StormStrike> Fired);
 
+/// <summary>Where the turret of a room is in its life: when the next is due (while there is none), or when this one runs out and fires next.</summary>
+public sealed record TurretState(
+    DateTimeOffset? NextSpawnAt, DateTimeOffset? ExpiresAt, DateTimeOffset? NextFireAt, double Angle, double X, double Y)
+{
+    public static TurretState None { get; } = new(null, null, null, 0, 0, 0);
+
+    public bool IsActive => ExpiresAt is not null;
+}
+
+public enum TurretAction
+{
+    None,
+    /// <summary>Put the turret on the map at the position of the state.</summary>
+    Spawn,
+    /// <summary>Its time is up: take it off the map.</summary>
+    Expire,
+    /// <summary>Fire a shot along each of the angles.</summary>
+    Fire
+}
+
+/// <param name="Angles">For Fire: the direction of each shot, in radians, 0 to the right and turning clockwise on screen.</param>
+public sealed record TurretStep(TurretState State, TurretAction Action, IReadOnlyList<double> Angles);
+
 /// <summary>What a strike did: the body segments it destroyed (the head is not among them) and whether it reached the head.</summary>
 public readonly record struct StrikeHit(bool HeadHit, IReadOnlyList<int> BrokenSegments);
 
@@ -33,6 +56,9 @@ public sealed class WorldEventRules
 
     /// <summary>A strike aimed at a snake lands within this share of its radius from the head: near enough to be felt, not always a hit.</summary>
     private const double AimSpread = 0.6;
+
+    /// <summary>How long a turret sits quiet after it appears, so players can see it and get ready before the first volley.</summary>
+    public static readonly TimeSpan TurretWarmUp = TimeSpan.FromSeconds(3);
 
     private readonly Func<double> _random;
     private volatile WorldEventOptions _options;
@@ -56,7 +82,25 @@ public sealed class WorldEventRules
         if (options.Lightning is null || options.Meteors is null) throw new ArgumentException("World event options are missing.", nameof(options));
         Validate("Lightning", options.Lightning);
         Validate("Meteors", options.Meteors);
+        ValidateTurret(options.Turret ?? throw new ArgumentException("World event options are missing.", nameof(options)));
         return options;
+    }
+
+    private static void ValidateTurret(TurretOptions turret)
+    {
+        if (turret.MinIntervalSeconds < 1) throw OutOfRange("Turret", turret.MinIntervalSeconds, "the shortest interval must be at least 1 second");
+        if (turret.MaxIntervalSeconds < turret.MinIntervalSeconds)
+            throw OutOfRange("Turret", turret.MaxIntervalSeconds, "the longest interval must not be shorter than the shortest");
+        if (turret.LifetimeSeconds is < 10 or > 3600) throw OutOfRange("Turret", turret.LifetimeSeconds, "it must stay 10 to 3600 seconds");
+        if (turret.HitPoints is < 1 or > 10000) throw OutOfRange("Turret", turret.HitPoints, "it must take 1 to 10000 hits");
+        if (turret.Size is < 20 or > 300) throw OutOfRange("Turret", turret.Size, "its size must be 20 to 300");
+        if (turret.FireIntervalMilliseconds is < 100 or > 10000) throw OutOfRange("Turret", turret.FireIntervalMilliseconds, "it must fire every 100 to 10000 milliseconds");
+        if (turret.Arms is < 1 or > 16) throw OutOfRange("Turret", turret.Arms, "it must have 1 to 16 arms");
+        if (!(Math.Abs(turret.SpinDegrees) <= 360)) throw OutOfRange("Turret", turret.SpinDegrees, "the spin must be from -360 to 360 degrees");
+        if (!(turret.ShotSpeed >= 0.1 && turret.ShotSpeed <= 3)) throw OutOfRange("Turret", turret.ShotSpeed, "the shot speed must be 0.1 to 3");
+        if (turret.MinPlayers < 1) throw OutOfRange("Turret", turret.MinPlayers, "at least 1 player is needed");
+        if (turret.RewardMass is < 0 or > 1000) throw OutOfRange("Turret", turret.RewardMass, "the reward must be 0 to 1000 mass");
+        if (turret.Rooms.Concat(turret.ExcludedRooms).Any(string.IsNullOrWhiteSpace)) throw new ArgumentException("Turret has a blank room.", nameof(turret));
     }
 
     private static void Validate(string name, IStormSettings settings)
@@ -134,6 +178,51 @@ public sealed class WorldEventRules
         }
         return new StormStrike(_random() * width, _random() * height, settings.Radius, strikesAt);
     }
+
+    /// <summary>
+    /// Moves the turret of a room on. Call as often as the volleys need to be timed (every frame is fine). Whether anyone is in the
+    /// room is for the caller to say through <paramref name="players"/>; whether the turret was brought down, through
+    /// <see cref="TurretKilled"/>.
+    /// </summary>
+    public TurretStep TurretStep(TurretState state, DateTimeOffset now, double roomWidth, double roomHeight, int players)
+    {
+        var options = _options;
+        var turret = options.Turret;
+        if (!options.Enabled || !turret.Enabled) return new TurretStep(TurretState.None, TurretAction.None, []);
+        if (!state.IsActive) return TurretWaiting(turret, state, now, roomWidth, roomHeight, players);
+        if (now >= state.ExpiresAt) return new TurretStep(TurretScheduled(turret, now), TurretAction.Expire, []);
+        if (now < state.NextFireAt) return new TurretStep(state, TurretAction.None, []);
+
+        var angles = Enumerable.Range(0, turret.Arms).Select(arm => state.Angle + arm * 2 * Math.PI / turret.Arms).ToArray();
+        var next = state with
+        {
+            Angle = state.Angle + turret.SpinDegrees * Math.PI / 180,
+            NextFireAt = now.AddMilliseconds(turret.FireIntervalMilliseconds)
+        };
+        return new TurretStep(next, TurretAction.Fire, angles);
+    }
+
+    private TurretStep TurretWaiting(TurretOptions turret, TurretState state, DateTimeOffset now, double width, double height, int players)
+    {
+        if (state.NextSpawnAt is not { } due) return new TurretStep(TurretScheduled(turret, now), TurretAction.None, []);
+        if (now < due || players < turret.MinPlayers) return new TurretStep(state, TurretAction.None, []);
+
+        var margin = turret.Size / 2.0;
+        var spawned = new TurretState(
+            null, now.AddSeconds(turret.LifetimeSeconds), now.Add(TurretWarmUp), _random() * 2 * Math.PI,
+            margin + _random() * Math.Max(0, width - turret.Size), margin + _random() * Math.Max(0, height - turret.Size));
+        return new TurretStep(spawned, TurretAction.Spawn, []);
+    }
+
+    /// <summary>What the room is left with when its turret was brought down: the next one scheduled.</summary>
+    public TurretState TurretKilled(DateTimeOffset now) => TurretScheduled(_options.Turret, now);
+
+    private TurretState TurretScheduled(TurretOptions turret, DateTimeOffset now)
+        => TurretState.None with { NextSpawnAt = now.AddSeconds(turret.MinIntervalSeconds + (turret.MaxIntervalSeconds - turret.MinIntervalSeconds) * _random()) };
+
+    /// <summary>Whether a shot (its middle at <paramref name="shot"/>, <paramref name="shotSize"/> across) touches the square of the turret. Touching counts.</summary>
+    public static bool TurretIsHit(double x, double y, double size, Point shot, double shotSize)
+        => Math.Abs(shot.X - x) <= (size + shotSize) / 2 && Math.Abs(shot.Y - y) <= (size + shotSize) / 2;
 
     /// <summary>
     /// What a strike at <paramref name="center"/> reaches of a body (tail first, head last). A segment is a square of

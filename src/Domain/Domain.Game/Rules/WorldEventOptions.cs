@@ -21,6 +21,8 @@ public sealed record WorldEventOptions
 
     public MeteorOptions Meteors { get; init; } = new();
 
+    public TurretOptions Turret { get; init; } = new();
+
     /// <summary>The settings of one kind of event.</summary>
     public IStormSettings Of(WorldEventKind kind) => kind == WorldEventKind.Lightning ? Lightning : Meteors;
 
@@ -146,6 +148,59 @@ public sealed record MeteorOptions : IStormSettings
     int IStormSettings.DurationSeconds => RainSeconds;
     IReadOnlyList<string> IStormSettings.Rooms => Rooms;
     IReadOnlyList<string> IStormSettings.ExcludedRooms => ExcludedRooms;
+
+    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
+}
+
+/// <summary>
+/// The turret: a mini boss that now and then appears in a room, sits still and fires volleys that turn round it, until snakes shoot
+/// it down for a reward or its time is up.
+/// </summary>
+public sealed record TurretOptions
+{
+    public bool Enabled { get; init; } = true;
+
+    /// <summary>The shortest wait, in seconds, from one turret going (or the room waking up) to the next appearing.</summary>
+    public int MinIntervalSeconds { get; init; } = 180;
+
+    /// <summary>The longest wait, in seconds, to the next turret.</summary>
+    public int MaxIntervalSeconds { get; init; } = 420;
+
+    /// <summary>Seconds it stays when nobody brings it down.</summary>
+    public int LifetimeSeconds { get; init; } = 90;
+
+    /// <summary>Shots it takes to bring it down.</summary>
+    public int HitPoints { get; init; } = 40;
+
+    /// <summary>Side of its square, in world units. A snake segment is 15.</summary>
+    public int Size { get; init; } = 60;
+
+    /// <summary>Milliseconds between two volleys.</summary>
+    public int FireIntervalMilliseconds { get; init; } = 900;
+
+    /// <summary>Shots in a volley, evenly spread round it.</summary>
+    public int Arms { get; init; } = 6;
+
+    /// <summary>Degrees the volley turns by every time it fires.</summary>
+    public double SpinDegrees { get; init; } = 11;
+
+    /// <summary>How fast its shots fly compared with a snake shot (1). Slower can be dodged.</summary>
+    public double ShotSpeed { get; init; } = 0.5;
+
+    /// <summary>Players needed in the room before one appears; alone there is nobody to fight it with.</summary>
+    public int MinPlayers { get; init; } = 2;
+
+    /// <summary>Mass that falls as food where it is brought down.</summary>
+    public long RewardMass { get; init; } = 60;
+
+    /// <summary>The id of a perk the snake that brings it down gets, whatever the foods it has eaten. Empty: none.</summary>
+    public string? GrantsPerk { get; init; }
+
+    /// <summary>The rooms it appears in. Empty: every room.</summary>
+    public List<string> Rooms { get; init; } = [];
+
+    /// <summary>Rooms it does not appear in. Wins over <see cref="Rooms"/>.</summary>
+    public List<string> ExcludedRooms { get; init; } = [];
 
     public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
 }
