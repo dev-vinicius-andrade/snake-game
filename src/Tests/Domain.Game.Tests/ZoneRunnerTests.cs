@@ -136,6 +136,38 @@ public sealed class ZoneRunnerTests
     }
 
     [Fact]
+    public void Trigger_StartsTheZoneAtOnce_EvenWithFewerPlayersThanItNeeds()
+    {
+        _state.Players.Remove(_state.Players.Keys.First());
+        var runner = Runner();
+        runner.Update(_state);
+
+        Assert.True(runner.Trigger(_state));
+        Pass(runner, 0.1);
+
+        Assert.NotNull(_state.Zone);
+    }
+
+    [Fact]
+    public void Trigger_WhileAZoneIsGoing_IsRefused()
+    {
+        var runner = Begun();
+
+        Assert.False(runner.Trigger(_state));
+    }
+
+    [Fact]
+    public void Trigger_ARoomThatSwitchedTheZoneOff_OrWithNoPlayers_IsRefused()
+    {
+        _room.Gameplay.Returns(new RoomGameplay { Zone = FeaturePreset.Off });
+        Assert.False(Runner().Trigger(_state));
+
+        _room.Gameplay.Returns(new RoomGameplay());
+        foreach (var key in _state.Players.Keys.ToArray()) _state.Players.Remove(key);
+        Assert.False(Runner().Trigger(_state));
+    }
+
+    [Fact]
     public void Update_TooFewPlayers_HasNoZone()
     {
         _state.Players.Remove(_state.Players.Keys.First());

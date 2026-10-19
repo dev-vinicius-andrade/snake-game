@@ -48,6 +48,22 @@ public sealed class WorldEventRunner
         return died;
     }
 
+    /// <summary>
+    /// Starts a storm of this kind in the room now, without waiting for the interval. False when the event is off in the room, nobody
+    /// is in it, or a storm of the kind is already going on.
+    /// </summary>
+    public bool Trigger(IGameState gameState, WorldEventKind kind)
+    {
+        ArgumentNullException.ThrowIfNull(gameState);
+        var room = gameState.Room;
+        var options = _rules.OptionsFor(room);
+        if (gameState.Players.Count == 0 || !options.Enabled || !options.Of(kind).AppliesTo(room)) return false;
+        var storm = _storms.GetOrAdd((room.Guid, kind), _ => new Storm());
+        if (storm.State.InProgress) return false;
+        storm.State = new StormState(_time.GetUtcNow(), [], []);
+        return true;
+    }
+
     private IReadOnlyList<IPlayer> Run(IGameState gameState, WorldEventKind kind)
     {
         var room = gameState.Room;

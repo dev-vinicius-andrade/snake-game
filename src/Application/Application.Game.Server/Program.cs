@@ -88,6 +88,8 @@ namespace Application.Game.Server
             services.AddSingleton<GameplayApplier>(provider => new GameplayApplier(
                 provider.GetRequiredService<PerkRules>(), provider.GetRequiredService<PrizeRules>(), provider.GetRequiredService<RoomLifetimeSettings>(),
                 provider.GetRequiredService<WorldEventRules>(), provider.GetRequiredService<Serilog.ILogger>()));
+            services.AddSingleton<IEventTriggers, EventTriggers>();
+            services.AddSingleton<RoomGameplayService>();
             services.AddHostedService<GameplaySyncWorkerService>();
             services.AddHostedService<FoodGeneratorWorkerService>();
             services.AddSingleton<JoinRequestHandler>();
@@ -122,6 +124,32 @@ namespace Application.Game.Server
             return await closer.CloseAsync(roomId, cancellationToken: context.RequestAborted) ? Results.NoContent() : Results.NotFound();
         }
 
+        private static bool IsManager(HttpContext context, IConfiguration configuration)
+        {
+            var expected = configuration["AppSettings:ManagementApiConfiguration:ApiKey"];
+            return !string.IsNullOrEmpty(expected) && context.Request.Headers[AuthConstants.ApiKeyHeaderName].ToString() == expected;
+        }
+
+        /// <summary>Called by the manager when an administrator changes what a room does with the gameplay.</summary>
+        private static IResult SetRoomGameplay(Guid roomId, Dictionary<string, string>? choices, HttpContext context, IConfiguration configuration, RoomGameplayService service)
+        {
+            if (!IsManager(context, configuration)) return Results.Unauthorized();
+            return service.Set(roomId, Library.Commons.Game.Domain.Entities.RoomGameplay.FromMap(choices)) ? Results.NoContent() : Results.NotFound();
+        }
+
+        /// <summary>Called by the manager when an administrator starts a world event in a room.</summary>
+        private static IResult TriggerRoomEvent(Guid roomId, string kind, HttpContext context, IConfiguration configuration, RoomGameplayService service)
+        {
+            if (!IsManager(context, configuration)) return Results.Unauthorized();
+            return service.Trigger(roomId, kind) switch
+            {
+                TriggerResult.Started => Results.NoContent(),
+                TriggerResult.NotNow => Results.Conflict(),
+                TriggerResult.UnknownEvent => Results.BadRequest(),
+                _ => Results.NotFound()
+            };
+        }
+
         private static void Configure(IApplicationBuilder app, IHostEnvironment env, AppSettings appSettings, CorsPolicyName corsPolicyName)
         {
             app.UseCors(corsPolicyName);
@@ -137,6 +165,8 @@ namespace Application.Game.Server
 
                 });
                 endpoints.MapDelete("/rooms/{roomId:guid}", CloseRoomAsync);
+                endpoints.MapPut("/rooms/{roomId:guid}/gameplay", SetRoomGameplay);
+                endpoints.MapPost("/rooms/{roomId:guid}/events/{kind}", TriggerRoomEvent);
 
             });
         }

@@ -137,6 +137,63 @@ public sealed class TurretRunnerTests
     }
 
     [Fact]
+    public void Trigger_PutsTheTurretInTheRoomAtOnce_EvenWithFewerPlayersThanItNeeds()
+    {
+        _state.Players.Remove(_state.Players.Keys.First());
+        var runner = Runner();
+        runner.Update(_state);
+
+        Assert.True(runner.Trigger(_state));
+        Pass(runner, 0.1);
+
+        Assert.NotNull(_state.Boss);
+    }
+
+    [Fact]
+    public void Trigger_WhileATurretStands_IsRefused()
+    {
+        var runner = Appeared();
+
+        Assert.False(runner.Trigger(_state));
+    }
+
+    [Fact]
+    public void Trigger_ARoomThatSwitchedTheTurretOff_IsRefused()
+    {
+        _room.Gameplay.Returns(new RoomGameplay { Turret = FeaturePreset.Off });
+        var runner = Runner();
+
+        Assert.False(runner.Trigger(_state));
+        Pass(runner, 1);
+        Assert.Null(_state.Boss);
+    }
+
+    [Fact]
+    public void Trigger_ARoomWithNoPlayers_IsRefused()
+    {
+        foreach (var key in _state.Players.Keys.ToArray()) _state.Players.Remove(key);
+        var runner = Runner();
+
+        Assert.False(runner.Trigger(_state));
+    }
+
+    [Fact]
+    public void Trigger_OnlyOnce_TheNextOneWaitsForItsPlayersAgain()
+    {
+        _state.Players.Remove(_state.Players.Keys.First());
+        var runner = Runner();
+        runner.Update(_state);
+        runner.Trigger(_state);
+        Pass(runner, 0.1);
+        _state.Boss = null;
+        Pass(runner, 0.1);
+
+        Pass(runner, 100);
+
+        Assert.Null(_state.Boss);
+    }
+
+    [Fact]
     public void Update_TooFewPlayers_HasNoBoss()
     {
         _state.Players.Remove(_state.Players.Keys.First());

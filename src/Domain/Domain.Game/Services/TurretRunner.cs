@@ -18,6 +18,8 @@ public sealed class TurretRunner
     private readonly IGameStateService _gameStates;
     private readonly TimeProvider _time;
     private readonly ConcurrentDictionary<Guid, TurretState> _states = new();
+    /// <summary>Rooms where a turret was asked for: it comes whatever the number of players, once.</summary>
+    private readonly ConcurrentDictionary<Guid, bool> _asked = new();
 
     public TurretRunner(WorldEventRules rules, IGameStateService gameStates, TimeProvider time)
     {
@@ -29,6 +31,22 @@ public sealed class TurretRunner
         _time = time;
     }
 
+    /// <summary>
+    /// Puts a turret in the room now, even with fewer players than it asks for. False when it is off in the room, nobody is in it, or
+    /// one is already there.
+    /// </summary>
+    public bool Trigger(IGameState gameState)
+    {
+        ArgumentNullException.ThrowIfNull(gameState);
+        var room = gameState.Room;
+        var options = _rules.OptionsFor(room);
+        if (gameState.Players.Count == 0 || !options.Enabled || !options.Turret.AppliesTo(room)) return false;
+        if (_states.GetValueOrDefault(room.Guid, TurretState.None).IsActive) return false;
+        _states[room.Guid] = TurretState.None with { NextSpawnAt = _time.GetUtcNow() };
+        _asked[room.Guid] = true;
+        return true;
+    }
+
     /// <summary>A room without players, or that the turret is not for, forgets it.</summary>
     public void Update(IGameState gameState)
     {
@@ -38,6 +56,7 @@ public sealed class TurretRunner
         if (gameState.Players.Count == 0 || !options.Enabled || !options.Turret.AppliesTo(room))
         {
             _states.TryRemove(room.Guid, out _);
+            _asked.TryRemove(room.Guid, out _);
             gameState.Boss = null;
             return;
         }
@@ -45,7 +64,9 @@ public sealed class TurretRunner
         var now = _time.GetUtcNow();
         var state = _states.GetValueOrDefault(room.Guid, TurretState.None);
         if (state.IsActive && gameState.Boss is null) state = _rules.TurretKilled(now, options);
-        var step = _rules.TurretStep(state, now, room.Width, room.Height, gameState.Players.Count, options);
+        var players = _asked.ContainsKey(room.Guid) ? int.MaxValue : gameState.Players.Count;
+        var step = _rules.TurretStep(state, now, room.Width, room.Height, players, options);
+        if (step.Action == TurretAction.Spawn) _asked.TryRemove(room.Guid, out _);
         _states[room.Guid] = step.State;
         Act(gameState, options.Turret, step);
     }

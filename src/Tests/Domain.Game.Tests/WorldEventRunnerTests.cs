@@ -323,6 +323,65 @@ public sealed class WorldEventRunnerTests
     }
 
     [Fact]
+    public void Trigger_StartsAStormAtOnce_WithoutWaitingForTheInterval()
+    {
+        AddPlayer();
+        var runner = Runner(random: 0);
+        runner.Update(_state);
+
+        Assert.True(runner.Trigger(_state, WorldEventKind.Lightning));
+        Pass(runner, 0.1);
+
+        Assert.Equal(3, _state.Strikes.Count);
+    }
+
+    [Fact]
+    public void Trigger_AStormThatIsAlreadyGoing_IsLeftAlone()
+    {
+        AddPlayer();
+        var runner = Runner(random: 0);
+        runner.Update(_state);
+        Pass(runner, 30);
+
+        Assert.False(runner.Trigger(_state, WorldEventKind.Lightning));
+    }
+
+    [Fact]
+    public void Trigger_AnEventThatIsOffInTheRoom_RefusesAndStartsNothing()
+    {
+        AddPlayer();
+        var runner = Runner(Options(lightning => lightning with { Enabled = false }), random: 0);
+        runner.Update(_state);
+
+        Assert.False(runner.Trigger(_state, WorldEventKind.Lightning));
+        Pass(runner, 1);
+
+        Assert.Empty(_state.Strikes);
+    }
+
+    [Fact]
+    public void Trigger_ARoomWithNoPlayers_RefusesAndStartsNothing()
+    {
+        var runner = Runner(random: 0);
+
+        Assert.False(runner.Trigger(_state, WorldEventKind.Lightning));
+    }
+
+    [Fact]
+    public void Trigger_OnlyTheKindAsked_Starts()
+    {
+        AddPlayer();
+        var runner = Runner(Options(meteors: OneMeteor()), random: 0);
+        runner.Update(_state);
+
+        runner.Trigger(_state, WorldEventKind.Meteor);
+        Pass(runner, 0.1);
+
+        Assert.All(_state.Strikes.Values, strike => Assert.Equal(WorldStrikeKind.Meteor, strike.Kind));
+        Assert.Single(_state.Strikes);
+    }
+
+    [Fact]
     public void Update_OneKindSwitchedOff_LeavesTheOthersWarningsUp()
     {
         AddPlayer();
