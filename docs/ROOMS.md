@@ -10,6 +10,12 @@
    asks for a nickname and joins through `POST /join/code/{code}`.
 4. Private rooms are never picked by **Join random room**. Public rooms behave as before.
 
+## Gameplay of a room
+
+The dialog also has a **Gameplay** panel: for each of perks, prizes, lightning, meteors, the turret boss and the shrinking safe zone the
+host can keep the default, switch it off or (for the world events) make it calm or wild. It is sent with the room and kept with it.
+An administrator can change it later from **Gameplay** in the rooms list. See [WORLD_EVENTS.md](WORLD_EVENTS.md#gameplay-per-room).
+
 ## Wire
 
 | Step | Call |

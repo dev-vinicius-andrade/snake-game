@@ -31,6 +31,30 @@ Perks of the same effect add up. The snake's earned perk ids are sent in the sna
 
 Built-in set: magnet (6 foods), swift (8), quick-shot (12), twin-shot (15), armor (20), quick-reload (25), burst-shot (30), deep-lungs (35), regeneration (40), auto-fire (45), triple-shot (50), piercing-shot (60), turbo (70). A `Perks` list in the configuration replaces the whole set, so leave it out to get the built-in one.
 
+## Tiers
+
+A perk can be **upgraded**. The perk as it is, is tier I. It can have up to four more tiers (II to V); each asks for more foods than
+the one before and multiplies everything the perk does by its `multiplier`, counted from tier I:
+
+```jsonc
+{ "id": "magnet", "foodsRequired": 6, "effect": "Magnet", "amount": 60,
+  "tiers": [ { "foodsRequired": 15, "multiplier": 1.5 },    // tier II: radius 90
+             { "foodsRequired": 30, "multiplier": 2 } ] }    // tier III: radius 120
+```
+
+- A snake is at the highest tier whose foods it has reached. A perk it was given (by a prize or the turret) with few foods is at tier I.
+- **Foods are not only food.** What a snake has done counts as foods toward perks and so toward tiers: eating, a prize's `foodsCredit`,
+  **killing another snake** (`killFoodsCredit` on the perks, 3 by default) and **bringing the turret down** (`foodsCredit` on the turret,
+  15 by default). A kill or a boss can therefore lift a perk to the next tier.
+- Everything with an amount scales: radius, speed, regeneration, shots (rounded to whole shots). Switches (auto fire, piercing) have
+  no strength, so tiers do not change them. A share (armor, quick reload, deep lungs) never goes past 95 % however high the tier.
+- Scripted perks are not scaled; they decide for themselves.
+- The built-in perks that have amounts to scale have a tier II at two and a half times their foods (1.5 times as strong) and a tier III
+  at five times (twice as strong).
+- Players see the tier as a numeral on the perk's icon, and the tooltip says what the perk does at that tier and the foods the next one asks for.
+- On the admin page, in the perk's panel: **Add a tier** gives it the next foods and strength to edit, **Remove tier** takes one away.
+  A tier must ask for more foods than the perk and than the tier before it; the strength is above 0 and at most 10.
+
 ## Perks per room
 
 A perk works in every room unless it says otherwise, and a perk with a script works in no room until it names some. Three ways to

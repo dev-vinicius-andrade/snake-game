@@ -43,7 +43,7 @@ A segment is 15 units, a room 1920 x 1080 by default.
 
 ## Turret boss
 
-Every few minutes (`minIntervalSeconds` to `maxIntervalSeconds`, 3 to 7 by default) a room with at least `minPlayers` players gets a
+Every few minutes (`minIntervalSeconds` to `maxIntervalSeconds`, 2 to 5 by default) a room with at least `minPlayers` players (1 by default) gets a
 **turret**: a square of `size` world units (60) that appears somewhere in the room, at least half its size from the edges, and sits
 still. The first volley comes 3 s after it appears, so players can see it and get ready. Then every `fireIntervalMilliseconds`
 (900) it fires a **volley**: `arms` shots (6), evenly spread round it. After each volley the whole pattern turns by `spinDegrees` (11),
@@ -87,6 +87,51 @@ The client draws the dashed final circle, the ring, the danger tint and a banner
 zone is closing: stay inside", "Stay inside the circle"). While the own snake is outside the banner turns red, says it is losing mass,
 and the edges of the screen glow red.
 
+## What a strike costs, and how it is felt
+
+- **A splash on the body.** When a strike falls, every segment of every snake that was inside it throws bits off: white and yellow
+  for lightning, burning orange for a meteor, with a bright blob where the segment was. Everyone in the room sees it, since it is drawn
+  from what the snapshots say (the segments that were inside the strike in the snapshot before it fell), not from a message to the
+  snake that was hit.
+- **Minus N at the head.** The snake that lost mass, to lightning, a meteor or the zone, is told how much, as a red `-N` that floats up
+  from its head (a `DamageDealt` event of kind `lost`, sent only to that snake; the shooter is an empty guid). For a strike it is the
+  mass of the segments that broke, for a head hit all of the mass, for the zone the mass it took.
+
+## Perks and tiers
+
+Kills and bosses count toward perks too, see [PERKS.md](PERKS.md): killing a snake counts for `killFoodsCredit` foods (3), and
+bringing the turret down for its own `foodsCredit` (15). Foods are what perks and their tiers are earned with.
+
+## Gameplay per room
+
+Everything above is the default every room inherits, set by the administrator. **A room can change it for itself**, and whoever makes
+a private room picks this when making it (the **Gameplay** panel of the **Create private room** dialog). Each feature has a choice:
+
+| Choice | Meaning |
+| --- | --- |
+| Default (`inherit`) | The room changes nothing: it is what the administrator set. |
+| Off | The feature is off in this room. |
+| On (`normal`) | On, with the administrator's numbers, even where the administrator switched it off. |
+| Calm | On, the administrator's numbers made gentler: it comes half as often, with fewer, smaller strikes and more warning. |
+| Wild | On, the administrator's numbers made harsher: twice as often, more and bigger strikes, less warning. |
+
+Perks and prizes only know default, off and on. Lightning, meteors, turret and zone know all five. A preset is a way of changing the
+numbers of the administrator, never a set of numbers of its own, so changing the default changes the calm and wild rooms with it. What
+each preset does to the numbers is in `WorldEventPresets`; the results are always kept inside what the settings accept (a wild storm
+never has more than 40 strikes).
+
+An administrator can change the choices of any room later, and **start an event in it right now**, from **Gameplay** in the row of
+the room in the admin rooms list (for trying an event out, or livening a quiet room up). Starting works when the event is on in the room,
+somebody is in it, and one of the kind is not already going; a turret or a zone started this way ignores the number of players it
+asks for. The manager keeps what a room chose with the room (it comes back in the heartbeat of the game server), and passes changes on to
+the game server, which applies them at once.
+
+```
+POST /rooms                          { id, name?, maxPlayers, gameplay?: { turret: "off", lightning: "wild", ... } }   (host)
+PUT  /admin/rooms/{id}/gameplay      { turret: "off", ... }                              (admin key; only what differs from the default)
+POST /admin/rooms/{id}/events/{kind}  kind: lightning | meteors | turret | zone         (admin key; 204, 409 not now, 404, 502)
+```
+
 ## Settings
 
 Admin page, tab **Gameplay**, the **World events** form (`WorldEventsEditor.vue`: `worldEvents` in the gameplay config;
@@ -129,8 +174,8 @@ The turret has its own section, with the same room switches:
 ```jsonc
 "turret": {
   "enabled": true,
-  "minIntervalSeconds": 180,         // wait between turrets
-  "maxIntervalSeconds": 420,
+  "minIntervalSeconds": 120,         // wait between turrets
+  "maxIntervalSeconds": 300,
   "lifetimeSeconds": 90,             // how long it stays when nobody brings it down, 10 to 3600
   "hitPoints": 40,                   // shots to bring it down, 1 to 10000
   "size": 60,                        // side of its square in world units, 20 to 300
@@ -178,6 +223,8 @@ makes it a storm. A config without `meteors`, `turret` or `zone` gets their defa
 
 | Piece | Where | Job |
 | --- | --- | --- |
+| `RoomGameplay`, `FeaturePreset`, `WorldEventPresets`, `WorldEventRules.OptionsFor` | `Library.Commons.Game.Domain/Entities/RoomGameplay.cs`, `Domain.Game/Rules/WorldEventPresets.cs` | The choices of a room, and what they make of the administrator's options. `OptionsFor(room)` gives the options a runner uses for a room, worked out once while neither side changes. |
+| `RoomGameplayService`, `EventTriggers` | `Application.Game.Server/Services/RoomGameplayService.cs` | What the manager can ask of a room: new choices, start an event (`PUT /rooms/{id}/gameplay`, `POST /rooms/{id}/events/{kind}` on the game server). |
 | `WorldEventOptions`, `LightningOptions`, `MeteorOptions`, `IStormSettings`, `WorldEventKind` | `Domain.Game/Rules/WorldEventOptions.cs` | The settings. Both events implement `IStormSettings` (interval, radius, warning, count, duration, aimed share, rooms), which is all the engine knows about them. |
 | `WorldEventRules` | `Domain.Game/Rules/WorldEventRules.cs` | Pure. `Step(kind, state, now, ...)` moves a room's `StormState` on: it says which strikes to mark and which to carry out. `Resolve` says which segments and whether the head a strike reaches. Random numbers come from an injected function, the clock is passed in, the living heads are passed in for aiming. |
 | `WorldEventRunner` | `Domain.Game/Services/WorldEventRunner.cs` | Per room and kind, in the style of `PrizeSpawner` and `PerkWorld`. Reads the clock (`TimeProvider`), keeps the state, puts each mark in `IGameState.Strikes` and calls `IGameStateService.StrikeArea` when its warning is over. |
