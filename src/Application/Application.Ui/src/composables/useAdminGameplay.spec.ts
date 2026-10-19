@@ -474,6 +474,7 @@ describe("useAdminGameplay", () => {
         lightning: { ...config().worldEvents.lightning, radius: 150, rooms: ["ABC234"] },
         meteors: config().worldEvents.meteors,
         turret: config().worldEvents.turret,
+        zone: config().worldEvents.zone,
       });
     });
 
