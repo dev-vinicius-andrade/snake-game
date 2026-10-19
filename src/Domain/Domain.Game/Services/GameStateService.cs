@@ -3,6 +3,7 @@ using Domain.Game.Entities;
 using Domain.Game.Extensions;
 using Domain.Game.Helpers;
 using Domain.Game.Rules;
+using Domain.Game.Scripting;
 using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Entities.Configurations;
 using Library.Commons.Game.Domain.Enums;
@@ -42,6 +43,10 @@ public class GameStateService : IGameStateService
     private readonly ShotCooldownRules _shotCooldownRules;
     private readonly HeadingRules _headingRules;
     private readonly PerkRules _perkRules;
+    private readonly TimeProvider _clock;
+    /// <summary>What a player's perks did when last worked out, kept for a moment: scripts are not asked 60 times a second.</summary>
+    private readonly ConcurrentDictionary<Guid, (DateTimeOffset At, PerkEffects Effects)> _scriptedEffects = new();
+    private static readonly TimeSpan ScriptedEffectsLifetime = TimeSpan.FromMilliseconds(250);
 
     public GameStateService(
         IOptions<ServerConfiguration> serverConfiguration,
@@ -57,9 +62,11 @@ public class GameStateService : IGameStateService
         SnakeSizeRules snakeSizeRules, SnakeCollisionRules snakeCollisionRules, DeathDropRules deathDropRules,
         SnakeBodyRules snakeBodyRules, BodyShotRules bodyShotRules, BodyHealthRules bodyHealthRules,
         BoostRules boostRules, DamageCalculator damageCalculator, SnakeRulesOptions rulesOptions,
-        ShotCooldownRules shotCooldownRules, HeadingRules headingRules, PerkRules perkRules)
+        ShotCooldownRules shotCooldownRules, HeadingRules headingRules, PerkRules perkRules,
+        TimeProvider? clock = null)
     {
         _perkRules = perkRules;
+        _clock = clock ?? TimeProvider.System;
         _shotCooldownRules = shotCooldownRules;
         _headingRules = headingRules;
         _snakeBodyRules = snakeBodyRules;
@@ -156,7 +163,7 @@ public class GameStateService : IGameStateService
     public async Task MovePlayer(IGameState gameState, IPlayer player)
     {
         TurnTowardsTarget(player);
-        var perks = _perkRules.EffectsFor(player.FoodsEaten, gameState.Room);
+        var perks = EffectsOf(gameState, player);
         var boost = _boostRules.Step(player.IsBoosting, player.BoostTicks, player.Score, perks.BoostSpeedBonus, perks.BoostLengthFactor);
         player.BoostTicks = boost.BoostTicks;
         player.Score -= boost.MassSpent;
@@ -247,8 +254,9 @@ public class GameStateService : IGameStateService
         player.Score += food.Value;
         player.FoodsEaten += food.FoodsCredit;
         player.Perks = _perkRules.UnlockedIds(player.FoodsEaten, gameState.Room).ToList();
-        player.AutoFire = _perkRules.EffectsFor(player.FoodsEaten, gameState.Room).AutoFire;
+        player.AutoFire = EffectsOf(gameState, player).AutoFire;
         HealBody(player, food.Value);
+        ApplyEatingRewards(gameState, player, food);
 
     }
 
@@ -278,7 +286,7 @@ public class GameStateService : IGameStateService
     public async Task Shoot(IGameState gameState, IRoom room, IPlayer player)
     {
         if (!player.IsAlive || player.Score <= 0 || !_shotCooldownRules.CanShoot(player.ShotCooldownTicks)) return;
-        var perks = _perkRules.EffectsFor(player.FoodsEaten, gameState.Room);
+        var perks = EffectsOf(gameState, player);
         FireVolley(gameState, room, player, perks);
 
         player.Score = Math.Max(0, player.Score - 1);
@@ -325,7 +333,7 @@ public class GameStateService : IGameStateService
     /// <summary>Food close to a snake with a magnet drifts toward its head. The prize is left alone: it is to be fought for.</summary>
     private void PullFoodToward(IGameState gameState, IPlayer player)
     {
-        var radius = _perkRules.EffectsFor(player.FoodsEaten, gameState.Room).MagnetRadius;
+        var radius = EffectsOf(gameState, player).MagnetRadius;
         if (radius <= 0) return;
         foreach (var food in gameState.Foods.Values.Where(food => food.Kind != FoodKind.Prize))
             PullToward(food, player.CurrentPosition, radius);
@@ -423,7 +431,7 @@ public class GameStateService : IGameStateService
     {
         var targetLength = player.Path.Count;
         var shooterLength = GetPlayer(gameState, impact.Shot.CreatedyBy)?.Path.Count ?? InitialLength;
-        var damage = _damageCalculator.ShotDamage(shooterLength, targetLength) * _perkRules.EffectsFor(player.FoodsEaten, gameState.Room).DamageFactor;
+        var damage = _damageCalculator.ShotDamage(shooterLength, targetLength) * EffectsOf(gameState, player).DamageFactor;
         var maxHp = _damageCalculator.MaxSegmentHp(targetLength);
         var hitAt = player.Path[impact.Hit.SegmentIndex];
         var hpBefore = player.SegmentHealth[impact.Hit.SegmentIndex] * maxHp;
@@ -481,6 +489,43 @@ public class GameStateService : IGameStateService
         => new(ToPoints(player.Path), player.SegmentHealth.ToArray(), ToPoints(player.Trail));
 
     private static Point ToPoint(IPointAxis axis) => new(axis.X, axis.Y);
+
+    /// <summary>
+    /// What a player's perks do, here and now. A snake whose perks have no script in this room gets it straight from the rules; with
+    /// scripts the answer is kept for a quarter of a second.
+    /// </summary>
+    private PerkEffects EffectsOf(IGameState gameState, IPlayer player)
+    {
+        if (!_perkRules.HasScripts(player.FoodsEaten, gameState.Room)) return _perkRules.EffectsFor(player.FoodsEaten, gameState.Room);
+        var now = _clock.GetUtcNow();
+        if (_scriptedEffects.TryGetValue(player.Guid, out var kept) && now - kept.At < ScriptedEffectsLifetime) return kept.Effects;
+        var effects = _perkRules.EffectsFor(player.FoodsEaten, gameState.Room, ContextOf(gameState, player));
+        _scriptedEffects[player.Guid] = (now, effects);
+        return effects;
+    }
+
+    private static ScriptContext ContextOf(IGameState gameState, IPlayer player)
+    {
+        var health = player.SegmentHealth;
+        var snake = new ScriptSnake(
+            player.Name, player.Path.Count, player.Score, player.FoodsEaten,
+            health.Count == 0 ? 1.0 : health.Average(), health.Count == 0 ? 1.0 : health.Min(),
+            player.IsBoosting, player.Perks.ToArray());
+        var room = gameState.Room;
+        return new ScriptContext(snake, new ScriptRoom(gameState.Players.Count, room.Name ?? string.Empty, room.Code ?? string.Empty, room.Width, room.Height));
+    }
+
+    /// <summary>What the scripts of the snake's perks give for eating this: extra mass, and healing in HP.</summary>
+    private void ApplyEatingRewards(IGameState gameState, IPlayer player, IFood food)
+    {
+        if (!_perkRules.HasScripts(player.FoodsEaten, gameState.Room)) return;
+        var rewards = _perkRules.RewardsForEating(
+            player.FoodsEaten, gameState.Room, ContextOf(gameState, player), new ScriptFood(food.Value, food.Kind == FoodKind.Prize));
+        player.Score += rewards.Mass;
+        if (rewards.Heal <= 0) return;
+        var maxHp = _damageCalculator.MaxSegmentHp(Math.Max(player.Path.Count, 1));
+        player.SegmentHealth = _bodyHealthRules.Heal(player.SegmentHealth.ToArray(), maxHp, rewards.Heal).ToList();
+    }
 
     private bool IsOwnShot(IObstacle obstacle, IPlayer player)
         => _trackableIdGeneratorService.IsType<IPlayer>(obstacle.CreatedyBy) && obstacle.CreatedyBy.Guid == player.Guid;

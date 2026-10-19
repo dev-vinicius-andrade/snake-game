@@ -40,6 +40,14 @@ public sealed class GameStateServiceTests
     private readonly ConcurrentDictionary<Guid, IGameState> _states;
     private readonly ITickRateService _tickRate = Substitute.For<ITickRateService>();
     private readonly SnakeRulesOptions _rules = new();
+    private readonly FakeClock _clock = new();
+
+    private sealed class FakeClock : TimeProvider
+    {
+        private DateTimeOffset _now = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        public override DateTimeOffset GetUtcNow() => _now;
+        public void Advance(TimeSpan span) => _now += span;
+    }
     private readonly IGameState _state;
     private readonly IRoom _room = Substitute.For<IRoom>();
 
@@ -92,7 +100,8 @@ public sealed class GameStateServiceTests
             rules,
             new ShotCooldownRules(rules),
             new HeadingRules(rules),
-            perks);
+            perks,
+            _clock);
     }
 
     private IPointAxis At(double x, double y)
@@ -1025,5 +1034,160 @@ public sealed class GameStateServiceTests
         await _service.CheckObstacleCollision(_state, target);
 
         Assert.Single(_state.Hits);
+    }
+
+    private GameStateService WithScript(string script, params string[] rooms)
+        => Build(new PerkRules(new PerkOptions
+        {
+            Perks = [new() { Id = "scripted", Name = "Scripted", FoodsRequired = 1, Script = script, Rooms = rooms.ToList() }]
+        }));
+
+    [Fact]
+    public async Task Script_GivesExtraShots_InTheRoomItNames()
+    {
+        var service = WithScript("function modify() { return { extraShots: 1 }; }", _room.Guid.ToString());
+        var player = AddPlayer("a", 500, 500, score: 5);
+        player.FoodsEaten = 1;
+
+        await service.Shoot(_state, _room, player);
+
+        Assert.Equal(2, _state.Obstacles.Count);
+    }
+
+    [Fact]
+    public async Task Script_DoesNothing_InAnotherRoom()
+    {
+        var service = WithScript("function modify() { return { extraShots: 3 }; }", Guid.NewGuid().ToString());
+        var player = AddPlayer("a", 500, 500, score: 5);
+        player.FoodsEaten = 1;
+
+        await service.Shoot(_state, _room, player);
+
+        Assert.Single(_state.Obstacles);
+        Assert.Empty(player.Perks);
+    }
+
+    [Fact]
+    public async Task Script_DoesNothing_WhenNoRoomIsNamed()
+    {
+        var service = WithScript("function modify() { return { extraShots: 3 }; }");
+        var player = AddPlayer("a", 500, 500, score: 5);
+        player.FoodsEaten = 1;
+
+        await service.Shoot(_state, _room, player);
+
+        Assert.Single(_state.Obstacles);
+    }
+
+    [Fact]
+    public async Task Script_SeesTheSnakeAndTheRoom()
+    {
+        var service = WithScript(
+            "function modify(snake, room) { return { extraShots: snake.length === 6 && snake.mass === 5 && room.players === 2 ? 1 : 0 }; }",
+            _room.Guid.ToString());
+        var player = AddPlayer("a", 500, 500, score: 5);
+        AddPlayer("b", 1500, 900);
+        player.FoodsEaten = 1;
+
+        await service.Shoot(_state, _room, player);
+
+        Assert.Equal(2, _state.Obstacles.Count);
+    }
+
+    [Fact]
+    public async Task Script_IsAskedAgainOnlyAfterAShortWhile()
+    {
+        var service = WithScript("function modify(snake) { return { extraShots: snake.mass >= 10 ? 1 : 0 }; }", _room.Guid.ToString());
+        var player = AddPlayer("a", 500, 500, score: 5);
+        player.FoodsEaten = 1;
+        await service.Shoot(_state, _room, player);
+        Assert.Single(_state.Obstacles);
+
+        player.Score = 20;
+        player.ShotCooldownTicks = 0;
+        await service.Shoot(_state, _room, player);
+        Assert.Equal(2, _state.Obstacles.Count);
+
+        _clock.Advance(TimeSpan.FromMilliseconds(400));
+        player.ShotCooldownTicks = 0;
+        await service.Shoot(_state, _room, player);
+        Assert.Equal(4, _state.Obstacles.Count);
+    }
+
+    [Fact]
+    public async Task Script_OnEat_GivesMass()
+    {
+        var service = WithScript("function onEat(snake, food) { return { mass: 4 }; }", _room.Guid.ToString());
+        var player = AddPlayer("a", 500, 500);
+        player.FoodsEaten = 1;
+        AddFood(500, 500, 1);
+
+        await service.CheckFoodCollision(_state, player);
+
+        Assert.Equal(1 + 4, player.Score);
+    }
+
+    [Fact]
+    public async Task Script_OnEat_HealsTheMostDamagedSegment()
+    {
+        var service = WithScript("function onEat() { return { heal: 20 }; }", _room.Guid.ToString());
+        var player = AddPlayer("a", 500, 500);
+        player.FoodsEaten = 1;
+        player.SegmentHealth[1] = 0.5;
+        AddFood(500, 500, 0 + 1);
+        var plain = AddPlayer("plain", 500, 900);
+        plain.FoodsEaten = 1;
+        plain.SegmentHealth[1] = 0.5;
+        AddFood(500, 900, 1);
+
+        await service.CheckFoodCollision(_state, player);
+        await service.CheckFoodCollision(_state, plain);
+
+        Assert.True(player.SegmentHealth[1] > plain.SegmentHealth[1] - 1e-9);
+        Assert.Equal(0.5 + 20 / _damage.MaxSegmentHp(player.Path.Count) + _damage.HealAmount(1) / _damage.MaxSegmentHp(player.Path.Count), player.SegmentHealth[1], 4);
+    }
+
+    [Fact]
+    public async Task Script_OnEat_DoesNothingInAnotherRoom()
+    {
+        var service = WithScript("function onEat() { return { mass: 40 }; }", Guid.NewGuid().ToString());
+        var player = AddPlayer("a", 500, 500);
+        player.FoodsEaten = 1;
+        AddFood(500, 500, 1);
+
+        await service.CheckFoodCollision(_state, player);
+
+        Assert.Equal(1, player.Score);
+    }
+
+    [Fact]
+    public async Task Script_ThatBreaksDownCannotStopTheGame()
+    {
+        var service = WithScript("function modify(snake) { if (snake.name === 'a') { while (true) {} } return {}; }", _room.Guid.ToString());
+        var player = AddPlayer("a", 500, 500, score: 5);
+        player.FoodsEaten = 1;
+
+        await service.Shoot(_state, _room, player);
+        await service.MovePlayer(_state, player);
+
+        Assert.Single(_state.Obstacles);
+        Assert.True(player.IsAlive);
+    }
+
+    [Fact]
+    public async Task Script_AnotherSnakesScriptEffectApplies_ToItsOwnArmor()
+    {
+        var service = WithScript("function modify() { return { damageFactor: 0.5 }; }", _room.Guid.ToString());
+        var plain = AddPlayer("plain", 500, 500);
+        var armored = AddPlayer("armored", 500, 800);
+        armored.FoodsEaten = 1;
+        var shooter = AddPlayer("shooter", 1500, 100);
+        AddShot(shooter, plain.Path[2].X - 0.1, 500);
+        AddShot(shooter, armored.Path[2].X - 0.1, 800);
+
+        await service.CheckObstacleCollision(_state, plain);
+        await service.CheckObstacleCollision(_state, armored);
+
+        Assert.Equal((1 - plain.SegmentHealth[2]) / 2, 1 - armored.SegmentHealth[2], 6);
     }
 }
