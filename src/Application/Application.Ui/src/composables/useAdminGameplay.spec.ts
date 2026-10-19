@@ -1,18 +1,37 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ADMIN_KEY_STORAGE_KEY } from "./useAdminRooms";
-import { useAdminGameplay, type GameplayConfig, type GameplayHttp } from "./useAdminGameplay";
+import { useAdminGameplay, type GameplayConfig, type GameplayHttp, type PrizeDefinition } from "./useAdminGameplay";
 
-const config = (overrides: Partial<GameplayConfig["prize"]> = {}): GameplayConfig => ({
+const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
   perks: {
     enabled: true,
     shotSpreadDegrees: 12,
     burstIntervalMilliseconds: 80,
     perks: [
-      { id: "magnet", name: "Magnet", foodsRequired: 6, effects: [{ effect: "Magnet", amount: 60 }], rooms: [], excludedRooms: [] },
-      { id: "twin", name: "Twin shot", foodsRequired: 15, effects: [{ effect: "ExtraShots", amount: 1 }], rooms: [], excludedRooms: [] },
+      { id: "magnet", name: "Magnet", foodsRequired: 6, enabled: true, effects: [{ effect: "Magnet", amount: 60 }], rooms: [], excludedRooms: [] },
+      { id: "twin", name: "Twin shot", foodsRequired: 15, enabled: true, effects: [{ effect: "ExtraShots", amount: 1 }], rooms: [], excludedRooms: [] },
     ],
   },
-  prize: { enabled: true, spawnIntervalSeconds: 60, lifetimeSeconds: 45, value: 20, foodsCredit: 8, minPlayers: 2, ...overrides },
+  prize: {
+    enabled: true,
+    prizes: [
+      {
+        id: "prize",
+        name: "Prize",
+        enabled: true,
+        spawnIntervalSeconds: 60,
+        lifetimeSeconds: 45,
+        value: 20,
+        foodsCredit: 8,
+        minPlayers: 2,
+        color: "#ffd23f",
+        rooms: [],
+        excludedRooms: [],
+        ...overrides,
+      },
+    ],
+  },
+  rooms: { emptyPrivateRoomMinutes: 10, maxPrivateRoomMinutes: 0 },
 });
 
 const defaults = config({ value: 25 });
@@ -68,7 +87,7 @@ describe("useAdminGameplay", () => {
 
     expect(gameplay.dirty.value).toBe(false);
 
-    gameplay.draft.value!.prize.value = 99;
+    gameplay.draft.value!.prize.prizes[0].value = 99;
 
     expect(gameplay.dirty.value).toBe(true);
   });
@@ -76,11 +95,11 @@ describe("useAdminGameplay", () => {
   it("saves what was edited and then counts as unchanged", async () => {
     const gameplay = create();
     await gameplay.load();
-    gameplay.draft.value!.prize.value = 99;
+    gameplay.draft.value!.prize.prizes[0].value = 99;
 
     await gameplay.save();
 
-    expect(http.put).toHaveBeenCalledWith("http://manager.test/admin/gameplay", "secret", expect.objectContaining({ prize: expect.objectContaining({ value: 99 }) }));
+    expect(http.put).toHaveBeenCalledWith("http://manager.test/admin/gameplay", "secret", expect.objectContaining({ prize: expect.objectContaining({ prizes: [expect.objectContaining({ value: 99 })] }) }));
     expect(gameplay.dirty.value).toBe(false);
     expect(gameplay.revision.value).toBe("r2");
     expect(gameplay.status.value).toBe("saved");
@@ -90,12 +109,12 @@ describe("useAdminGameplay", () => {
     http.put.mockRejectedValue(failure(400, "Perk 'x' needs at least 1 food."));
     const gameplay = create();
     await gameplay.load();
-    gameplay.draft.value!.prize.value = 99;
+    gameplay.draft.value!.prize.prizes[0].value = 99;
 
     await gameplay.save();
 
     expect(gameplay.error.value).toBe("Perk 'x' needs at least 1 food.");
-    expect(gameplay.draft.value!.prize.value).toBe(99);
+    expect(gameplay.draft.value!.prize.prizes[0].value).toBe(99);
     expect(gameplay.dirty.value).toBe(true);
   });
 
@@ -124,7 +143,7 @@ describe("useAdminGameplay", () => {
 
     gameplay.useDefaults();
 
-    expect(gameplay.draft.value!.prize.value).toBe(25);
+    expect(gameplay.draft.value!.prize.prizes[0].value).toBe(25);
     expect(gameplay.dirty.value).toBe(true);
     expect(http.put).not.toHaveBeenCalled();
   });
@@ -132,11 +151,11 @@ describe("useAdminGameplay", () => {
   it("drops the edits back to what is saved", async () => {
     const gameplay = create();
     await gameplay.load();
-    gameplay.draft.value!.prize.value = 99;
+    gameplay.draft.value!.prize.prizes[0].value = 99;
 
     gameplay.revert();
 
-    expect(gameplay.draft.value!.prize.value).toBe(20);
+    expect(gameplay.draft.value!.prize.prizes[0].value).toBe(20);
     expect(gameplay.dirty.value).toBe(false);
   });
 
@@ -150,7 +169,7 @@ describe("useAdminGameplay", () => {
     const perks = gameplay.draft.value!.perks.perks;
     expect(perks).toHaveLength(4);
     expect(new Set(perks.map((perk) => perk.id)).size).toBe(4);
-    expect(perks[2]).toMatchObject({ foodsRequired: 10, effects: [{ effect: "ExtraShots", amount: 1 }], rooms: [], excludedRooms: [] });
+    expect(perks[2]).toMatchObject({ foodsRequired: 10, enabled: true, effects: [{ effect: "ExtraShots", amount: 1 }], rooms: [], excludedRooms: [] });
   });
 
   it("removes a perk", async () => {
@@ -343,6 +362,162 @@ describe("useAdminGameplay", () => {
 
       expect(result.ok).toBe(false);
       expect(http.checkScript).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("perks that can be switched off", () => {
+    it("a new perk is on", async () => {
+      const gameplay = create();
+      await gameplay.load();
+
+      gameplay.addPerk();
+
+      expect(gameplay.draft.value!.perks.perks[2].enabled).toBe(true);
+    });
+
+    it("a perk an older server sent without the switch is on", async () => {
+      http.get.mockResolvedValue({
+        ...payload,
+        current: { revision: "r1", config: { ...config(), perks: { ...config().perks, perks: [{ id: "old", name: "Old", foodsRequired: 3, effects: [{ effect: "Magnet", amount: 1 }] }] } } },
+      });
+      const gameplay = create();
+
+      await gameplay.load();
+
+      expect(gameplay.draft.value!.perks.perks[0].enabled).toBe(true);
+    });
+
+    it("keeps a perk that was switched off through a save", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      gameplay.draft.value!.perks.perks[1].enabled = false;
+
+      await gameplay.save();
+
+      const sent = http.put.mock.calls[0][2] as GameplayConfig;
+      expect(sent.perks.perks.find((perk) => perk.id === "twin")!.enabled).toBe(false);
+    });
+  });
+
+  describe("prizes", () => {
+    it("adds a kind of prize with sensible starting values and a free id", async () => {
+      const gameplay = create();
+      await gameplay.load();
+
+      gameplay.addPrize();
+      gameplay.addPrize();
+
+      const prizes = gameplay.draft.value!.prize.prizes;
+      expect(prizes).toHaveLength(3);
+      expect(new Set(prizes.map((prize) => prize.id)).size).toBe(3);
+      expect(prizes[1]).toMatchObject({ enabled: true, spawnIntervalSeconds: 60, lifetimeSeconds: 45, value: 20, minPlayers: 2, color: "#ffd23f", rooms: [], excludedRooms: [] });
+    });
+
+    it("removes a kind of prize, but never the last one: a list with none would bring back the default (use the prize switch)", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      gameplay.addPrize();
+
+      gameplay.removePrize(0);
+      gameplay.removePrize(0);
+
+      expect(gameplay.draft.value!.prize.prizes).toHaveLength(1);
+    });
+
+    it("a kind can give a perk, and the perk is kept through a save", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      gameplay.draft.value!.prize.prizes[0].grantsPerk = "twin";
+
+      await gameplay.save();
+
+      const sent = http.put.mock.calls[0][2] as GameplayConfig;
+      expect(sent.prize.prizes[0].grantsPerk).toBe("twin");
+    });
+
+    it("sends no perk for a kind that gives none", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      gameplay.draft.value!.prize.prizes[0].grantsPerk = "";
+
+      await gameplay.save();
+
+      const sent = http.put.mock.calls[0][2] as GameplayConfig;
+      expect(sent.prize.prizes[0].grantsPerk).toBeUndefined();
+    });
+
+    it("does not send blank rooms of a prize", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      gameplay.draft.value!.prize.prizes[0].rooms = ["ABC234", " "];
+      gameplay.draft.value!.prize.prizes[0].excludedRooms = [""];
+
+      await gameplay.save();
+
+      const sent = http.put.mock.calls[0][2] as GameplayConfig;
+      expect(sent.prize.prizes[0].rooms).toEqual(["ABC234"]);
+      expect(sent.prize.prizes[0].excludedRooms).toEqual([]);
+    });
+
+    it("turns the single prize an older server sent into a kind", async () => {
+      http.get.mockResolvedValue({
+        ...payload,
+        current: {
+          revision: "r1",
+          config: {
+            ...config(),
+            prize: { enabled: true, spawnIntervalSeconds: 33, lifetimeSeconds: 22, value: 55, foodsCredit: 4, minPlayers: 1 },
+          },
+        },
+      });
+      const gameplay = create();
+
+      await gameplay.load();
+
+      const [kind] = gameplay.draft.value!.prize.prizes;
+      expect(kind).toMatchObject({ id: "prize", spawnIntervalSeconds: 33, lifetimeSeconds: 22, value: 55, foodsCredit: 4, minPlayers: 1, color: "#ffd23f" });
+    });
+
+    it("has the choice of perks a prize can give", async () => {
+      const gameplay = create();
+      await gameplay.load();
+
+      expect(gameplay.perkChoices.value).toEqual([
+        { id: "magnet", name: "Magnet" },
+        { id: "twin", name: "Twin shot" },
+      ]);
+    });
+  });
+
+  describe("room settings", () => {
+    it("loads how long private rooms live", async () => {
+      const gameplay = create();
+      await gameplay.load();
+
+      expect(gameplay.draft.value!.rooms).toEqual({ emptyPrivateRoomMinutes: 10, maxPrivateRoomMinutes: 0 });
+    });
+
+    it("fills in the defaults when an older server sent none", async () => {
+      const older = config() as Partial<GameplayConfig>;
+      delete older.rooms;
+      http.get.mockResolvedValue({ ...payload, current: { revision: "r1", config: older } });
+      const gameplay = create();
+
+      await gameplay.load();
+
+      expect(gameplay.draft.value!.rooms).toEqual({ emptyPrivateRoomMinutes: 10, maxPrivateRoomMinutes: 0 });
+    });
+
+    it("saves a change", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      gameplay.draft.value!.rooms.maxPrivateRoomMinutes = 120;
+
+      await gameplay.save();
+
+      const sent = http.put.mock.calls[0][2] as GameplayConfig;
+      expect(sent.rooms.maxPrivateRoomMinutes).toBe(120);
+      expect(gameplay.dirty.value).toBe(false);
     });
   });
 });

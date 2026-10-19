@@ -51,12 +51,14 @@ function cancel() {
             density="compact"
             hide-details
             :model-value="works(index)"
+            :disabled="!perk.enabled"
             :label="perk.name || perk.id"
             @update:model-value="(value: boolean | null) => toggle(index, value)"
           />
           <span class="room-perk-icons" aria-hidden="true">
             <VIcon v-for="(entry, position) in perk.effects" :key="position" size="x-small">{{ perkIcon(entry.effect) }}</VIcon>
           </span>
+          <VChip v-if="!perk.enabled" size="x-small" label color="warning">{{ getText({ key: "admin.perkOff" }) }}</VChip>
           <VChip v-if="perk.script?.trim()" size="x-small" label>{{ getText({ key: "admin.scripted" }) }}</VChip>
           <span class="room-perk-foods">{{ perk.foodsRequired }}</span>
         </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DAMAGE_COLOR, contrastColor, headColor, segmentColor, shadeColor } from "./segmentColor";
+import { DAMAGE_COLOR, contrastColor, headColor, lightenColor, segmentColor, shadeColor } from "./segmentColor";
 
 describe("segmentColor", () => {
   it("returns the base colour at full health", () => {
@@ -115,5 +115,26 @@ describe("contrastColor", () => {
 
   it("falls back to dark for an unparsable colour", () => {
     expect(contrastColor("nope")).toBe("#0b0d17");
+  });
+});
+
+describe("lightenColor", () => {
+  it("moves a colour toward white by the given share", () => {
+    expect(lightenColor("#000000", 0.5)).toBe("#808080");
+    expect(lightenColor("#ff0000", 0.5)).toBe("#ff8080");
+  });
+
+  it("leaves a colour alone at 0 and makes it white at 1", () => {
+    expect(lightenColor("#336699", 0)).toBe("#336699");
+    expect(lightenColor("#336699", 1)).toBe("#ffffff");
+  });
+
+  it("keeps a share outside 0..1 inside it", () => {
+    expect(lightenColor("#000000", 5)).toBe("#ffffff");
+    expect(lightenColor("#336699", -2)).toBe("#336699");
+  });
+
+  it("returns what is not a hex colour unchanged", () => {
+    expect(lightenColor("red", 0.5)).toBe("red");
   });
 });

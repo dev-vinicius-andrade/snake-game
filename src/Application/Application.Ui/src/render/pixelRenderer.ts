@@ -1,6 +1,6 @@
 import type { FloatingDamage, FoodSnapshot, GamePoint, GameSnapshot, RoomDimensions, ShotSnapshot, SnakeSnapshot } from "@/types/game";
 import { GLYPH_HEIGHT, GLYPH_WIDTH, damageColor as damageNumberColor, damageLabel, damagePosition, glyphFor, isVisible } from "./damageNumbers";
-import { DAMAGE_COLOR, contrastColor, headColor, segmentColor, shadeColor } from "./segmentColor";
+import { DAMAGE_COLOR, contrastColor, headColor, lightenColor, segmentColor, shadeColor } from "./segmentColor";
 
 /** The 2D canvas methods the renderer needs, so it can be tested without a browser. */
 export interface PixelContext {
@@ -118,15 +118,17 @@ function drawGrid(ctx: PixelContext, view: { width: number; height: number }, or
 }
 
 const PRIZE_PIXELS = 5;
-const PRIZE_RING = "#b8860b";
-const PRIZE_GOLD = ["#ffd23f", "#fff0a0"];
+const PRIZE_RING_SHADE = 0.7;
+const PRIZE_GLOW_LIGHTEN = 0.55;
 const PRIZE_HEART = "#ffffff";
 const PRIZE_GLOW_MS = 400;
 
-/** A gold block with a ring and a white heart, whose gold flips between two shades. */
+/** A block with a darker ring and a white heart, in the colour of its kind, which flips between two shades. */
 function drawPrize(painter: Painter, food: FoodSnapshot, timeMs: number) {
-  const gold = PRIZE_GOLD[Math.floor(timeMs / PRIZE_GLOW_MS) % PRIZE_GOLD.length];
-  painter.block(PRIZE_RING, food.position, PRIZE_PIXELS);
+  const base = food.color.fillColor;
+  const shades = [base, lightenColor(base, PRIZE_GLOW_LIGHTEN)];
+  const gold = shades[Math.floor(timeMs / PRIZE_GLOW_MS) % shades.length];
+  painter.block(shadeColor(base, PRIZE_RING_SHADE), food.position, PRIZE_PIXELS);
   for (let dx = 1; dx <= 3; dx++)
     for (let dy = 1; dy <= 3; dy++) painter.pixel(dx === 2 && dy === 2 ? PRIZE_HEART : gold, food.position, PRIZE_PIXELS, dx, dy);
 }

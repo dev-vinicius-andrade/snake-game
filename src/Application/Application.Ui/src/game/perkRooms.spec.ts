@@ -9,6 +9,7 @@ const perk = (overrides: Partial<PerkDefinition> = {}): PerkDefinition => ({
   id: "p",
   name: "P",
   foodsRequired: 5,
+  enabled: true,
   effects: [{ effect: "Magnet", amount: 10 }],
   rooms: [],
   excludedRooms: [],
@@ -44,6 +45,11 @@ describe("perkWorksInRoom", () => {
     expect(perkWorksInRoom(perk({ excludedRooms: ["ABC234"] }), room)).toBe(false);
     expect(perkWorksInRoom(perk({ rooms: ["ABC234"], excludedRooms: ["ABC234"] }), room)).toBe(false);
     expect(perkWorksInRoom(perk({ excludedRooms: ["ABC234"] }), publicRoom)).toBe(true);
+  });
+
+  it("a perk that is switched off works nowhere", () => {
+    expect(perkWorksInRoom(perk({ enabled: false }), room)).toBe(false);
+    expect(perkWorksInRoom(scripted({ enabled: false, rooms: ["ABC234"] }), room)).toBe(false);
   });
 
   it("is blind to a blank name in a room that has none", () => {

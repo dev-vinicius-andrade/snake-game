@@ -68,8 +68,9 @@ onMounted(() => {
           </VCol>
         </VRow>
 
-        <div v-for="(perk, index) in draft.perks.perks" :key="index" class="perk-card">
+        <div v-for="(perk, index) in draft.perks.perks" :key="index" class="perk-card" :class="{ 'is-off': !perk.enabled }">
           <div class="perk-row">
+            <VSwitch v-model="perk.enabled" color="primary" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkEnabled' })" class="switch-field" />
             <VTextField v-model="perk.id" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkId' })" />
             <VTextField v-model="perk.name" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkName' })" />
             <VTextField v-model.number="perk.foodsRequired" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkFoods' })" />
@@ -141,26 +142,48 @@ onMounted(() => {
     <VCard variant="outlined" class="mb-4">
       <VCardTitle>{{ getText({ key: "admin.gameplay.prizeTitle" }) }}</VCardTitle>
       <VCardText>
-        <VRow dense>
-          <VCol cols="12" md="3">
-            <VSwitch v-model="draft.prize.enabled" color="primary" hide-details :label="getText({ key: 'admin.gameplay.prizeOn' })" />
-          </VCol>
-          <VCol cols="6" md="3">
-            <VTextField v-model.number="draft.prize.spawnIntervalSeconds" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.prizeInterval' })" />
-          </VCol>
-          <VCol cols="6" md="3">
-            <VTextField v-model.number="draft.prize.lifetimeSeconds" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.prizeLifetime' })" />
-          </VCol>
-          <VCol cols="4" md="1">
-            <VTextField v-model.number="draft.prize.value" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.prizeValue' })" />
-          </VCol>
-          <VCol cols="4" md="1">
-            <VTextField v-model.number="draft.prize.foodsCredit" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.prizeCredit' })" />
-          </VCol>
-          <VCol cols="4" md="1">
-            <VTextField v-model.number="draft.prize.minPlayers" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.prizeMinPlayers' })" />
-          </VCol>
-        </VRow>
+        <VSwitch v-model="draft.prize.enabled" color="primary" hide-details :label="getText({ key: 'admin.gameplay.prizeOn' })" />
+
+        <div v-for="(kind, index) in draft.prize.prizes" :key="index" class="perk-card" :class="{ 'is-off': !kind.enabled }">
+          <div class="field-grid">
+            <VSwitch v-model="kind.enabled" color="primary" density="compact" hide-details :label="getText({ key: 'admin.gameplay.prizeEnabled' })" />
+            <VTextField v-model="kind.id" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkId' })" />
+            <VTextField v-model="kind.name" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkName' })" />
+            <VTextField v-model="kind.color" type="color" density="compact" hide-details :label="getText({ key: 'admin.gameplay.prizeColor' })" />
+          </div>
+          <div class="field-grid">
+            <VTextField v-model.number="kind.spawnIntervalSeconds" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.prizeInterval' })" />
+            <VTextField v-model.number="kind.lifetimeSeconds" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.prizeLifetime' })" />
+            <VTextField v-model.number="kind.value" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.prizeValue' })" />
+            <VTextField v-model.number="kind.foodsCredit" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.prizeCredit' })" />
+            <VTextField v-model.number="kind.minPlayers" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.prizeMinPlayers' })" />
+            <VSelect
+              v-model="kind.grantsPerk"
+              :items="[{ id: '', name: getText({ key: 'admin.gameplay.prizeGrantsNone' }) }, ...gameplay.perkChoices.value]"
+              item-title="name"
+              item-value="id"
+              density="compact"
+              hide-details
+              :label="getText({ key: 'admin.gameplay.prizeGrantsPerk' })"
+            />
+          </div>
+          <VCombobox v-model="kind.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.prizeRooms' })" />
+          <VCombobox v-model="kind.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+          <VBtn size="small" variant="text" color="error" class="mt-1" :disabled="draft.prize.prizes.length <= 1" @click="gameplay.removePrize(index)">
+            {{ getText({ key: "admin.gameplay.prizeRemove" }) }}
+          </VBtn>
+        </div>
+        <VBtn class="mt-3" size="small" @click="gameplay.addPrize">{{ getText({ key: "admin.gameplay.prizeAdd" }) }}</VBtn>
+      </VCardText>
+    </VCard>
+
+    <VCard variant="outlined" class="mb-4">
+      <VCardTitle>{{ getText({ key: "admin.gameplay.roomsTitle" }) }}</VCardTitle>
+      <VCardText>
+        <div class="field-grid">
+          <VTextField v-model.number="draft.rooms.emptyPrivateRoomMinutes" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.emptyRoomMinutes' })" />
+          <VTextField v-model.number="draft.rooms.maxPrivateRoomMinutes" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.maxRoomMinutes' })" />
+        </div>
       </VCardText>
     </VCard>
 
@@ -223,5 +246,19 @@ onMounted(() => {
   margin-bottom: 6px;
   font-size: 12px;
   color: var(--snake-amber);
+}
+.perk-card.is-off {
+  opacity: 0.55;
+}
+/* Fields side by side as far as the screen allows, then onto more lines: nothing is squeezed. */
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.switch-field {
+  flex: 0 0 auto !important;
 }
 </style>

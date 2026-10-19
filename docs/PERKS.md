@@ -60,16 +60,24 @@ and every game server applies it within a few seconds; no restart, and players a
   goes back to the built-in defaults.
 - Players see their perks as icons with tooltips; the names and effects come from `GET /gameplay/perks` (public, with no scripts and no room names).
 - A perk can have several effects and a script: see [PERK_SCRIPTS.md](PERK_SCRIPTS.md).
+- Each perk has a **Perk on** switch. A perk that is off stays in the list but nobody gets it, not even from a prize; the per-room dialog shows it as off.
+- The **Private rooms** card sets how long private rooms live: minutes an empty one stays open (`emptyPrivateRoomMinutes`, default 10) and the longest any private room lives (`maxPrivateRoomMinutes`, 0 is no limit). See [ROOMS.md](ROOMS.md).
 
 ## The prize
 
-Every so often a gold prize appears at a random spot of a room. It is worth a lot of mass and counts as several foods toward perks, so snakes fight over it. The HUD shows an arrow and the distance to the nearest prize. If nobody takes it, it disappears and the next one comes after the interval. A room needs at least `MinPlayers` players for a prize to appear.
+Every so often a prize appears at a random spot of a room. It is worth a lot of mass and counts as several foods toward perks, so snakes fight over it. The HUD shows an arrow and the distance to the nearest prize. If nobody takes it, it disappears and the next one comes after the interval. A room needs at least `MinPlayers` players for a prize to appear.
 
-`PrizeConfiguration` section:
+There can be up to 10 **kinds** of prize (`Prizes` list), each with its own timing, mass, colour and rooms. A room has at most one prize of each kind on the map. `Enabled` on the section switches all kinds off; each kind has its own `Enabled` too. A kind can **give a perk** (`GrantsPerk`, the id of a perk): the snake that eats it gets that perk whatever foods it has eaten, as long as the perk is on and works in that room. Saving is refused when the perk does not exist. The old single-prize fields are still read and become one kind named `prize`.
+
+Fields of a kind (`PrizeConfiguration:Prizes`):
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `Enabled` | true | Turn prizes off with `false`. |
+| `Id`, `Name` | prize | Unique id, shown name. |
+| `Enabled` | true | Turn this kind off with `false`. |
+| `Color` | #ffd23f | Hex colour of the prize on the map. |
+| `GrantsPerk` | none | Perk id given to the snake that eats it. |
+| `Rooms`, `ExcludedRooms` | all | Rooms the kind appears in (code, name or id); exclusions win. |
 | `SpawnIntervalSeconds` | 60 | From a prize being taken or lost to the next one. |
 | `LifetimeSeconds` | 45 | How long an untaken prize stays. |
 | `Value` | 20 | Mass gained by eating it. |

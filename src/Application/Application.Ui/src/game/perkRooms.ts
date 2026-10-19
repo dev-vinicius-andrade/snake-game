@@ -18,6 +18,7 @@ const hasScript = (perk: PerkDefinition) => !!perk.script?.trim();
 
 /** The same rule the game server follows: does this perk work in this room? */
 export function perkWorksInRoom(perk: PerkDefinition, place: RoomRef): boolean {
+  if (!perk.enabled) return false;
   if (perk.excludedRooms.some((entry) => isNamed(entry, place))) return false;
   if (perk.rooms.length === 0) return !hasScript(perk);
   return perk.rooms.some((entry) => isNamed(entry, place));

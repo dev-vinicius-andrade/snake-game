@@ -14,6 +14,8 @@ export interface PerkDefinition {
   id: string;
   name: string;
   foodsRequired: number;
+  /** A perk that is switched off is kept in the list but nobody gets it. */
+  enabled: boolean;
   /** Everything the perk does. Empty only for a perk whose script does it. */
   effects: PerkEffectEntry[];
   /** Invite codes, names or ids of the rooms the perk works in. Empty: every room (a perk with a script: none). */
@@ -32,13 +34,35 @@ export interface GameplayConfig {
     perks: PerkDefinition[];
   };
   prize: {
+    /** Switches every kind of prize off at once. */
     enabled: boolean;
-    spawnIntervalSeconds: number;
-    lifetimeSeconds: number;
-    value: number;
-    foodsCredit: number;
-    minPlayers: number;
+    prizes: PrizeDefinition[];
   };
+  /** How long private rooms live. */
+  rooms: {
+    /** Minutes a private room may stay empty before it is closed. */
+    emptyPrivateRoomMinutes: number;
+    /** Minutes after which a private room is closed whoever is in it; 0 is no limit. */
+    maxPrivateRoomMinutes: number;
+  };
+}
+
+/** One kind of prize. Each has its own timing, and can give a perk to the snake that eats it. */
+export interface PrizeDefinition {
+  id: string;
+  name: string;
+  enabled: boolean;
+  spawnIntervalSeconds: number;
+  lifetimeSeconds: number;
+  value: number;
+  foodsCredit: number;
+  minPlayers: number;
+  /** The id of a perk the snake gets, whatever the foods it has eaten. Empty: none. */
+  grantsPerk?: string | null;
+  /** Six hex digits, for example #ffd23f. */
+  color: string;
+  rooms: string[];
+  excludedRooms: string[];
 }
 
 export interface GameplayDocument {
@@ -98,6 +122,21 @@ const axiosHttp: GameplayHttp = {
       throw withStatus(failure);
     }
   },
+};
+
+/** What a new kind of prize starts as. */
+const DEFAULT_PRIZE: PrizeDefinition = {
+  id: "prize",
+  name: "Prize",
+  enabled: true,
+  spawnIntervalSeconds: 60,
+  lifetimeSeconds: 45,
+  value: 20,
+  foodsCredit: 8,
+  minPlayers: 2,
+  color: "#ffd23f",
+  rooms: [],
+  excludedRooms: [],
 };
 
 /** What a new script starts from: both functions, each doing something small, so it is clear what they are for. */
@@ -168,15 +207,38 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     error.value = code === 400 ? ((failure as { serverMessage?: string }).serverMessage ?? "unavailable") : "unavailable";
   }
 
-  /** A server that does not know a field yet sends none: the lists are then empty. */
+  /** A server that does not know a field yet sends none: lists are then empty, switches on, and a single old prize becomes a kind. */
   function complete(config: GameplayConfig): GameplayConfig {
     const copy = clone(config);
     for (const perk of copy.perks.perks) {
+      perk.enabled ??= true;
       perk.effects ??= [];
       perk.rooms ??= [];
       perk.excludedRooms ??= [];
     }
+    completePrizes(copy);
+    copy.rooms ??= { emptyPrivateRoomMinutes: 10, maxPrivateRoomMinutes: 0 };
     return copy;
+  }
+
+  function completePrizes(copy: GameplayConfig) {
+    const old = copy.prize as GameplayConfig["prize"] & Partial<Omit<PrizeDefinition, "id" | "name" | "enabled">>;
+    if (!Array.isArray(old.prizes)) {
+      old.prizes = [
+        {
+          ...DEFAULT_PRIZE,
+          id: "prize",
+          name: "Prize",
+          spawnIntervalSeconds: old.spawnIntervalSeconds ?? DEFAULT_PRIZE.spawnIntervalSeconds,
+          lifetimeSeconds: old.lifetimeSeconds ?? DEFAULT_PRIZE.lifetimeSeconds,
+          value: old.value ?? DEFAULT_PRIZE.value,
+          foodsCredit: old.foodsCredit ?? DEFAULT_PRIZE.foodsCredit,
+          minPlayers: old.minPlayers ?? DEFAULT_PRIZE.minPlayers,
+        },
+      ];
+    }
+    for (const field of ["spawnIntervalSeconds", "lifetimeSeconds", "value", "foodsCredit", "minPlayers"] as const) delete old[field];
+    old.prizes = old.prizes.map((kind) => ({ ...DEFAULT_PRIZE, ...kind, rooms: kind.rooms ?? [], excludedRooms: kind.excludedRooms ?? [] }));
   }
 
   function take(document: GameplayDocument) {
@@ -212,6 +274,11 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
       perk.excludedRooms = perk.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       if (!perk.script?.trim()) delete perk.script;
     }
+    for (const kind of body.prize.prizes) {
+      kind.rooms = kind.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+      kind.excludedRooms = kind.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+      if (!kind.grantsPerk?.trim()) delete kind.grantsPerk;
+    }
     try {
       take(await http.put(url, adminKey, body));
       status.value = "saved";
@@ -238,8 +305,25 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
   function addPerk() {
     if (!draft.value) return;
     const perks = draft.value.perks.perks;
-    perks.push({ id: freeId(perks), name: "New perk", foodsRequired: 10, effects: [newEffect()], rooms: [], excludedRooms: [] });
+    perks.push({ id: freeId(perks), name: "New perk", foodsRequired: 10, enabled: true, effects: [newEffect()], rooms: [], excludedRooms: [] });
   }
+
+  function addPrize() {
+    if (!draft.value) return;
+    const prizes = draft.value.prize.prizes;
+    let number = prizes.length + 1;
+    while (prizes.some((kind) => kind.id === `prize-${number}`)) number++;
+    prizes.push({ ...clone(DEFAULT_PRIZE), id: `prize-${number}`, name: "New prize" });
+  }
+
+  /** The last kind stays: a list with none would bring the default prize back. Switch the prizes off instead. */
+  function removePrize(index: number) {
+    const prizes = draft.value?.prize.prizes;
+    if (prizes && prizes.length > 1) prizes.splice(index, 1);
+  }
+
+  /** The perks a prize can give, by id and name. */
+  const perkChoices = computed(() => (draft.value?.perks.perks ?? []).map((perk) => ({ id: perk.id, name: perk.name })));
 
   const newEffect = (): PerkEffectEntry => ({ effect: effects.value[0] ?? "ExtraShots", amount: 1 });
 
@@ -280,5 +364,5 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     draft.value?.perks.perks.splice(index, 1);
   }
 
-  return { status, error, draft, saved, effects, revision, dirty, load, save, useDefaults, revert, addPerk, removePerk, addEffect, removeEffect, addScript, removeScript, checkScript };
+  return { status, error, draft, saved, effects, revision, dirty, load, save, useDefaults, revert, addPerk, removePerk, addEffect, removeEffect, addScript, removeScript, checkScript, addPrize, removePrize, perkChoices };
 }

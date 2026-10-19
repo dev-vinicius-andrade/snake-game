@@ -54,6 +54,14 @@ export function shadeColor(base: string, factor: number): string {
   return `#${from.map((channel) => toHex(Math.round(channel * clamped))).join("")}`;
 }
 
+/** The colour moved toward white by `share` (0..1): lighter. Colours that are not `#rgb` / `#rrggbb` are returned unchanged. */
+export function lightenColor(base: string, share: number): string {
+  const from = parseHex(base);
+  if (!from) return base;
+  const clamped = Number.isNaN(share) ? 0 : Math.min(1, Math.max(0, share));
+  return `#${from.map((channel) => toHex(Math.round(channel + (255 - channel) * clamped))).join("")}`;
+}
+
 const DARK = "#0b0d17";
 const LIGHT = "#ffffff";
 

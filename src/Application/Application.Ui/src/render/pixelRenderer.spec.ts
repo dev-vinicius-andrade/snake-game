@@ -154,6 +154,15 @@ describe("drawFrame", () => {
       expect(ctx.calls.find((call) => call.x === 22 && call.y === 12 && call.w === 1)?.style).toBe("#ffffff");
     });
 
+    it("is in the colour of its kind: a darker ring and a lighter glow", () => {
+      const pink: FoodSnapshot = { ...prize(100, 50), color: { fillColor: "#ff00aa", border: "#ff00aa" } };
+
+      drawFrame(ctx, snapshot({ foods: [pink] }), { timeMs: 0 });
+
+      expect(ctx.calls.find((call) => call.w === 5 && call.h === 5)?.style).toBe(shadeColor("#ff00aa", 0.7));
+      expect(ctx.calls.filter((call) => call.w === 1 && call.style === "#ff00aa").length).toBeGreaterThan(5);
+    });
+
     it("glows: the gold changes with time", () => {
       const first = new RecordingContext();
       const later = new RecordingContext();

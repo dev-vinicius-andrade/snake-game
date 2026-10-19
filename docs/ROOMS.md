@@ -43,7 +43,7 @@ AuthConfiguration__AdminApiKeys__0=<long random value> dotnet run --no-build --p
 
 ## Cleaning up
 
-A game server closes **private** rooms that stayed empty for 10 minutes (sweep every 30 s, `EmptyRoomReaper`). A room nobody ever joined counts from its creation; a room that emptied counts from the sweep that noticed it. Public rooms are never closed this way.
+A game server closes **private** rooms that stayed empty for 10 minutes (sweep every 30 s, `EmptyRoomReaper`). The admin page (Gameplay, **Private rooms**) changes this while the game runs: minutes empty, and a longest life for any private room (0: no limit); the config key is `rooms` (`emptyPrivateRoomMinutes` 1..10080, `maxPrivateRoomMinutes` 0..10080). A room nobody ever joined counts from its creation; a room that emptied counts from the sweep that noticed it. Public rooms are never closed this way.
 
 ## Limits and known gaps
 
