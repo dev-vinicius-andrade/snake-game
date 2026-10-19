@@ -1,16 +1,28 @@
 import axios from "axios";
 import { shallowRef } from "vue";
 import { resolveManagerUrl } from "@/config/env";
+import { clearStoredAccountToken, readStoredAccountToken, tokenRejected, type AccountStorage } from "@/composables/useAccount";
 import { createHubClient, type HubClient, type HubClientFactory } from "@/services/hub";
 import type { JoinAssignment } from "@/types/game";
 
 export type ManagerJoinStatus = "idle" | "connecting" | "waiting" | "assigned" | "error";
-export type PostJoin = (url: string, body: { id: string; nickname: string }) => Promise<void>;
+/** `token` is the signed-in player's device token; guests have none and the argument is left out. */
+export type PostJoin = (url: string, body: { id: string; nickname: string }, token?: string) => Promise<void>;
+
+/** The manager refused the device token (`401 invalidToken`). */
+export class InvalidTokenError extends Error {
+  constructor() {
+    super("Your session ended. Sign in again, or play as a guest.");
+    this.name = "InvalidTokenError";
+  }
+}
 
 export interface UseManagerJoinOptions {
   managerUrl?: string;
   createClient?: HubClientFactory;
   postJoin?: PostJoin;
+  /** Where the device token is kept. Defaults to localStorage. */
+  storage?: AccountStorage;
   /** How long to wait for a game server to accept the player. */
   timeoutMs?: number;
 }
@@ -20,10 +32,13 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 /** A room by id, or by the invite code its host shared. */
 export type JoinTarget = string | { code: string };
 
-const defaultPostJoin: PostJoin = async (url, body) => {
+const defaultPostJoin: PostJoin = async (url, body, token) => {
   try {
-    await axios.post(url, body);
+    await (token ? axios.post(url, body, { headers: { Authorization: `Bearer ${token}` } }) : axios.post(url, body));
   } catch (failure) {
+    if (axios.isAxiosError(failure) && failure.response?.status === 401 && failure.response.data?.error === "invalidToken") {
+      throw new InvalidTokenError();
+    }
     if (axios.isAxiosError(failure) && failure.response?.status === 404) throw new Error("That room does not exist anymore");
     throw failure;
   }
@@ -120,6 +135,11 @@ export function useManagerJoin(options: UseManagerJoinOptions = {}) {
     try {
       return await requestAssignment(client, waiter, trimmed, target);
     } catch (failure) {
+      if (failure instanceof InvalidTokenError) {
+        // The token is no good any more: forget it so the next try is a guest or a fresh sign in.
+        clearStoredAccountToken(options.storage);
+        tokenRejected.value = true;
+      }
       status.value = cancelled ? "idle" : "error";
       error.value = cancelled ? null : (failure as Error).message;
       throw failure;
@@ -134,7 +154,10 @@ export function useManagerJoin(options: UseManagerJoinOptions = {}) {
     await client.start();
     if (!client.connectionId) throw new Error("The manager hub did not provide a connection id");
     status.value = "waiting";
-    await postJoin(`${managerUrl}/${joinRoute(target)}`, { id: client.connectionId, nickname });
+    const token = readStoredAccountToken(options.storage);
+    const url = `${managerUrl}/${joinRoute(target)}`;
+    const body = { id: client.connectionId, nickname };
+    await (token ? postJoin(url, body, token) : postJoin(url, body));
     const assignment = await waiter.promise;
     status.value = "assigned";
     return assignment;
