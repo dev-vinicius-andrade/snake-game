@@ -143,6 +143,9 @@ onMounted(() => {
   align-items: center;
   margin-top: 8px;
 }
+.field-grid > * {
+  min-width: 0;
+}
 .switch-field {
   flex: 0 0 auto !important;
 }
