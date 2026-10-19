@@ -19,6 +19,11 @@
 
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Application.Manager.Api.Tests" />
+  </ItemGroup>
+
+
+  <ItemGroup>
     <PackageReference Include="Docker.DotNet" Version="3.125.12" />
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.3" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.17.2" />

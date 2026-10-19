@@ -1,7 +1,4 @@
-using System.Runtime.CompilerServices;
 using System.Text.Json;
-
-[assembly: InternalsVisibleTo("Application.Manager.Api.Tests")]
 
 namespace Application.Manager.Api.Accounts;
 
