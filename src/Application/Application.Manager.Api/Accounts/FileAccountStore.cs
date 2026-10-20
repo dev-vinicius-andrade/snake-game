@@ -50,11 +50,11 @@ public sealed class FileAccountStore : IAccountStore
         lock (_lock) return _index.ByName(NameKey.Of(username, tag));
     }
 
-    public Account? FindByExternalLogin(string provider, string subject)
+    public Account? FindByExternalLogin(string provider, string idHash)
     {
         ArgumentNullException.ThrowIfNull(provider);
-        ArgumentNullException.ThrowIfNull(subject);
-        lock (_lock) return _index.ByExternalLogin(LoginKey.Of(provider, subject));
+        ArgumentNullException.ThrowIfNull(idHash);
+        lock (_lock) return _index.ByExternalLogin(LoginKey.Of(provider, idHash));
     }
 
     public Account? FindByDeviceTokenHash(string tokenHash)
@@ -114,7 +114,7 @@ public sealed class FileAccountStore : IAccountStore
         ArgumentNullException.ThrowIfNull(account);
         ArgumentException.ThrowIfNullOrWhiteSpace(account.Username, nameof(account.Username));
         ArgumentException.ThrowIfNullOrEmpty(account.PhraseHash, nameof(account.PhraseHash));
-        if (account.Logins.Any(login => login is null || string.IsNullOrWhiteSpace(login.Provider) || string.IsNullOrWhiteSpace(login.Subject)))
+        if (account.Logins.Any(login => login is null || string.IsNullOrWhiteSpace(login.Provider) || string.IsNullOrWhiteSpace(login.IdHash)))
             throw new ArgumentException("Every social login needs a provider and an id.", nameof(account.ExternalLogins));
         ArgumentNullException.ThrowIfNull(account.Devices, nameof(account.Devices));
         if (!Tags.IsValid(account.Tag)) throw new ArgumentOutOfRangeException(nameof(account.Tag), account.Tag, "A tag is 0 to 99999.");
@@ -192,9 +192,9 @@ public sealed class FileAccountStore : IAccountStore
         }
     }
 
-    private readonly record struct LoginKey(string Provider, string Subject)
+    private readonly record struct LoginKey(string Provider, string IdHash)
     {
-        public static LoginKey Of(string provider, string subject) => new(provider.Trim().ToLowerInvariant(), subject.Trim());
+        public static LoginKey Of(string provider, string idHash) => new(provider.Trim().ToLowerInvariant(), idHash.Trim().ToLowerInvariant());
     }
 
     private readonly record struct NameKey(string Username, int Tag)
@@ -244,7 +244,7 @@ public sealed class FileAccountStore : IAccountStore
             _byName[key] = account.Id;
             TagsFor(key.Username).Add(key.Tag);
             foreach (var device in account.Devices) _byDeviceTokenHash[device.Hash] = account.Id;
-            foreach (var login in account.Logins) _byExternalLogin[LoginKey.Of(login.Provider, login.Subject)] = account.Id;
+            foreach (var login in account.Logins) _byExternalLogin[LoginKey.Of(login.Provider, login.IdHash)] = account.Id;
         }
 
         public void Replace(Account current, Account replacement)
@@ -266,7 +266,7 @@ public sealed class FileAccountStore : IAccountStore
             _byName.Remove(key);
             RemoveTag(key);
             foreach (var device in account.Devices) _byDeviceTokenHash.Remove(device.Hash);
-            foreach (var login in account.Logins) _byExternalLogin.Remove(LoginKey.Of(login.Provider, login.Subject));
+            foreach (var login in account.Logins) _byExternalLogin.Remove(LoginKey.Of(login.Provider, login.IdHash));
         }
 
         private void RemoveTag(NameKey key)
@@ -287,7 +287,7 @@ public sealed class FileAccountStore : IAccountStore
         private bool HasNameOfAnother(Account account) => _byName.TryGetValue(KeyOf(account), out var owner) && owner != account.Id;
 
         private bool HasLoginOfAnother(Account account) =>
-            account.Logins.Any(login => _byExternalLogin.TryGetValue(LoginKey.Of(login.Provider, login.Subject), out var owner) && owner != account.Id);
+            account.Logins.Any(login => _byExternalLogin.TryGetValue(LoginKey.Of(login.Provider, login.IdHash), out var owner) && owner != account.Id);
 
         private bool HasDeviceOfAnother(Account account) =>
             account.Devices.Any(device => _byDeviceTokenHash.TryGetValue(device.Hash, out var owner) && owner != account.Id);
@@ -311,11 +311,11 @@ public sealed class FileAccountStore : IAccountStore
             device?.ToDevice() ?? throw new InvalidDataException($"Account {Id} has an empty device.");
     }
 
-    private sealed record StoredLogin(string Provider, string Subject, DateTimeOffset LinkedAt)
+    private sealed record StoredLogin(string Provider, string IdHash, DateTimeOffset LinkedAt)
     {
-        public static StoredLogin From(ExternalLogin login) => new(login.Provider, login.Subject, login.LinkedAt);
+        public static StoredLogin From(ExternalLogin login) => new(login.Provider, login.IdHash, login.LinkedAt);
 
-        public ExternalLogin ToLogin() => new(Provider, Subject, LinkedAt);
+        public ExternalLogin ToLogin() => new(Provider, IdHash, LinkedAt);
     }
 
     private sealed record StoredDevice(string Hash, DateTimeOffset CreatedAt, string? Label)

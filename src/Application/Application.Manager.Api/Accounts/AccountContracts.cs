@@ -30,8 +30,11 @@ public sealed record Account(
     public string PublicName => string.IsNullOrWhiteSpace(DisplayName) ? Username : DisplayName;
 }
 
-/// <summary>A social account linked to a game account: which provider, and who the provider says it is (its own id, not an email).</summary>
-public sealed record ExternalLogin(string Provider, string Subject, DateTimeOffset LinkedAt);
+/// <summary>
+/// A social account linked to a game account: which provider, and a keyed hash of the id the provider gave (see <see cref="LoginIdentifier"/>).
+/// The id itself, the provider's username, and anything else the provider knows are never kept.
+/// </summary>
+public sealed record ExternalLogin(string Provider, string IdHash, DateTimeOffset LinkedAt);
 
 /// <summary>A browser (or device) that is signed in. Only the hash of its secret is kept.</summary>
 public sealed record DeviceToken(string Hash, DateTimeOffset CreatedAt, string? Label = null);
@@ -44,8 +47,8 @@ public interface IAccountStore
     /// <summary>The account with this username (case does not matter) and tag, or null.</summary>
     Account? Find(string username, int tag);
 
-    /// <summary>The account linked to this social account (provider and the provider's id; the provider's case does not matter), or null.</summary>
-    Account? FindByExternalLogin(string provider, string subject);
+    /// <summary>The account linked to this social account (the provider, and the hash of its id from <see cref="LoginIdentifier"/>), or null.</summary>
+    Account? FindByExternalLogin(string provider, string idHash);
 
     /// <summary>The account that has a device with this token hash, or null.</summary>
     Account? FindByDeviceTokenHash(string tokenHash);

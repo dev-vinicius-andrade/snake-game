@@ -9,6 +9,9 @@ public static class AccountsServiceCollectionExtensions
     /// <summary>The JSON file accounts are kept in. Empty or missing: memory only, gone at restart (like the gameplay config store).</summary>
     public const string StorePathKey = "AccountsConfiguration:StorePath";
 
+    /// <summary>The secret that keys the hash of social account ids. Keep it: changing it makes every social account look new.</summary>
+    public const string LoginPepperKey = "AccountsConfiguration:LoginPepper";
+
     /// <summary>The JSON file stats and unlocked achievements are kept in. Empty or missing: memory only, gone at restart.</summary>
     public const string StatsPathKey = "AccountsConfiguration:StatsPath";
 
@@ -31,7 +34,8 @@ public static class AccountsServiceCollectionExtensions
             provider.GetRequiredService<RecoveryPhrase>(),
             provider.GetRequiredService<SecretHasher>(),
             provider.GetRequiredService<TimeProvider>(),
-            provider.GetService<ILogger<AccountService>>()));
+            provider.GetService<ILogger<AccountService>>(),
+            loginPepper: configuration[LoginPepperKey]));
         services.AddSingleton(configuration.GetSection(OAuthOptions.SectionName).Get<OAuthOptions>() ?? new OAuthOptions());
         services.AddHttpClient<IOAuthClient, HttpOAuthClient>(client => client.Timeout = TimeSpan.FromSeconds(10));
         services.AddSingleton(provider => new OAuthService(

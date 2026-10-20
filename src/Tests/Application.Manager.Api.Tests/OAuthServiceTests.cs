@@ -129,7 +129,7 @@ public sealed class OAuthServiceTests
 
         var redeemed = service.Redeem(completed.Value);
         Assert.True(redeemed.Succeeded, redeemed.Error);
-        Assert.Equal("octocat", redeemed.Value.Account.Username);
+        Assert.Equal("The Octocat", redeemed.Value.Account.Username);
         Assert.Equal("The Octocat", redeemed.Value.Account.PublicName);
         Assert.Equal(redeemed.Value.Account.Id, _accounts.Authenticate(redeemed.Value.Token)?.Id);
     }

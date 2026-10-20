@@ -9,6 +9,12 @@ namespace Application.Manager.Api.Accounts;
 /// </summary>
 public sealed class AccountService
 {
+    /// <summary>
+    /// The secret that keys the hash of a social account's id when none is configured. Fine for tests and a local game; a real deployment sets
+    /// <c>AccountsConfiguration:LoginPepper</c>, because with this one anybody could rebuild the hashes.
+    /// </summary>
+    public const string DevelopmentPepper = "snake-game-development-pepper-set-AccountsConfiguration-LoginPepper";
+
     /// <summary>Devices signed in at once; signing in one more drops the oldest.</summary>
     public const int MaxDevices = 10;
 
@@ -27,11 +33,12 @@ public sealed class AccountService
     private readonly Func<int, int>? _nextTag;
     private readonly Lazy<string> _unknownAccountHash;
     private readonly object _accountChanges = new();
+    private readonly string _loginPepper;
 
     /// <param name="filter">Blocked usernames; <see cref="SimpleWordFilter.Default"/> when null.</param>
     /// <param name="nextTag">Picks random tags like <see cref="Random.Next(int)"/>; <see cref="Random.Shared"/> when null.</param>
     public AccountService(IAccountStore store, AccountThrottles throttles, IWordFilter? filter, RecoveryPhrase phrases, SecretHasher hasher,
-        TimeProvider time, ILogger<AccountService>? logger = null, Func<int, int>? nextTag = null)
+        TimeProvider time, ILogger<AccountService>? logger = null, Func<int, int>? nextTag = null, string? loginPepper = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(throttles);
@@ -46,6 +53,9 @@ public sealed class AccountService
         _time = time;
         _logger = logger;
         _nextTag = nextTag;
+        _loginPepper = string.IsNullOrEmpty(loginPepper) ? DevelopmentPepper : loginPepper;
+        if (string.IsNullOrEmpty(loginPepper))
+            logger?.LogWarning("AccountsConfiguration:LoginPepper is not set: social logins are hashed with the built in development secret");
         _unknownAccountHash = new Lazy<string>(() => hasher.Hash(phrases.Generate()));
     }
 
@@ -83,20 +93,22 @@ public sealed class AccountService
     }
 
     /// <summary>
-    /// Signs in a player who proved who they are to a social provider (GitHub, Discord, Google). The provider's id finds the account, which gets
-    /// a new device; a first time makes one, from the names the provider gave once they are cleaned to fit (the username falls back to the display
-    /// name, then to "Player"). Such an account has no recovery phrase, so a phrase never signs in to it. Only a new account counts towards the
-    /// per IP registration throttle.
+    /// Signs in a player who proved who they are to a social provider (GitHub, Discord, Google, Steam). Only a keyed hash of the provider's id is
+    /// used and kept (<see cref="LoginIdentifier"/>): it finds the account, which gets a new device. A first time makes one with a single name,
+    /// the provider's display name cleaned to fit (else its username, else "Player"): that is both the username and what other players see. Nothing
+    /// else the provider said is kept. Such an account has no recovery phrase, so a phrase never signs in to it. Only a new account counts towards
+    /// the per IP registration throttle.
     /// </summary>
     public AccountResult<SignIn> SignInWithExternal(string? provider, string? subject, string? usernameSuggestion, string? displayNameSuggestion, string? clientIp)
     {
         if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(subject))
             return AccountResult<SignIn>.Failure(AccountErrors.InvalidCredentials);
+        var idHash = LoginIdentifier.Hash(provider, subject, _loginPepper);
         for (var attempt = 0; attempt < AddAttempts; attempt++)
         {
-            if (_store.FindByExternalLogin(provider, subject) is { } existing)
+            if (_store.FindByExternalLogin(provider, idHash) is { } existing)
                 return AddDevice(existing);
-            var created = CreateExternalAccount(provider.Trim().ToLowerInvariant(), subject.Trim(), usernameSuggestion, displayNameSuggestion, clientIp);
+            var created = CreateExternalAccount(provider.Trim().ToLowerInvariant(), idHash, usernameSuggestion, displayNameSuggestion, clientIp);
             if (created is not null)
                 return created;
         }
@@ -104,22 +116,22 @@ public sealed class AccountService
     }
 
     /// <summary>The new account, a refusal, or null when the add lost a race and the caller should look again.</summary>
-    private AccountResult<SignIn>? CreateExternalAccount(string provider, string subject, string? usernameSuggestion, string? displayNameSuggestion, string? clientIp)
+    private AccountResult<SignIn>? CreateExternalAccount(string provider, string idHash, string? usernameSuggestion, string? displayNameSuggestion, string? clientIp)
     {
         var throttleKey = RegistrationKey(clientIp);
         if (_throttles.Registration.RetryAfter(throttleKey) is TimeSpan wait)
             return AccountResult<SignIn>.Throttled(wait);
-        var displayName = UsernameSanitizer.Clean(displayNameSuggestion, _filter);
-        var username = UsernameSanitizer.Clean(usernameSuggestion, _filter) ?? displayName ?? FallbackUsername;
-        var login = new ExternalLogin(provider, subject, _time.GetUtcNow());
+        // One name: what the provider calls the player, else its username. It is both the username and the name others see.
+        var username = UsernameSanitizer.Clean(displayNameSuggestion, _filter) ?? UsernameSanitizer.Clean(usernameSuggestion, _filter) ?? FallbackUsername;
+        var login = new ExternalLogin(provider, idHash, _time.GetUtcNow());
         var (token, tokenHash) = DeviceTokens.Create();
         var device = new DeviceToken(tokenHash, login.LinkedAt);
-        var request = new NewAccount(username, null, string.Empty, displayName == username ? null : displayName, login);
+        var request = new NewAccount(username, null, string.Empty, null, login);
         var attempt = TryAddWithFreeTag(request, Account.NoPhrase, device);
         if (attempt.Added is null)
             return attempt.IsFinal ? AccountResult<SignIn>.Failure(AccountErrors.NoTagsLeft) : null;
         _throttles.Registration.Failed(throttleKey);
-        _logger?.LogInformation("Account {Display} made with {Provider}", attempt.Added.Display, provider);
+        _logger?.LogInformation("An account was made with {Provider}", provider);
         return AccountResult<SignIn>.Success(new SignIn(attempt.Added, token));
     }
 

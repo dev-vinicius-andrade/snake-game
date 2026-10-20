@@ -185,7 +185,7 @@ public sealed class OAuthControllerTests
         var ok = Assert.IsType<OkObjectResult>(first);
         var body = JsonSerializer.SerializeToElement(ok.Value, WebJson);
         Assert.Equal(new[] { "username", "tag", "display", "displayName", "token" }, body.EnumerateObject().Select(property => property.Name));
-        Assert.Equal("octocat", body.GetProperty("username").GetString());
+        Assert.Equal("The Octocat", body.GetProperty("username").GetString());
         Assert.Equal("The Octocat", body.GetProperty("displayName").GetString());
         Assert.Equal(StatusCodes.Status401Unauthorized, Assert.IsAssignableFrom<ObjectResult>(again).StatusCode);
     }
