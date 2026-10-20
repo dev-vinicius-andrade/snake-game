@@ -4,7 +4,7 @@ import GameIcon from "@/components/game/GameIcon.vue";
 import { tokenRejected } from "@/composables/useAccount";
 import { useLocale } from "@/composables/useLocale";
 import { useProfile } from "@/composables/useProfile";
-import { STAT_KEYS, achievementText, buildAchievementViews, formatPlayTime, sortAchievements } from "@/game/achievements";
+import { STAT_KEYS, achievementText, buildAchievementViews, formatPlayTime, mergeAchievementTexts, sortAchievements } from "@/game/achievements";
 import { ACHIEVEMENT_TEXTS } from "@/game/achievementTexts";
 import { getText } from "@/helpers";
 
@@ -26,11 +26,12 @@ function statValue(key: string): string {
   return getText({ key: "profile.time.seconds", params: { seconds } });
 }
 
+const texts = computed(() => mergeAchievementTexts(ACHIEVEMENT_TEXTS, profile.definitions.value));
 function name(id: string) {
-  return achievementText(ACHIEVEMENT_TEXTS, locale.value, id).name;
+  return achievementText(texts.value, locale.value, id).name;
 }
 function description(id: string) {
-  return achievementText(ACHIEVEMENT_TEXTS, locale.value, id).description;
+  return achievementText(texts.value, locale.value, id).description;
 }
 
 /** Signed out with no token at all (not one the manager refused): there is nothing to show, and the page decides where the player goes. */

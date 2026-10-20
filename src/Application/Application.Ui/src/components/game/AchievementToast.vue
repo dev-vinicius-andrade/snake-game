@@ -3,7 +3,7 @@ import { computed, onMounted } from "vue";
 import GameIcon from "@/components/game/GameIcon.vue";
 import { useLocale } from "@/composables/useLocale";
 import { useProfile } from "@/composables/useProfile";
-import { achievementText } from "@/game/achievements";
+import { achievementText, mergeAchievementTexts } from "@/game/achievements";
 import { ACHIEVEMENT_TEXTS } from "@/game/achievementTexts";
 import { getText } from "@/helpers";
 
@@ -16,7 +16,7 @@ const catalog = useProfile();
 onMounted(() => void catalog.loadDefinitions().catch(() => undefined));
 
 const icon = computed(() => catalog.definitions.value.find((definition) => definition.id === props.id)?.icon ?? "game-icons:trophy");
-const text = computed(() => (props.id ? achievementText(ACHIEVEMENT_TEXTS, locale.value, props.id) : null));
+const text = computed(() => (props.id ? achievementText(mergeAchievementTexts(ACHIEVEMENT_TEXTS, catalog.definitions.value), locale.value, props.id) : null));
 </script>
 
 <template>

@@ -8,6 +8,8 @@ import ForbiddenPage from "@/components/ForbiddenPage.vue";
 import TopBar from "@/components/brand/TopBar.vue";
 import { adminAccess } from "@/composables/adminAccess";
 import { useAccount } from "@/composables/useAccount";
+import AchievementsEditor from "@/components/admin/AchievementsEditor.vue";
+import { useAdminAchievements } from "@/composables/useAdminAchievements";
 import { useAdminGameplay } from "@/composables/useAdminGameplay";
 import { useAdminRooms, type AdminRoom } from "@/composables/useAdminRooms";
 import { getText } from "@/helpers";
@@ -17,10 +19,11 @@ const admin = useAdminRooms();
 const accounts = useAccount();
 /** One gameplay editor for the Gameplay tab and for the perks of a room, so what is edited in one shows in the other. */
 const gameplay = useAdminGameplay();
+const achievements = useAdminAchievements();
 const perksOf = ref<AdminRoom | null>(null);
 const gameplayOf = ref<AdminRoom | null>(null);
 const keyInput = ref("");
-const tab = ref<"rooms" | "gameplay">("rooms");
+const tab = ref<"rooms" | "gameplay" | "achievements">("rooms");
 const confirming = ref<AdminRoom | null>(null);
 
 /** A refresh (status "loading") must not put the sign-in form back: the page would lose what is being edited. */
@@ -108,10 +111,15 @@ onMounted(async () => {
           <VTabs v-if="signedIn" v-model="tab">
             <VTab value="rooms">{{ getText({ key: "admin.tabRooms" }) }}</VTab>
             <VTab value="gameplay">{{ getText({ key: "admin.tabGameplay" }) }}</VTab>
+            <VTab value="achievements" data-test="tab-achievements">{{ getText({ key: "admin.tabAchievements" }) }}</VTab>
           </VTabs>
 
           <VCardText v-if="signedIn && tab === 'gameplay'">
             <GameplayEditor :gameplay="gameplay" />
+          </VCardText>
+
+          <VCardText v-else-if="signedIn && tab === 'achievements'">
+            <AchievementsEditor :achievements="achievements" />
           </VCardText>
 
           <VCardText v-else-if="signedIn">

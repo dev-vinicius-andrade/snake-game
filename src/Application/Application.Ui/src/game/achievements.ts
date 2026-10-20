@@ -6,6 +6,8 @@ export interface AchievementDefinition {
   icon: string;
   stat: string;
   threshold: number;
+  /** The name and description an administrator gave it, by language. The built-in ones have none here: the site has their texts. */
+  texts?: Record<string, { name: string; description: string }>;
 }
 
 export interface AchievementUnlock {
@@ -85,6 +87,15 @@ export function sortAchievements(views: readonly AchievementView[]): Achievement
     if (a.unlocked) return Date.parse(a.unlockedAt ?? "") - Date.parse(b.unlockedAt ?? "") || 0;
     return b.percent - a.percent;
   });
+}
+
+/** The built-in texts with what the definitions carry laid over them, by language: an achievement an administrator made has its words this way. */
+export function mergeAchievementTexts(base: AchievementTexts, definitions: readonly AchievementDefinition[]): AchievementTexts {
+  const merged: AchievementTexts = Object.fromEntries(Object.entries(base).map(([locale, byId]) => [locale, { ...byId }]));
+  for (const definition of definitions) {
+    for (const [locale, text] of Object.entries(definition.texts ?? {})) (merged[locale] ??= {})[definition.id] = text;
+  }
+  return merged;
 }
 
 /** Name and description for a locale; falls back to English, then to the id. */

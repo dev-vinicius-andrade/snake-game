@@ -63,3 +63,33 @@ being applied again (`unlocked` empty).
 
 Stats and unlocks live in the manager next to the accounts, in a JSON file for now (`AccountsConfiguration:StatsPath`, memory only when empty), behind an
 interface so Postgres can replace it.
+
+## Managing the achievements (admin page)
+
+With a database (docs/DATABASE.md) the achievements are **rows**, not only code, and an administrator changes them on the admin page, in the
+**Achievements** tab. Without a database they are the code's list and the tab is read-only.
+
+| What | Meaning |
+|---|---|
+| id | lower case letters, digits and dashes, 2 to 40 (`big-eater`). Fixed once made |
+| icon | a game icon of the list (`game-icons:trophy`) or a Material Design icon (`mdi-trophy`) |
+| stat + threshold | unlocked when the stat is at least the number. The stats are the ones the game keeps (`games`, `kills`, `foods`, `bestScore`...), 1 to 1,000,000,000 |
+| on | off: nobody can unlock it and it is not listed. What was unlocked stays |
+| name, description | by language (`en`, `pt`). Left empty, the site's own words are shown, if it has any |
+
+- The built-in achievements are put in the table the first time (and any **new** one added to the code later is added too). After that the
+  table is the source: a change in the code to an existing one does **not** overwrite what is in the table, since an administrator may have changed it.
+- A change is seen at once on the manager that saved it, and within 5 seconds on another.
+- An achievement somebody has **unlocked** cannot be removed (the unlock points at it): switch it off instead. Switching it off keeps what players have.
+- Changing a threshold does not unlock or lock anything by itself: a player gets an achievement at the next report that finds the stat at or over it.
+
+The admin api (`/admin/achievements`, for admins, see docs/ROLES.md):
+
+| | |
+|---|---|
+| `GET` | every achievement (the off ones too), the stats that can unlock one, and `writable` |
+| `PUT /{id}` | `{ icon, stat, threshold, enabled, texts: { en: { name, description }, pt: {...} } }` adds or changes. `400 invalidId`, `invalidIcon`, `invalidStat`, `invalidThreshold`, `invalidText`; `409 readOnly` |
+| `DELETE /{id}` | `204`; `404 notFound`; `409 inUse` (unlocked by someone) or `readOnly` |
+
+The public `GET /achievements` lists what is on, each with `texts` (the words an administrator wrote; empty for a built-in one that has none).
+Tables: `achievements` (with `enabled`) and `achievement_texts`.

@@ -75,7 +75,8 @@ public static partial class AchievementRules
     [GeneratedRegex("^[a-z0-9]+(-[a-z0-9]+)*$")]
     private static partial Regex Slug();
 
-    [GeneratedRegex("^[a-z0-9-]+:[a-z0-9-]+$")]
+    /// <summary>A game icon (<c>game-icons:snake</c>) or a Material Design icon (<c>mdi-trophy</c>): the two the site can draw.</summary>
+    [GeneratedRegex("^([a-z0-9-]+:[a-z0-9-]+|mdi-[a-z0-9-]+)$")]
     private static partial Regex IconName();
 
     /// <summary>The <see cref="AchievementErrors"/> code of the first thing wrong, or null.</summary>

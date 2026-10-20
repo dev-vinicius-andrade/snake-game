@@ -33,7 +33,8 @@ not running. A store never answers "no such account" for a database it could not
 | `applied_reports` | the report ids already applied, with a sequence; only the newest 200 per account | account + report |
 | `roles` | the roles there are: `user` and `admin` (docs/ROLES.md) | name |
 | `account_roles` | which role an account has; only grants are stored, `user` is implied | account + role |
-| `achievements` | the catalog: id, icon, stat, threshold, sort order. Made from the definitions in the code when the manager starts (new ones added, changed ones updated, removed ones kept). The texts are in the client | id |
+| `achievements` | the catalog: id, icon, stat, threshold, sort order, `enabled`. Filled from the code when the manager starts (only the ones that are not there yet), then **changed from the admin page** (docs/ACHIEVEMENTS.md) | id |
+| `achievement_texts` | the name and description an administrator wrote, by language. A built-in achievement has none: the site has its words | achievement + language |
 | `unlocked_achievements` | which achievement, and when; points at `achievements` | account + achievement |
 
 Tables and columns are snake_case. Times are stored as UTC (`timestamptz` refuses any other offset). The model uses plain types only (no
@@ -75,7 +76,7 @@ step is safe to run again, and a failed step is logged and does not stop the man
 
 | Step | What | When |
 |---|---|---|
-| Achievements | the achievements of the game, from the code | always: new ones are added, changed ones updated, removed ones kept |
+| Achievements | the achievements of the game, from the code | always, but only the ones not in the table yet: what is there is never overwritten, an administrator may have changed it |
 | Gameplay config | the perks, prizes, events, boss and room lifetimes: the old `gameplay.json` if the file is there (`GameplayConfiguration__StorePath`), else the defaults (the built-in perks written out) | only when the gameplay tables are empty |
 | Files | the accounts (`AccountsConfiguration__StorePath`) and their stats and unlocks (`AccountsConfiguration__StatsPath`) | only when `accounts` is **empty**, in one transaction: all of it or none |
 

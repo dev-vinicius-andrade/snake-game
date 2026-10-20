@@ -43,12 +43,21 @@ function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 }
 
+/** The texts of an achievement by language; a language without a name is left out, and nothing at all gives none. */
+function parseTexts(raw: unknown): AchievementDefinition["texts"] {
+  const entries = Object.entries(asRecord(raw)).flatMap(([locale, value]) => {
+    const { name, description } = asRecord(value);
+    return typeof name === "string" && name.trim() !== "" ? [[locale, { name, description: typeof description === "string" ? description : "" }] as const] : [];
+  });
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
 export function parseDefinitions(data: unknown): AchievementDefinition[] {
   if (!Array.isArray(data)) throw new Error("Invalid achievements answer");
   return data.flatMap((raw) => {
-    const { id, icon, stat, threshold } = asRecord(raw);
+    const { id, icon, stat, threshold, texts } = asRecord(raw);
     if (typeof id !== "string" || typeof stat !== "string" || typeof threshold !== "number") return [];
-    return [{ id, icon: typeof icon === "string" ? icon : "", stat, threshold }];
+    return [{ id, icon: typeof icon === "string" ? icon : "", stat, threshold, texts: parseTexts(texts) }];
   });
 }
 

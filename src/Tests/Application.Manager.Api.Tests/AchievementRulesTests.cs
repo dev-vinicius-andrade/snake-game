@@ -13,6 +13,7 @@ public sealed class AchievementRulesTests
     {
         Assert.Null(AchievementRules.Validate(Valid()));
         Assert.Null(AchievementRules.Validate(Valid() with { Texts = null }));
+        Assert.Null(AchievementRules.Validate(Valid() with { Icon = "mdi-trophy" }));
     }
 
     [Theory]
@@ -32,6 +33,8 @@ public sealed class AchievementRulesTests
     [InlineData("snake")]
     [InlineData("Game-Icons:Snake")]
     [InlineData("game icons:snake")]
+    [InlineData("mdi-")]
+    [InlineData("mdi_trophy")]
     public void AnIconThatIsNotNamedLikeAGameIcon_IsRefused(string icon)
         => Assert.Equal(AchievementErrors.InvalidIcon, AchievementRules.Validate(Valid() with { Icon = icon }));
 
