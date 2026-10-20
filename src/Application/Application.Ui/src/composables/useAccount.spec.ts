@@ -35,7 +35,7 @@ describe("useAccount register", () => {
     expect(request).toHaveBeenCalledWith({ method: "POST", url: "http://manager.test/accounts", body: { username: "Vini", tag: 9291 } });
     expect(storage.data[ACCOUNT_TOKEN_STORAGE_KEY]).toBe("tok-1");
     expect(account.status.value).toBe("signedIn");
-    expect(account.account.value).toEqual({ username: "Vini", tag: 9291, display: "Vini#09291", displayName: "Vini" });
+    expect(account.account.value).toEqual({ username: "Vini", tag: 9291, display: "Vini#09291", displayName: "Vini", linked: [] });
     expect(account.error.value).toBeNull();
   });
 
@@ -180,6 +180,52 @@ describe("useAccount social login", () => {
 
     expect(account.status.value).toBe("error");
     expect(storage.data[ACCOUNT_TOKEN_STORAGE_KEY]).toBeUndefined();
+  });
+});
+
+describe("useAccount linking", () => {
+  const signedIn = (reply: (call: { method: string; url: string; body?: unknown; token?: string }) => { status: number; data?: unknown }) =>
+    setup(reply, { [ACCOUNT_TOKEN_STORAGE_KEY]: "tok-1" });
+
+  it("keeps which social accounts are linked, and drops anything that is not a name", async () => {
+    const { account } = signedIn(() => ({ status: 200, data: { ...registered, linked: ["github", 5, "discord", ""] } }));
+
+    await account.loadMe();
+
+    expect(account.account.value?.linked).toEqual(["github", "discord"]);
+  });
+
+  it("has none linked when the manager does not say", async () => {
+    const { account } = signedIn(() => ({ status: 200, data: registered }));
+
+    await account.loadMe();
+
+    expect(account.account.value?.linked).toEqual([]);
+  });
+
+  it("asks the manager for the provider's address with the token and the cookie, and returns it", async () => {
+    const { account, request } = signedIn(() => ({ status: 200, data: { url: "https://github.com/login/oauth/authorize?state=x" } }));
+
+    const url = await account.startLink("github");
+
+    expect(url).toBe("https://github.com/login/oauth/authorize?state=x");
+    expect(request).toHaveBeenCalledWith({ method: "POST", url: "http://manager.test/accounts/oauth/github/link", token: "tok-1", withCredentials: true });
+  });
+
+  it("is invalidToken without a token and makes no call; a refused token signs the player out", async () => {
+    const none = setup(() => ({ status: 200 }));
+    await expect(none.account.startLink("github")).rejects.toMatchObject({ code: "invalidToken" });
+    expect(none.request).not.toHaveBeenCalled();
+
+    const refused = signedIn(() => ({ status: 401, data: { error: "invalidToken" } }));
+    await expect(refused.account.startLink("github")).rejects.toMatchObject({ code: "invalidToken" });
+    expect(refused.account.status.value).toBe("guest");
+  });
+
+  it("is unavailable when the answer has no address", async () => {
+    const { account } = signedIn(() => ({ status: 200, data: {} }));
+
+    await expect(account.startLink("github")).rejects.toMatchObject({ code: "unavailable" });
   });
 });
 

@@ -13,6 +13,16 @@ describe("readOAuthOutcome", () => {
     expect(readOAuthOutcome({ error: "<script>" })).toEqual({ kind: "error", error: "providerFailed" });
   });
 
+  it("reads that a social account was linked, and a ticket wins over it", () => {
+    expect(readOAuthOutcome({ linked: "github" })).toEqual({ kind: "linked", provider: "github" });
+    expect(readOAuthOutcome({ linked: "github", ticket: "t" })).toEqual({ kind: "ticket", ticket: "t" });
+  });
+
+  it("knows why a link can be refused, with a message in each language", () => {
+    expect(readOAuthOutcome({ error: "alreadyLinked" })).toEqual({ kind: "error", error: "alreadyLinked" });
+    expect(readOAuthOutcome({ error: "providerInUse" })).toEqual({ kind: "error", error: "providerInUse" });
+  });
+
   it("is nothing without either, and a ticket wins over an error", () => {
     expect(readOAuthOutcome({})).toEqual({ kind: "none" });
     expect(readOAuthOutcome({ ticket: "t", error: "cancelled" })).toEqual({ kind: "ticket", ticket: "t" });

@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { AccountError, useAccount } from "@/composables/useAccount";
 import { cleanUsername, formatDisplay, parseTag } from "@/game/accountName";
+import LinkedAccounts from "@/components/account/LinkedAccounts.vue";
 import SocialLoginButton from "@/components/account/SocialLoginButton.vue";
 import SocialPrivacyNote from "@/components/account/SocialPrivacyNote.vue";
 import { getText } from "@/helpers";
@@ -101,6 +102,22 @@ async function register() {
 
 // Signed in: the name other players see
 const newDisplayName = ref("");
+const linking = ref(false);
+const linkProblem = ref("");
+
+/** The manager makes the address of the provider's page (and keeps the state of the link); the browser then goes there. */
+async function link(provider: string) {
+  linking.value = true;
+  linkProblem.value = "";
+  try {
+    window.location.assign(await accounts.startLink(provider));
+  } catch (failure) {
+    if (!(failure instanceof AccountError)) throw failure;
+    linkProblem.value = getText({ key: `account.errors.${failure.code}` });
+    linking.value = false;
+  }
+}
+
 const displayNameSaved = ref(false);
 const displayNameProblem = ref("");
 
@@ -204,6 +221,8 @@ onBeforeUnmount(() => clearTimeout(availabilityTimer));
               <div v-if="displayNameSaved" class="text-success text-caption mt-1" role="status">{{ getText({ key: "account.displayNameSaved" }) }}</div>
               <VBtn type="submit" size="small" variant="tonal" class="mt-2" data-test="save-display-name">{{ getText({ key: "account.displayNameSave" }) }}</VBtn>
             </VForm>
+            <LinkedAccounts class="mb-4" :providers="accounts.providers.value" :linked="account.linked" :busy="linking" @link="link" />
+            <div v-if="linkProblem" class="text-error text-caption mb-4" role="alert" data-test="link-error">{{ linkProblem }}</div>
             <VBtn variant="tonal" :to="{ name: 'profile' }" data-test="profile-link">{{ getText({ key: "profile.link" }) }}</VBtn>
           </template>
 

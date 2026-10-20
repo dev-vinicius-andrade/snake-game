@@ -181,6 +181,12 @@ export const messages = {
     orWithAPhrase: "ou com uma frase de recuperação",
     oauthWorking: "Entrando...",
     oauthTryAgain: "Tentar de novo",
+    oauthBack: "Voltar para a sua conta",
+    oauthLinked: "Pronto: {provider} foi vinculado. Agora você também pode entrar com ele.",
+    linkedTitle: "Contas vinculadas",
+    linkedHint: "Vincule uma conta social para entrar com ela também. Sua frase de recuperação continua valendo.",
+    linkWith: "Vincular {provider}",
+    linkedWith: "{provider} está vinculado",
     oauthErrors: {
       cancelled: "Você não permitiu a entrada, então nada foi feito.",
       invalidState: "Não foi possível verificar a entrada, talvez por ter demorado demais. Tente de novo.",
@@ -190,6 +196,8 @@ export const messages = {
       throttled: "Tentativas demais. Espere um pouco e tente de novo.",
       noTagsLeft: "Este nome não tem mais tags livres. Tente outra conta.",
       invalidCredentials: "A entrada foi recusada.",
+      alreadyLinked: "Essa conta social já está vinculada à conta de outro jogador.",
+      providerInUse: "Sua conta já tem outra conta desse provedor vinculada.",
     },
     errors: {
       invalidUsername: "Esse nome não é permitido. Use de 2 a 20 letras, dígitos, espaços, _ - ou . (sem #).",

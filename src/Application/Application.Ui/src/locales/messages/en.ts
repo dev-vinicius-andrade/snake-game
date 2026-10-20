@@ -181,6 +181,12 @@ export const messages = {
     orWithAPhrase: "or with a recovery phrase",
     oauthWorking: "Signing you in...",
     oauthTryAgain: "Try again",
+    oauthBack: "Back to your account",
+    oauthLinked: "Done: {provider} is linked. You can now sign in with it too.",
+    linkedTitle: "Linked accounts",
+    linkedHint: "Link a social account to sign in with it as well. Your recovery phrase keeps working.",
+    linkWith: "Link {provider}",
+    linkedWith: "{provider} is linked",
     oauthErrors: {
       cancelled: "You did not allow the sign in, so nothing was done.",
       invalidState: "The sign in could not be checked, maybe because it took too long. Please try again.",
@@ -190,6 +196,8 @@ export const messages = {
       throttled: "Too many tries. Wait a little and try again.",
       noTagsLeft: "This name has no free tags left. Try another account.",
       invalidCredentials: "The sign in was refused.",
+      alreadyLinked: "That social account is already linked to another player's account.",
+      providerInUse: "Your account already has another account of that kind linked.",
     },
     errors: {
       invalidUsername: "That name is not allowed. Use 2 to 20 letters, digits, spaces, _ - or . (no #).",

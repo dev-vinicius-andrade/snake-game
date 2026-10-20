@@ -12,7 +12,8 @@ const router = useRouter();
 const accounts = useAccount();
 
 const failure = ref<OAuthError | null>(null);
-const working = computed(() => failure.value === null);
+const linked = ref<string | null>(null);
+const working = computed(() => failure.value === null && linked.value === null);
 
 /** The ticket is used once and does not stay in the address (or the history). */
 const forgetAddress = () => router.replace({ name: "account-oauth", query: {} });
@@ -20,6 +21,10 @@ const forgetAddress = () => router.replace({ name: "account-oauth", query: {} })
 onMounted(async () => {
   const outcome = readOAuthOutcome(route.query);
   await forgetAddress();
+  if (outcome.kind === "linked") {
+    linked.value = outcome.provider;
+    return;
+  }
   if (outcome.kind !== "ticket") {
     failure.value = outcome.kind === "error" ? outcome.error : "providerFailed";
     return;
@@ -43,10 +48,11 @@ onMounted(async () => {
             <div role="status" data-test="oauth-working" class="mb-4">{{ getText({ key: "account.oauthWorking" }) }}</div>
             <SocialPrivacyNote />
           </template>
+          <VAlert v-else-if="linked" type="success" variant="tonal" role="status" data-test="oauth-linked">{{ getText({ key: "account.oauthLinked", params: { provider: linked } }) }}</VAlert>
           <VAlert v-else type="error" variant="tonal" role="alert" data-test="oauth-error">{{ getText({ key: `account.oauthErrors.${failure}` }) }}</VAlert>
         </VCardText>
         <VCardActions v-if="!working">
-          <VBtn color="primary" :to="{ name: 'account' }">{{ getText({ key: "account.oauthTryAgain" }) }}</VBtn>
+          <VBtn color="primary" :to="{ name: 'account' }">{{ getText({ key: linked ? "account.oauthBack" : "account.oauthTryAgain" }) }}</VBtn>
         </VCardActions>
       </VCard>
     </VCol>

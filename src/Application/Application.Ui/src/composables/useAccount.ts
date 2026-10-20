@@ -49,6 +49,8 @@ export interface AccountInfo {
   display: string;
   /** What other players see in the game and on the ranking. The username unless the player chose another name. */
   displayName: string;
+  /** The social accounts linked to this account, by provider (`github`...). Only names: nothing else is kept. */
+  linked: string[];
 }
 
 export interface AccountCall {
@@ -57,6 +59,8 @@ export interface AccountCall {
   body?: unknown;
   /** Sent as `Authorization: Bearer`. */
   token?: string;
+  /** Lets the answer set a cookie (the manager keeps the state of a link in one) when the manager is on another origin. */
+  withCredentials?: boolean;
 }
 
 export interface AccountReply {
@@ -107,12 +111,13 @@ export interface Availability {
 }
 
 export const axiosHttp: AccountHttp = {
-  async request({ method, url, body, token }) {
+  async request({ method, url, body, token, withCredentials }) {
     const response = await axios.request({
       method,
       url,
       data: body,
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      withCredentials,
       validateStatus: () => true,
     });
     return { status: response.status, data: response.data };
@@ -160,9 +165,10 @@ function toError(reply: AccountReply): AccountError {
 }
 
 function toInfo(data: unknown): AccountInfo {
-  const { username, tag, display, displayName } = asRecord(data);
+  const { username, tag, display, displayName, linked } = asRecord(data);
   if (typeof username !== "string" || typeof tag !== "number" || typeof display !== "string") throw new AccountError("unavailable");
-  return { username, tag, display, displayName: typeof displayName === "string" && displayName.trim() ? displayName : username };
+  const providers = Array.isArray(linked) ? linked.filter((name): name is string => typeof name === "string" && name !== "") : [];
+  return { username, tag, display, displayName: typeof displayName === "string" && displayName.trim() ? displayName : username, linked: providers };
 }
 
 export function useAccount(options: UseAccountOptions = {}) {
@@ -334,6 +340,25 @@ export function useAccount(options: UseAccountOptions = {}) {
   /** Where the browser goes to sign in with a provider. The page follows it as a link: the provider's page is a whole page, not a call. */
   const socialStartUrl = (provider: string) => `${base}/accounts/oauth/${encodeURIComponent(provider)}/start`;
 
+  /**
+   * A signed in player links a social account to the account: the manager keeps the state of the link in a cookie and gives the
+   * provider's address, which the page then goes to. Resolves with that address.
+   */
+  async function startLink(provider: string): Promise<string> {
+    const stored = readToken();
+    if (!stored) throw new AccountError("invalidToken");
+    const reply = await send({ method: "POST", url: `${base}/accounts/oauth/${encodeURIComponent(provider)}/link`, token: stored, withCredentials: true });
+    if (reply.status === 401) {
+      writeToken(null);
+      account.value = null;
+      status.value = "guest";
+      throw new AccountError("invalidToken");
+    }
+    const address = asRecord(reply.data).url;
+    if (reply.status !== 200 || typeof address !== "string" || !address) throw toError(reply);
+    return address;
+  }
+
   /** The browser came back from a provider with a one time ticket: trades it for the device token and signs in. */
   async function exchangeTicket(ticket: string): Promise<void> {
     status.value = "loading";
@@ -370,6 +395,7 @@ export function useAccount(options: UseAccountOptions = {}) {
     changeDisplayName,
     loadProviders,
     socialStartUrl,
+    startLink,
     exchangeTicket,
   };
 }

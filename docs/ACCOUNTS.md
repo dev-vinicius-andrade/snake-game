@@ -153,6 +153,17 @@ Reasons (`error=`): `cancelled` (the player said no at the provider), `invalidSt
 answer, sent no id, or an answer that was not for this request), `unknownProvider`, `invalidTicket`, `throttled`, `noTagsLeft`. A new account counts towards the per IP registration throttle;
 a returning player does not.
 
+### Linking a social account to an account you already have
+
+An account made with a recovery phrase can add GitHub, Discord, Google or Steam, and then sign in with either. The phrase keeps working.
+
+1. The signed in site calls `POST /accounts/oauth/{provider}/link` with the device token (`Authorization: Bearer`). A browser cannot send a header when it follows a link, so the manager answers `{ "url": "..." }` (the provider's page) and sets the same `snake_oauth_state` cookie as a sign in. `401 invalidToken` without a valid token, `404 unknownProvider` for a provider that is not set up. The call is made with credentials, so a manager on another origin can set the cookie.
+2. The state kept for 10 minutes remembers which account asked. The callback is the same one as for a sign in; it needs the cookie and the state to match, and works once.
+3. The callback adds the keyed hash of the provider's id to that account and sends the browser to `{PublicUiUrl}/account/oauth?linked={provider}`, with no ticket: the player already has a device token. Steam is not asked for its persona name when linking.
+4. Refused, with `?error=` in the same address: `alreadyLinked` (another player's account has that social account) and `providerInUse` (this account already has another account of that provider). Linking what is already linked to this account changes nothing.
+
+`GET /accounts/me`, a sign in and a registration answer with `linked`: the providers linked, by name (`["discord", "github"]`). Never their ids or hashes. Nothing more is kept than for a sign in with a social account (see above). Unlinking is not built.
+
 ### Setting it up
 
 Register the game with each provider you want and set the **callback address** to exactly `https://<PUBLIC_HOST>/api/accounts/oauth/<provider>/callback` (for
