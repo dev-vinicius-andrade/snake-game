@@ -120,16 +120,22 @@ SNAKE_DB="Host=localhost;Database=snake;Username=snake;Password=..." dotnet dotn
 dotnet dotnet-ef migrations script --idempotent --project src/Application/Application.Manager.Api
 ```
 
-**Run migrations as the owner of the tables.** The manager connects as the database owner, which can only use tables it owns. A table made by
-another user (say an admin user) is refused to the manager with `permission denied for table ...` and the page that reads it answers `500`. So apply
-migrations as the owner, or as a user that is a member of the owner role and switches to it for the session, by adding `Options=-c role=<owner>`
-to the connection string. Everything the migration creates is then owned by the owner:
+**The tables must be usable by the user the manager connects as.** The manager connects as the database owner, which can only use tables it has
+rights on. A table made by another user (say an admin user that applies the migrations) is refused to the manager with `permission denied for
+table ...`, and the page that reads it answers `500`. Two ways to avoid it:
 
-```bash
-SNAKE_DB="Host=...;Database=snake_game;Username=<admin user>;Password=...;Options=-c role=<owner>" dotnet dotnet-ef database update --project src/Application/Application.Manager.Api
-```
+1. **Apply migrations as the owner** (the user the manager uses). Everything is then owned by it. This is the simple one when you have its password.
+2. **Apply them as another user, and give the owner access once**, with default privileges for what that user creates (run by that user or a superuser):
 
-If a table already has the wrong owner: `ALTER TABLE <table> OWNER TO <owner>;`, run by a user that is a member of the owner role (or a superuser).
+   ```sql
+   ALTER DEFAULT PRIVILEGES FOR ROLE <admin user> IN SCHEMA public GRANT ALL ON TABLES TO <owner>;
+   ALTER DEFAULT PRIVILEGES FOR ROLE <admin user> IN SCHEMA public GRANT ALL ON SEQUENCES TO <owner>;
+   ```
+
+   Tables that already exist need a `GRANT ALL ON <table> TO <owner>;` (or `ALTER TABLE <table> OWNER TO <owner>;`) once.
+
+Do **not** count on `Options=-c role=<owner>` in the connection string to make the owner own what a migration creates: it applies to the first
+statements of a session only, because Npgsql resets the role whenever the migration gives its connection back to the pool.
 
 A test (`DatabaseWiringTests`) fails when the model has changes no migration covers, so a forgotten migration does not get through.
 The history table is `migrations_history`.
