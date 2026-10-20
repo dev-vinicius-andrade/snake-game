@@ -178,4 +178,19 @@ public sealed class AchievementServiceTests
 
         Assert.Equal(new[] { "retired" }, achievements.Select(achievement => achievement.Id));
     }
+
+    [Fact]
+    public void Profile_OfAnAccountMadeWithASocialLogin_Loads_LikeAnyOther()
+    {
+        var accounts = new FileAccountStore(null);
+        var throttles = AccountThrottles.Create(_time);
+        var service = new AccountService(accounts, throttles, SimpleWordFilter.Default, new RecoveryPhrase(), new SecretHasher(1), _time);
+        var social = service.SignInWithExternal("discord", "80351110224678912", "nelly", "Nelly", "203.0.113.7").Value.Account;
+
+        var profile = new AchievementService(accounts, _stats, _time).Profile(social.Id);
+
+        Assert.NotNull(profile);
+        Assert.Equal("Nelly", profile!.Account.PublicName);
+        Assert.Empty(profile.Achievements);
+    }
 }

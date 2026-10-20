@@ -44,10 +44,14 @@ load_env_file() { # file
   [ -f "$1" ] || return 0
   while IFS= read -r line || [ -n "$line" ]; do
     line=${line%$'\r'}
+    line="${line#"${line%%[![:space:]]*}"}"
     case "$line" in ''|'#'*) continue ;; esac
     line=${line#export }
     key=${line%%=*}
+    key="${key%"${key##*[![:space:]]}"}"
     value=${line#*=}
+    # A space or a tab around the value (or after it) is never part of it: a secret with one is a wrong secret.
+    value="${value#"${value%%[![:space:]]*}"}"; value="${value%"${value##*[![:space:]]}"}"
     [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
     value=${value#\"}; value=${value%\"}; value=${value#\'}; value=${value%\'}
     [ -n "${!key+x}" ] || export "$key=$value"
@@ -267,6 +271,10 @@ kube create secret generic snake-secrets \
   "${OAUTH_ARGS[@]}" \
   --dry-run=client -o yaml | kube apply -f -
 
+# A pod reads its Secret only when it starts, so a changed Secret does nothing to a pod that is running. The manager gets a checksum of it
+# as an annotation: new keys (for signing in with a social account) start a new manager, and an unchanged Secret leaves it alone.
+SECRETS_HASH=$(kube get secret snake-secrets -o 'jsonpath={.data}' | sha256sum | cut -c1-16)
+
 # ── Application (Helm, one chart for the three workloads) ─────────────────────
 step "Releases"
 install() { # release name values-file tag host [extra helm args...]
@@ -280,7 +288,8 @@ install() { # release name values-file tag host [extra helm args...]
 # Only the site is reached from outside; it passes /api and /game on, so the other two get no ingress of their own.
 install snake-manager snake-manager manager "$MANAGER_TAG" "" --set "ingress.enabled=false" \
   --set-string "env.OAuth__PublicApiUrl=https://$UI_HOST/api" \
-  --set-string "env.OAuth__PublicUiUrl=https://$UI_HOST"
+  --set-string "env.OAuth__PublicUiUrl=https://$UI_HOST" \
+  --set-string "podAnnotations.secrets=$SECRETS_HASH"
 install snake-game snake-game-server game-server "$GAME_TAG" "" --set "ingress.enabled=false" \
   --set-string "env.ServerConfiguration__Domain=$UI_HOST" \
   --set-string "env.ServerConfiguration__InternalUrl=$GAME_INTERNAL_URL" \

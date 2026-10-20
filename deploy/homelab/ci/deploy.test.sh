@@ -58,6 +58,16 @@ run "in-cluster run" KUBE_CONTEXT=in-cluster CONTAINER_TOOL=docker VERSION=1.2.3
   check "in-cluster: no tag without the v" log_lacks 'snake-ui:1\.2\.3'
   check "in-cluster: images come from the registry check, not podman" log_lacks '^podman'
   check "in-cluster: all three workloads are installed" bash -c "[ \$(grep -c '^helm .*upgrade --install' '$WORK/log') -eq 3 ]"
+  check "in-cluster: the manager pod is told what its secrets are, so a changed secret restarts it" bash -c "grep '^helm .*upgrade --install snake-manager' '$WORK/log' | grep -qE 'podAnnotations\.secrets=[0-9a-f]{16}'"
+  check "in-cluster: the other pods are not restarted by it" bash -c "! grep '^helm .*upgrade --install snake-\(game\|ui\)' '$WORK/log' | grep -q 'podAnnotations'"
+}
+
+# --- values in .env are cleaned: a space or a line ending after a key must not become part of the key
+printf 'OAUTH_GITHUB_CLIENT_ID=the-id  \r\nOAUTH_GITHUB_CLIENT_SECRET = "the-secret" \t\r\n  # comment\r\n' > "$WORK/dirty.env"
+run "dirty env file" KUBE_CONTEXT=in-cluster CONTAINER_TOOL=docker VERSION=1.2.3 ENV_FILE="$WORK/dirty.env" && {
+  check "an env value loses the space and the line ending after it" log_has '--from-literal=oauth-github-id=the-id( |$)'
+  check "a quoted value with spaces around the sign and after it is read as what is quoted" log_has '--from-literal=oauth-github-secret=the-secret( |$)'
+  check "nothing of the whitespace is kept" log_lacks 'the-id {2,}|the-secret {2,}'
 }
 
 # --- a version given with the v is the same version

@@ -513,4 +513,23 @@ public sealed class OAuthServiceTests
         Assert.Equal(AccountErrors.Cancelled, completed.Error);
         Assert.Equal(0, _client.OpenIdChecks);
     }
+
+    [Fact]
+    public void ACredentialWithSpacesAroundItIsTrimmed_SoAStrayOneNeverMakesTheKeysWrong()
+    {
+        var credentials = new OAuthCredentials { ClientId = " the-id\r\n", ClientSecret = "\tthe-secret  \n" };
+
+        Assert.Equal("the-id", credentials.ClientId);
+        Assert.Equal("the-secret", credentials.ClientSecret);
+        Assert.True(credentials.IsComplete);
+    }
+
+    [Fact]
+    public void ACredentialThatIsOnlySpacesIsNotComplete()
+    {
+        var credentials = new OAuthCredentials { ClientId = "id", ClientSecret = "   " };
+
+        Assert.False(credentials.IsComplete);
+        Assert.Equal(string.Empty, credentials.ClientSecret);
+    }
 }

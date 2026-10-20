@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace Application.Manager.Api.Accounts.OAuth;
 
 /// <summary>Talks to the providers over HTTPS. Nothing it receives is logged: access tokens are used once and forgotten.</summary>
-public sealed class HttpOAuthClient(HttpClient http) : IOAuthClient
+public sealed class HttpOAuthClient(HttpClient http, ILogger<HttpOAuthClient>? logger = null) : IOAuthClient
 {
     public async Task<string?> ExchangeCodeAsync(OAuthProviderInfo provider, OAuthCredentials credentials, string code, string redirectUri, string codeVerifier, CancellationToken cancellationToken)
     {
@@ -23,12 +23,35 @@ public sealed class HttpOAuthClient(HttpClient http) : IOAuthClient
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         using var response = await http.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
+        {
+            logger?.LogWarning("{Provider} refused the code: HTTP {Status}", provider.Id, (int)response.StatusCode);
             return null;
-        using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
-        return document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty("access_token", out var token) && token.ValueKind == JsonValueKind.String
-            ? token.GetString()
-            : null;
+        }
+        using var document = await ReadJsonAsync(response, cancellationToken);
+        var root = document?.RootElement;
+        if (root is { ValueKind: JsonValueKind.Object } answer && answer.TryGetProperty("access_token", out var token) && token.ValueKind == JsonValueKind.String)
+            return token.GetString();
+        // A provider says why it said no (incorrect_client_credentials, bad_verification_code...): the code is safe to log, the rest is not looked at.
+        logger?.LogWarning("{Provider} gave no access token: {Error}", provider.Id, ErrorCodeOf(root));
+        return null;
     }
+
+    private static async Task<JsonDocument?> ReadJsonAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string ErrorCodeOf(JsonElement? root)
+        => root is { ValueKind: JsonValueKind.Object } answer && answer.TryGetProperty("error", out var code) && code.ValueKind == JsonValueKind.String
+            ? new string((code.GetString() ?? string.Empty).Where(character => char.IsLetterOrDigit(character) || character == '_').Take(60).ToArray())
+            : "no error code";
 
     public async Task<bool> VerifyOpenIdAsync(OAuthProviderInfo provider, IReadOnlyDictionary<string, string> answer, CancellationToken cancellationToken)
     {

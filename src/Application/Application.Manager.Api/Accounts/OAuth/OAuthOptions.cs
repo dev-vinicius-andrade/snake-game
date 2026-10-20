@@ -3,9 +3,21 @@ namespace Application.Manager.Api.Accounts.OAuth;
 /// <summary>The keys of one provider, made by registering the game with it (see docs/ACCOUNTS.md). Never sent to a browser.</summary>
 public sealed class OAuthCredentials
 {
-    public string ClientId { get; set; } = string.Empty;
+    private string _clientId = string.Empty;
+    private string _clientSecret = string.Empty;
 
-    public string ClientSecret { get; set; } = string.Empty;
+    /// <summary>Spaces and line endings around a key are dropped: one that sneaked in from a settings file makes the provider refuse a right key.</summary>
+    public string ClientId
+    {
+        get => _clientId;
+        set => _clientId = value?.Trim() ?? string.Empty;
+    }
+
+    public string ClientSecret
+    {
+        get => _clientSecret;
+        set => _clientSecret = value?.Trim() ?? string.Empty;
+    }
 
     /// <summary>Other addresses for the provider, for a test server or GitHub Enterprise. Left out, the provider's own are used.</summary>
     public string AuthorizeUrl { get; set; } = string.Empty;

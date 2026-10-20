@@ -22,6 +22,10 @@ spec:
       labels:
         app: {{ .Release.Name }}
         app.kubernetes.io/part-of: snake-game
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
       securityContext:
         runAsNonRoot: true

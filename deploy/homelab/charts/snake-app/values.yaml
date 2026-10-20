@@ -38,6 +38,10 @@ persistence:
   storageClass: ""
 
 # NAME: { secretName, key }
+# Annotations of the pods. deploy.sh puts a checksum of the Secret on the manager's, so a changed Secret (a key for signing in with a
+# social account, say) starts a new pod: a pod only reads its Secret when it starts.
+podAnnotations: {}
+
 secretEnv: {}
 
 resources:
