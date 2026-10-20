@@ -276,7 +276,7 @@ public sealed class EfGameplayConfigStoreTests : IDisposable
         var store = Store();
         store.Update(Custom());
 
-        store.Update(Custom() with { Perks = Custom().Perks with { Perks = [Custom().Perks.Perks[1]] }, Prize = new PrizeOptions(), WorldEvents = new WorldEventOptions() });
+        store.Update(Custom() with { Perks = Custom().Perks with { Perks = [Custom().Perks.Perks.Single(perk => perk.Id == "plain")] }, Prize = new PrizeOptions(), WorldEvents = new WorldEventOptions() });
 
         using var context = _host.Factory.CreateDbContext();
         Assert.Equal(new[] { "plain" }, context.Perks.Select(perk => perk.Id));
