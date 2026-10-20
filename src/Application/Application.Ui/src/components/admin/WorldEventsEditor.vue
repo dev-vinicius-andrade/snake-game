@@ -4,6 +4,7 @@ import type {
   BountyConfig,
   FruitShowerConfig,
   LightningConfig,
+  MazeConfig,
   MeteorConfig,
   MinesConfig,
   SugarRushConfig,
@@ -104,6 +105,20 @@ const rushFields: Array<{ key: NumberKeys<SugarRushConfig>; label: string; step?
 ];
 
 /** The perks the turret can give: none, or any perk of the list. */
+const mazeFields: Array<{ key: NumberKeys<MazeConfig>; label: string; step?: number }> = [
+  { key: "minIntervalSeconds", label: "mazeMin" },
+  { key: "maxIntervalSeconds", label: "mazeMax" },
+  { key: "durationSeconds", label: "mazeDuration" },
+  { key: "columns", label: "mazeColumns" },
+  { key: "rows", label: "mazeRows" },
+  { key: "corridorHeads", label: "mazeCorridor" },
+  { key: "twistiness", label: "mazeTwistiness" },
+  { key: "wallMassLoss", label: "mazeWallLoss" },
+  { key: "foodPercent", label: "mazeFoodPercent" },
+  { key: "minPlayers", label: "mazeMinPlayers" },
+  { key: "prizeMass", label: "mazePrizeMass" },
+  { key: "prizeFoodsCredit", label: "mazePrizeFoods" },
+];
 const perkItems = computed(() => [{ id: "", name: getText({ key: "admin.gameplay.prizeGrantsNone" }) }, ...gameplay.perkChoices.value]);
 
 const KNOWN_ERRORS = ["unavailable", "invalidKey"];
@@ -308,6 +323,38 @@ onMounted(() => {
           </div>
           <VCombobox v-model="draft.worldEvents.sugarRush.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.rushRooms' })" />
           <VCombobox v-model="draft.worldEvents.sugarRush.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+        </div>
+
+        <div class="event-card" :class="{ 'is-off': !draft.worldEvents.maze.enabled }" data-event="maze">
+          <div class="event-row">
+            <strong>{{ getText({ key: "admin.gameplay.mazeTitle" }) }}</strong>
+            <VSwitch v-model="draft.worldEvents.maze.enabled" class="switch-field" color="primary" hide-details :label="getText({ key: 'admin.gameplay.mazeOn' })" />
+          </div>
+          <div class="event-help">{{ getText({ key: "admin.gameplay.mazeHelp" }) }}</div>
+          <div class="field-grid">
+            <VTextField
+              v-for="field in mazeFields"
+              :key="field.key"
+              v-model.number="draft.worldEvents.maze[field.key]"
+              type="number"
+              :step="field.step"
+              density="compact"
+              hide-details
+              :label="getText({ key: `admin.gameplay.${field.label}` })"
+            />
+            <VTextField v-model="draft.worldEvents.maze.prizeColor" density="compact" hide-details :label="getText({ key: 'admin.gameplay.mazePrizeColor' })" />
+            <VSelect
+              v-model="draft.worldEvents.maze.prizeGrantsPerk"
+              :items="perkItems"
+              item-title="name"
+              item-value="id"
+              density="compact"
+              hide-details
+              :label="getText({ key: 'admin.gameplay.mazePrizeGrantsPerk' })"
+            />
+          </div>
+          <VCombobox v-model="draft.worldEvents.maze.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.mazeRooms' })" />
+          <VCombobox v-model="draft.worldEvents.maze.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
         </div>
       </VCardText>
     </VCard>

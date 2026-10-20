@@ -167,6 +167,31 @@ export interface SugarRushConfig extends WorldEventConfigBase {
   durationSeconds: number;
 }
 
+/** The maze: for a while a maze stands in a part of the room, with a big prize at the end. Sizes are in head sizes. */
+export interface MazeConfig extends WorldEventConfigBase {
+  /** Seconds it stands when nobody takes the prize, 10 to 3600. */
+  durationSeconds: number;
+  /** Cells across and down, 3 to 30. The maze is made smaller when the room cannot hold it. */
+  columns: number;
+  rows: number;
+  /** Head sizes across a corridor, 3 to 12. A wall is one head size thick. */
+  corridorHeads: number;
+  /** 0 (long straight halls) to 100 (turns at every chance). */
+  twistiness: number;
+  /** Mass a snake loses when its head runs into a wall; it never dies of it. 0 to 1000. */
+  wallMassLoss: number;
+  /** Percent of the cells that get a fruit, 0 to 100. */
+  foodPercent: number;
+  /** Mass the snake that takes the prize gains, 1 to 10000. */
+  prizeMass: number;
+  /** How many foods taking the prize counts for toward perks, 0 to 1000. */
+  prizeFoodsCredit: number;
+  /** A perk of the list the snake that takes the prize gets. Left out: none. */
+  prizeGrantsPerk?: string | null;
+  /** Six hex digits such as #ffd23f. */
+  prizeColor: string;
+}
+
 export interface GameplayConfig {
   perks: {
     enabled: boolean;
@@ -200,6 +225,7 @@ export interface GameplayConfig {
     bounty: BountyConfig;
     mines: MinesConfig;
     sugarRush: SugarRushConfig;
+    maze: MazeConfig;
   };
 }
 
@@ -395,6 +421,26 @@ const DEFAULT_SUGAR_RUSH: SugarRushConfig = {
   excludedRooms: [],
 };
 
+/** What the maze starts as, and what a config saved before it gets. */
+const DEFAULT_MAZE: MazeConfig = {
+  enabled: true,
+  minIntervalSeconds: 420,
+  maxIntervalSeconds: 900,
+  durationSeconds: 240,
+  columns: 12,
+  rows: 8,
+  corridorHeads: 4,
+  twistiness: 60,
+  wallMassLoss: 2,
+  foodPercent: 25,
+  minPlayers: 2,
+  prizeMass: 200,
+  prizeFoodsCredit: 20,
+  prizeColor: "#ffd23f",
+  rooms: [],
+  excludedRooms: [],
+};
+
 /** Every world event of a config, each with the rooms it is in and left out of. */
 const eventsOf = (events: GameplayConfig["worldEvents"]) => [
   events.lightning,
@@ -405,6 +451,7 @@ const eventsOf = (events: GameplayConfig["worldEvents"]) => [
   events.bounty,
   events.mines,
   events.sugarRush,
+  events.maze,
 ];
 
 /** What a new kind of prize starts as. */
@@ -513,6 +560,7 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
       bounty: clone(DEFAULT_BOUNTY),
       mines: clone(DEFAULT_MINES),
       sugarRush: clone(DEFAULT_SUGAR_RUSH),
+      maze: clone(DEFAULT_MAZE),
     });
     events.enabled ??= true;
     // Lightning from before storms had no storm: it is shown with the storm defaults, which is what saving it makes it.
@@ -525,6 +573,7 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     events.bounty = { ...DEFAULT_BOUNTY, ...events.bounty };
     events.mines = { ...DEFAULT_MINES, ...events.mines };
     events.sugarRush = { ...DEFAULT_SUGAR_RUSH, ...events.sugarRush };
+    events.maze = { ...DEFAULT_MAZE, ...events.maze };
     for (const event of eventsOf(events)) {
       event.rooms ??= [];
       event.excludedRooms ??= [];
@@ -602,6 +651,9 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     const turret = body.worldEvents.turret;
     if (!turret.grantsPerk?.trim()) delete turret.grantsPerk;
     else turret.grantsPerk = turret.grantsPerk.trim();
+    const maze = body.worldEvents.maze;
+    if (!maze.prizeGrantsPerk?.trim()) delete maze.prizeGrantsPerk;
+    else maze.prizeGrantsPerk = maze.prizeGrantsPerk.trim();
     try {
       take(await http.put(url, adminKey, body));
       status.value = "saved";

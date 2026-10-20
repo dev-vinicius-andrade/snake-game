@@ -39,7 +39,7 @@ export type TriggerResult = "started" | "notNow" | AdminError;
 export const ADMIN_KEY_STORAGE_KEY = "snake.adminKey";
 
 /** The world events an administrator can start in a room right now, by the names the manager takes, in the order they are shown. */
-export const WORLD_EVENT_TRIGGERS = ["lightning", "meteors", "turret", "zone", "fruitshower", "bounty", "mines", "sugarrush"] as const;
+export const WORLD_EVENT_TRIGGERS = ["lightning", "meteors", "turret", "zone", "fruitshower", "bounty", "mines", "sugarrush", "maze"] as const;
 
 function withStatus(failure: unknown): Error & { status?: number } {
   const status = axios.isAxiosError(failure) ? failure.response?.status : undefined;

@@ -222,7 +222,7 @@ describe("useAdminRooms gameplay of a room", () => {
 
 describe("useAdminRooms trigger", () => {
   it("knows every world event a room can be made to start, by the names the manager takes", () => {
-    expect(WORLD_EVENT_TRIGGERS).toEqual(["lightning", "meteors", "turret", "zone", "fruitshower", "bounty", "mines", "sugarrush"]);
+    expect(WORLD_EVENT_TRIGGERS).toEqual(["lightning", "meteors", "turret", "zone", "fruitshower", "bounty", "mines", "sugarrush", "maze"]);
   });
 
   it("has a name for every world event it can start, in every language", () => {
@@ -230,7 +230,7 @@ describe("useAdminRooms trigger", () => {
       for (const kind of WORLD_EVENT_TRIGGERS) expect((messages as any).gameplayPicker.features[kind], kind).toBeTruthy();
   });
 
-  it.each(["fruitshower", "bounty", "mines", "sugarrush"])("starts %s in a room", async (kind) => {
+  it.each(["fruitshower", "bounty", "mines", "sugarrush", "maze"])("starts %s in a room", async (kind) => {
     const admin = create();
     await admin.signIn("secret");
 

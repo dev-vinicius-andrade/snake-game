@@ -135,6 +135,24 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
       rooms: [],
       excludedRooms: [],
     },
+    maze: {
+      enabled: true,
+      minIntervalSeconds: 420,
+      maxIntervalSeconds: 900,
+      durationSeconds: 240,
+      columns: 12,
+      rows: 8,
+      corridorHeads: 4,
+      twistiness: 60,
+      wallMassLoss: 2,
+      foodPercent: 25,
+      minPlayers: 2,
+      prizeMass: 200,
+      prizeFoodsCredit: 20,
+      prizeColor: "#ffd23f",
+      rooms: [],
+      excludedRooms: [],
+    },
   },
 });
 
@@ -524,7 +542,68 @@ describe("useAdminGameplay", () => {
         bounty: config().worldEvents.bounty,
         mines: config().worldEvents.mines,
         sugarRush: config().worldEvents.sugarRush,
+        maze: config().worldEvents.maze,
       });
+    });
+
+    it("fills in the maze for a config saved before it, and sends it on save", async () => {
+      const { maze: _maze, ...older } = config().worldEvents;
+      http.get.mockResolvedValue({ ...payload, current: { revision: "r1", config: { ...config(), worldEvents: older } } });
+      const gameplay = create();
+
+      await gameplay.load();
+      await gameplay.save();
+
+      expect(gameplay.draft.value!.worldEvents.maze).toEqual(config().worldEvents.maze);
+      expect((http.put.mock.calls[0][2] as GameplayConfig).worldEvents.maze).toEqual(config().worldEvents.maze);
+    });
+
+    it("keeps what the server sent of the maze and fills in the rest", async () => {
+      http.get.mockResolvedValue({
+        ...payload,
+        current: {
+          revision: "r1",
+          config: { ...config(), worldEvents: { ...config().worldEvents, maze: { corridorHeads: 6, twistiness: 10, enabled: false, prizeGrantsPerk: "magnet" } } },
+        },
+      });
+      const gameplay = create();
+
+      await gameplay.load();
+
+      expect(gameplay.draft.value!.worldEvents.maze).toEqual({
+        ...config().worldEvents.maze,
+        corridorHeads: 6,
+        twistiness: 10,
+        enabled: false,
+        prizeGrantsPerk: "magnet",
+      });
+    });
+
+    it("sends the maze without blank rooms, and the prize perk trimmed", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      const maze = gameplay.draft.value!.worldEvents.maze;
+      maze.rooms = ["arena", " "];
+      maze.excludedRooms = ["", "calm "];
+      maze.prizeGrantsPerk = " magnet ";
+
+      await gameplay.save();
+
+      expect((http.put.mock.calls[0][2] as GameplayConfig).worldEvents.maze).toMatchObject({
+        rooms: ["arena"],
+        excludedRooms: ["calm"],
+        prizeGrantsPerk: "magnet",
+      });
+    });
+
+    it("leaves the prize perk out of the maze when it is blank", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      gameplay.draft.value!.worldEvents.maze.prizeGrantsPerk = "  ";
+
+      await gameplay.save();
+
+      expect((http.put.mock.calls[0][2] as GameplayConfig).worldEvents.maze.prizeGrantsPerk).toBeUndefined();
     });
 
     it("fills in the fruit shower, bounty, mines and sugar rush for a config saved before them, and sends them on save", async () => {
