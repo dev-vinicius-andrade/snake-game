@@ -47,6 +47,11 @@ public static class DependencyInjection
         services.AddSingleton<WorldEventRunner>();
         services.AddSingleton<TurretRunner>();
         services.AddSingleton<ZoneRunner>();
+        services.AddSingleton(new EventSchedule());
+        services.AddSingleton<FruitShowerRunner>();
+        services.AddSingleton<BountyRunner>();
+        services.AddSingleton<MineFieldRunner>();
+        services.AddSingleton<SugarRushRunner>();
         services.AddSingleton<DamageCalculator>();
         services.AddSingleton<BodyHealer>();
         services.AddSingleton<BodyHealthRules>();
