@@ -47,9 +47,9 @@ With a database, the config the game servers run on (perks, prizes, world events
 
 | Table | What |
 |---|---|
-| `gameplay_settings` | one row: the revision, the switches (perks, prizes, world events), the shot spread, burst interval, kill credit, and the room lifetimes |
-| `perks` | id, name, foods required, enabled, icon, description, **script**, sort order |
-| `perk_effects` | what a perk does, in order: effect name and amount |
+| `gameplay_settings` | one row: the revision, the switches (perks, prizes, world events), the shot spread, burst interval, kill credit, the extra life settings (mass kept, seconds protected) and the room lifetimes |
+| `perks` | id, name, foods required, enabled, icon, description, **script**, sort order, **cooldown and duration in seconds** (cooldown abilities) |
+| `perk_effects` | what a perk does, in order: effect name, amount and, for event resistance, the **target** event (null: all) |
 | `perk_tiers` | the steps up of a perk: foods required and multiplier |
 | `perk_rooms` | the rooms a perk is for, or (`is_excluded`) not for |
 | `prizes` | the kinds of prize: timing, value, foods credit, colour, **the perk it gives** (a link to `perks`) |
@@ -71,6 +71,14 @@ With a database, the config the game servers run on (perks, prizes, world events
 - A prize, the boss or the maze prize can only give a perk that is in `perks` (the database refuses anything else).
 - The first time the manager runs on an **empty** database it fills the tables from the old `gameplay.json` when that file is there, else from the defaults.
 - The built-in perks, which an empty list stands for, are written out as rows, so they can be edited like any other.
+- The migration `PerkRewards` added the **reward columns** to `prizes`, `bosses`, `world_event_bounty` and `world_event_maze`
+  (`reward_random_perk`, `reward_extra_lives`, `reward_tier_surge_min`, `reward_tier_surge_max`, `reward_tier_surge_perk`, `reward_bonus_mass`,
+  `reward_mend`), `cooldown_seconds` and `duration_seconds` to `perks`, `target` to `perk_effects`, and `extra_life_keep_share` and
+  `extra_life_protect_seconds` to `gameplay_settings`. Every new column has a default that keeps the config as it was: rewards off, no
+  cooldown, no target; the two extra life settings default to **0.5 and 3** (the game's own defaults; the generated defaults of 0 would have
+  made a saved config's extra lives keep no mass and protect nobody, so the migration sets them by hand). `reward_tier_surge_perk` has no
+  foreign key to `perks` (the config check refuses a perk that does not exist when it is saved). Like the others, it is **ready but not applied**
+  until you run it; new columns need no new grants, they are on tables the manager already uses.
 - The migration `WorldEventMaze` added `world_event_maze` and wrote its default row the same way. Like the others, it is **ready but not
   applied** until you run it. Tables created by the admin database user must be usable by the manager's database user (see below).
 - The migration that added the fruit shower, bounty, mine field and sugar rush tables also wrote their default row, so a config saved before

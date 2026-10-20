@@ -213,6 +213,14 @@ r, k, v, s, u, t }` (corner, cells across and down, blocks across a corridor, tw
   from its head (a `DamageDealt` event of kind `lost`, sent only to that snake; the shooter is an empty guid). For a strike it is the
   mass of the segments that broke, for a head hit all of the mass, for the zone the mass it took.
 
+## Rewards
+
+The turret, the bounty and the maze prize can give a **reward** besides mass and foods (a random perk, extra lives, a tier surge, bonus mass, a mend), set as `reward` on the turret and the bounty and `prizeReward` on the maze, and in a **Reward** box on the admin page. Off by default; see [PERKS.md](PERKS.md#rewards) for the fields and the tier surge rule. The turret gives it to the snake that lands the last shot, the bounty to the killer of the wanted snake (a snake saved by an extra life is not killed, so the bounty stays), the maze to the snake that takes the prize.
+
+## Resisting events
+
+Perks can spare mass lost to lightning, meteors, mines and the zone (`EventResistance`, with a target to limit it to one), and an extra life saves a snake from a lightning or meteor hit on the head or from the zone: see [PERKS.md](PERKS.md#event-resistance).
+
 ## Perks and tiers
 
 Kills and bosses count toward perks too, see [PERKS.md](PERKS.md): killing a snake counts for `killFoodsCredit` foods (3), and
@@ -302,6 +310,7 @@ The turret has its own section, with the same room switches:
   "minPlayers": 2,                   // players needed in the room before it appears
   "rewardMass": 60,                  // food dropped where it falls, 0 to 1000
   "grantsPerk": "magnet",            // optional: a perk of the list given to the snake that brings it down
+  "reward": { "extraLives": 1, "tierSurgeMin": 1, "tierSurgeMax": 2, "bonusMass": 0, "mend": false, "grantsRandomPerk": false },  // optional, see PERKS.md
   "rooms": [], "excludedRooms": []
 }
 ```

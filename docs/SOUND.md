@@ -30,6 +30,8 @@ The `♪` button at the top centre of the game HUD mutes and unmutes. The volume
 | `mine` | a mine is gone from the newest snapshot |
 | `bountyStart`, `bountyClaimed` | a bounty appears; it ends because the wanted snake died |
 | `shower`, `rush` | fruit shower or sugar rush begins |
+| `saved` | a `DamageDealt` of kind `saved` against the own snake: an extra life saved it |
+| `ability` | a cooldown perk of the own snake goes from ready to recharging in the snapshots |
 | `mazeOpen`, `mazeEnter`, `mazeWall` | a maze rises; the own head crosses into it; the own snake shrinks inside it without boosting |
 
 ## Limits
