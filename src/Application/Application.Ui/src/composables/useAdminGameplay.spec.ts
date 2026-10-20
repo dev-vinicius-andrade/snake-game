@@ -92,6 +92,49 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
       rooms: [],
       excludedRooms: [],
     },
+    fruitShower: {
+      enabled: true,
+      minIntervalSeconds: 180,
+      maxIntervalSeconds: 420,
+      durationSeconds: 20,
+      fruitsPerSecond: 8,
+      minPlayers: 1,
+      rooms: [],
+      excludedRooms: [],
+    },
+    bounty: {
+      enabled: true,
+      minIntervalSeconds: 240,
+      maxIntervalSeconds: 600,
+      durationSeconds: 90,
+      rewardMass: 150,
+      foodsCredit: 10,
+      minPlayers: 3,
+      rooms: [],
+      excludedRooms: [],
+    },
+    mines: {
+      enabled: true,
+      minIntervalSeconds: 150,
+      maxIntervalSeconds: 360,
+      minMines: 6,
+      maxMines: 14,
+      radius: 60,
+      triggerRadius: 20,
+      armMilliseconds: 2000,
+      minPlayers: 1,
+      rooms: [],
+      excludedRooms: [],
+    },
+    sugarRush: {
+      enabled: true,
+      minIntervalSeconds: 240,
+      maxIntervalSeconds: 600,
+      durationSeconds: 30,
+      minPlayers: 1,
+      rooms: [],
+      excludedRooms: [],
+    },
   },
 });
 
@@ -477,7 +520,74 @@ describe("useAdminGameplay", () => {
         meteors: config().worldEvents.meteors,
         turret: config().worldEvents.turret,
         zone: config().worldEvents.zone,
+        fruitShower: config().worldEvents.fruitShower,
+        bounty: config().worldEvents.bounty,
+        mines: config().worldEvents.mines,
+        sugarRush: config().worldEvents.sugarRush,
       });
+    });
+
+    it("fills in the fruit shower, bounty, mines and sugar rush for a config saved before them, and sends them on save", async () => {
+      const { fruitShower: _a, bounty: _b, mines: _c, sugarRush: _d, ...older } = config().worldEvents;
+      http.get.mockResolvedValue({ ...payload, current: { revision: "r1", config: { ...config(), worldEvents: older } } });
+      const gameplay = create();
+
+      await gameplay.load();
+      await gameplay.save();
+
+      const events = config().worldEvents;
+      const sent = (http.put.mock.calls[0][2] as GameplayConfig).worldEvents;
+      for (const draft of [gameplay.draft.value!.worldEvents, sent]) {
+        expect(draft.fruitShower).toEqual(events.fruitShower);
+        expect(draft.bounty).toEqual(events.bounty);
+        expect(draft.mines).toEqual(events.mines);
+        expect(draft.sugarRush).toEqual(events.sugarRush);
+      }
+    });
+
+    it("keeps what the server sent of the new events and fills in the rest", async () => {
+      http.get.mockResolvedValue({
+        ...payload,
+        current: {
+          revision: "r1",
+          config: {
+            ...config(),
+            worldEvents: {
+              ...config().worldEvents,
+              fruitShower: { fruitsPerSecond: 20 },
+              bounty: { rewardMass: 500, rooms: ["arena"] },
+              mines: { maxMines: 30, enabled: false },
+              sugarRush: { durationSeconds: 60, excludedRooms: ["calm"] },
+            },
+          },
+        },
+      });
+      const gameplay = create();
+
+      await gameplay.load();
+
+      const events = gameplay.draft.value!.worldEvents;
+      expect(events.fruitShower).toEqual({ ...config().worldEvents.fruitShower, fruitsPerSecond: 20 });
+      expect(events.bounty).toEqual({ ...config().worldEvents.bounty, rewardMass: 500, rooms: ["arena"] });
+      expect(events.mines).toEqual({ ...config().worldEvents.mines, maxMines: 30, enabled: false });
+      expect(events.sugarRush).toEqual({ ...config().worldEvents.sugarRush, durationSeconds: 60, excludedRooms: ["calm"] });
+    });
+
+    it("sends the new events without blank rooms", async () => {
+      const gameplay = create();
+      await gameplay.load();
+      const events = gameplay.draft.value!.worldEvents;
+      for (const event of [events.fruitShower, events.bounty, events.mines, events.sugarRush]) {
+        event.rooms = ["arena", " "];
+        event.excludedRooms = ["", "calm "];
+      }
+      events.mines.triggerRadius = 35;
+
+      await gameplay.save();
+
+      const sent = (http.put.mock.calls[0][2] as GameplayConfig).worldEvents;
+      for (const event of [sent.fruitShower, sent.bounty, sent.mines, sent.sugarRush]) expect(event).toMatchObject({ rooms: ["arena"], excludedRooms: ["calm"] });
+      expect(sent.mines.triggerRadius).toBe(35);
     });
 
     it("sends the lightning settings without blank rooms", async () => {

@@ -120,6 +120,53 @@ export interface ZoneConfig {
   excludedRooms: string[];
 }
 
+/** What every world event has: whether it is on, how often it comes, how many players it needs, and where. */
+export interface WorldEventConfigBase {
+  enabled: boolean;
+  minIntervalSeconds: number;
+  maxIntervalSeconds: number;
+  minPlayers: number;
+  rooms: string[];
+  excludedRooms: string[];
+}
+
+/** The fruit shower: for a while fruit falls all over the room. */
+export interface FruitShowerConfig extends WorldEventConfigBase {
+  /** Seconds it lasts, 1 to 60. */
+  durationSeconds: number;
+  /** Fruits that fall each second, 1 to 30. */
+  fruitsPerSecond: number;
+}
+
+/** The bounty: a price on one snake's head, shown to everyone, for whoever kills it in time. */
+export interface BountyConfig extends WorldEventConfigBase {
+  /** Seconds it lasts, 5 to 3600. */
+  durationSeconds: number;
+  /** Mass the snake that kills the wanted one gets, 0 to 10000. */
+  rewardMass: number;
+  /** How many foods the kill counts for toward perks (and tiers), 0 to 1000. */
+  foodsCredit: number;
+}
+
+/** Mines: laid round the room, each armed after a moment, they stay until a snake touches one and it blows up. */
+export interface MinesConfig extends WorldEventConfigBase {
+  /** Mines laid each time, 1 to 40. */
+  minMines: number;
+  maxMines: number;
+  /** World units the blast reaches, 1 to 1000. */
+  radius: number;
+  /** World units from a mine at which a snake sets it off, 1 to 200. */
+  triggerRadius: number;
+  /** Milliseconds before a mine is armed, 0 to 60000. */
+  armMilliseconds: number;
+}
+
+/** The sugar rush: for a while boosting costs no mass. */
+export interface SugarRushConfig extends WorldEventConfigBase {
+  /** Seconds it lasts, 1 to 600. */
+  durationSeconds: number;
+}
+
 export interface GameplayConfig {
   perks: {
     enabled: boolean;
@@ -149,6 +196,10 @@ export interface GameplayConfig {
     meteors: MeteorConfig;
     turret: TurretConfig;
     zone: ZoneConfig;
+    fruitShower: FruitShowerConfig;
+    bounty: BountyConfig;
+    mines: MinesConfig;
+    sugarRush: SugarRushConfig;
   };
 }
 
@@ -293,6 +344,69 @@ const DEFAULT_ZONE: ZoneConfig = {
   excludedRooms: [],
 };
 
+/** What the fruit shower starts as, and what a config saved before it gets. */
+const DEFAULT_FRUIT_SHOWER: FruitShowerConfig = {
+  enabled: true,
+  minIntervalSeconds: 180,
+  maxIntervalSeconds: 420,
+  durationSeconds: 20,
+  fruitsPerSecond: 8,
+  minPlayers: 1,
+  rooms: [],
+  excludedRooms: [],
+};
+
+/** What the bounty starts as, and what a config saved before it gets. */
+const DEFAULT_BOUNTY: BountyConfig = {
+  enabled: true,
+  minIntervalSeconds: 240,
+  maxIntervalSeconds: 600,
+  durationSeconds: 90,
+  rewardMass: 150,
+  foodsCredit: 10,
+  minPlayers: 3,
+  rooms: [],
+  excludedRooms: [],
+};
+
+/** What mines start as, and what a config saved before them gets. */
+const DEFAULT_MINES: MinesConfig = {
+  enabled: true,
+  minIntervalSeconds: 150,
+  maxIntervalSeconds: 360,
+  minMines: 6,
+  maxMines: 14,
+  radius: 60,
+  triggerRadius: 20,
+  armMilliseconds: 2000,
+  minPlayers: 1,
+  rooms: [],
+  excludedRooms: [],
+};
+
+/** What the sugar rush starts as, and what a config saved before it gets. */
+const DEFAULT_SUGAR_RUSH: SugarRushConfig = {
+  enabled: true,
+  minIntervalSeconds: 240,
+  maxIntervalSeconds: 600,
+  durationSeconds: 30,
+  minPlayers: 1,
+  rooms: [],
+  excludedRooms: [],
+};
+
+/** Every world event of a config, each with the rooms it is in and left out of. */
+const eventsOf = (events: GameplayConfig["worldEvents"]) => [
+  events.lightning,
+  events.meteors,
+  events.turret,
+  events.zone,
+  events.fruitShower,
+  events.bounty,
+  events.mines,
+  events.sugarRush,
+];
+
 /** What a new kind of prize starts as. */
 const DEFAULT_PRIZE: PrizeDefinition = {
   id: "prize",
@@ -395,6 +509,10 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
       meteors: clone(DEFAULT_METEORS),
       turret: clone(DEFAULT_TURRET),
       zone: clone(DEFAULT_ZONE),
+      fruitShower: clone(DEFAULT_FRUIT_SHOWER),
+      bounty: clone(DEFAULT_BOUNTY),
+      mines: clone(DEFAULT_MINES),
+      sugarRush: clone(DEFAULT_SUGAR_RUSH),
     });
     events.enabled ??= true;
     // Lightning from before storms had no storm: it is shown with the storm defaults, which is what saving it makes it.
@@ -402,7 +520,12 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     events.meteors = { ...DEFAULT_METEORS, ...events.meteors };
     events.turret = { ...DEFAULT_TURRET, ...events.turret };
     events.zone = { ...DEFAULT_ZONE, ...events.zone };
-    for (const event of [events.lightning, events.meteors, events.turret, events.zone]) {
+    // Configs saved before these events have none of them: they come in with their defaults, and saving sends them.
+    events.fruitShower = { ...DEFAULT_FRUIT_SHOWER, ...events.fruitShower };
+    events.bounty = { ...DEFAULT_BOUNTY, ...events.bounty };
+    events.mines = { ...DEFAULT_MINES, ...events.mines };
+    events.sugarRush = { ...DEFAULT_SUGAR_RUSH, ...events.sugarRush };
+    for (const event of eventsOf(events)) {
       event.rooms ??= [];
       event.excludedRooms ??= [];
     }
@@ -472,7 +595,7 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
       kind.excludedRooms = kind.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       if (!kind.grantsPerk?.trim()) delete kind.grantsPerk;
     }
-    for (const event of [body.worldEvents.lightning, body.worldEvents.meteors, body.worldEvents.turret, body.worldEvents.zone]) {
+    for (const event of eventsOf(body.worldEvents)) {
       event.rooms = event.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       event.excludedRooms = event.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
     }

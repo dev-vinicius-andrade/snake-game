@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
-import type { LightningConfig, MeteorConfig, TurretConfig, ZoneConfig, useAdminGameplay } from "@/composables/useAdminGameplay";
+import type {
+  BountyConfig,
+  FruitShowerConfig,
+  LightningConfig,
+  MeteorConfig,
+  MinesConfig,
+  SugarRushConfig,
+  TurretConfig,
+  ZoneConfig,
+  useAdminGameplay,
+} from "@/composables/useAdminGameplay";
 import { getText } from "@/helpers";
 
 const props = defineProps<{ gameplay: ReturnType<typeof useAdminGameplay> }>();
@@ -56,6 +66,41 @@ const zoneFields: Array<{ key: NumberKeys<ZoneConfig>; label: string; step?: num
   { key: "damageIntervalMilliseconds", label: "zoneDamageInterval" },
   { key: "damageMass", label: "zoneDamageMass" },
   { key: "minPlayers", label: "zoneMinPlayers" },
+];
+
+const showerFields: Array<{ key: NumberKeys<FruitShowerConfig>; label: string; step?: number }> = [
+  { key: "minIntervalSeconds", label: "showerMin" },
+  { key: "maxIntervalSeconds", label: "showerMax" },
+  { key: "durationSeconds", label: "showerDuration" },
+  { key: "fruitsPerSecond", label: "showerFruitsPerSecond" },
+  { key: "minPlayers", label: "showerMinPlayers" },
+];
+
+const bountyFields: Array<{ key: NumberKeys<BountyConfig>; label: string; step?: number }> = [
+  { key: "minIntervalSeconds", label: "bountyMin" },
+  { key: "maxIntervalSeconds", label: "bountyMax" },
+  { key: "durationSeconds", label: "bountyDuration" },
+  { key: "rewardMass", label: "bountyReward" },
+  { key: "foodsCredit", label: "bountyFoodsCredit" },
+  { key: "minPlayers", label: "bountyMinPlayers" },
+];
+
+const minesFields: Array<{ key: NumberKeys<MinesConfig>; label: string; step?: number }> = [
+  { key: "minIntervalSeconds", label: "minesMin" },
+  { key: "maxIntervalSeconds", label: "minesMax" },
+  { key: "minMines", label: "minesMinMines" },
+  { key: "maxMines", label: "minesMaxMines" },
+  { key: "radius", label: "minesRadius" },
+  { key: "triggerRadius", label: "minesTriggerRadius" },
+  { key: "armMilliseconds", label: "minesArm" },
+  { key: "minPlayers", label: "minesMinPlayers" },
+];
+
+const rushFields: Array<{ key: NumberKeys<SugarRushConfig>; label: string; step?: number }> = [
+  { key: "minIntervalSeconds", label: "rushMin" },
+  { key: "maxIntervalSeconds", label: "rushMax" },
+  { key: "durationSeconds", label: "rushDuration" },
+  { key: "minPlayers", label: "rushMinPlayers" },
 ];
 
 /** The perks the turret can give: none, or any perk of the list. */
@@ -175,6 +220,94 @@ onMounted(() => {
           </div>
           <VCombobox v-model="draft.worldEvents.zone.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.zoneRooms' })" />
           <VCombobox v-model="draft.worldEvents.zone.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+        </div>
+
+        <div class="event-card" :class="{ 'is-off': !draft.worldEvents.fruitShower.enabled }" data-event="fruitShower">
+          <div class="event-row">
+            <strong>{{ getText({ key: "admin.gameplay.showerTitle" }) }}</strong>
+            <VSwitch v-model="draft.worldEvents.fruitShower.enabled" class="switch-field" color="primary" hide-details :label="getText({ key: 'admin.gameplay.showerOn' })" />
+          </div>
+          <div class="event-help">{{ getText({ key: "admin.gameplay.showerHelp" }) }}</div>
+          <div class="field-grid">
+            <VTextField
+              v-for="field in showerFields"
+              :key="field.key"
+              v-model.number="draft.worldEvents.fruitShower[field.key]"
+              type="number"
+              :step="field.step"
+              density="compact"
+              hide-details
+              :label="getText({ key: `admin.gameplay.${field.label}` })"
+            />
+          </div>
+          <VCombobox v-model="draft.worldEvents.fruitShower.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.showerRooms' })" />
+          <VCombobox v-model="draft.worldEvents.fruitShower.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+        </div>
+
+        <div class="event-card" :class="{ 'is-off': !draft.worldEvents.bounty.enabled }" data-event="bounty">
+          <div class="event-row">
+            <strong>{{ getText({ key: "admin.gameplay.bountyTitle" }) }}</strong>
+            <VSwitch v-model="draft.worldEvents.bounty.enabled" class="switch-field" color="primary" hide-details :label="getText({ key: 'admin.gameplay.bountyOn' })" />
+          </div>
+          <div class="event-help">{{ getText({ key: "admin.gameplay.bountyHelp" }) }}</div>
+          <div class="field-grid">
+            <VTextField
+              v-for="field in bountyFields"
+              :key="field.key"
+              v-model.number="draft.worldEvents.bounty[field.key]"
+              type="number"
+              :step="field.step"
+              density="compact"
+              hide-details
+              :label="getText({ key: `admin.gameplay.${field.label}` })"
+            />
+          </div>
+          <VCombobox v-model="draft.worldEvents.bounty.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.bountyRooms' })" />
+          <VCombobox v-model="draft.worldEvents.bounty.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+        </div>
+
+        <div class="event-card" :class="{ 'is-off': !draft.worldEvents.mines.enabled }" data-event="mines">
+          <div class="event-row">
+            <strong>{{ getText({ key: "admin.gameplay.minesTitle" }) }}</strong>
+            <VSwitch v-model="draft.worldEvents.mines.enabled" class="switch-field" color="primary" hide-details :label="getText({ key: 'admin.gameplay.minesOn' })" />
+          </div>
+          <div class="event-help">{{ getText({ key: "admin.gameplay.minesHelp" }) }}</div>
+          <div class="field-grid">
+            <VTextField
+              v-for="field in minesFields"
+              :key="field.key"
+              v-model.number="draft.worldEvents.mines[field.key]"
+              type="number"
+              :step="field.step"
+              density="compact"
+              hide-details
+              :label="getText({ key: `admin.gameplay.${field.label}` })"
+            />
+          </div>
+          <VCombobox v-model="draft.worldEvents.mines.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.minesRooms' })" />
+          <VCombobox v-model="draft.worldEvents.mines.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+        </div>
+
+        <div class="event-card" :class="{ 'is-off': !draft.worldEvents.sugarRush.enabled }" data-event="sugarRush">
+          <div class="event-row">
+            <strong>{{ getText({ key: "admin.gameplay.rushTitle" }) }}</strong>
+            <VSwitch v-model="draft.worldEvents.sugarRush.enabled" class="switch-field" color="primary" hide-details :label="getText({ key: 'admin.gameplay.rushOn' })" />
+          </div>
+          <div class="event-help">{{ getText({ key: "admin.gameplay.rushHelp" }) }}</div>
+          <div class="field-grid">
+            <VTextField
+              v-for="field in rushFields"
+              :key="field.key"
+              v-model.number="draft.worldEvents.sugarRush[field.key]"
+              type="number"
+              :step="field.step"
+              density="compact"
+              hide-details
+              :label="getText({ key: `admin.gameplay.${field.label}` })"
+            />
+          </div>
+          <VCombobox v-model="draft.worldEvents.sugarRush.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.rushRooms' })" />
+          <VCombobox v-model="draft.worldEvents.sugarRush.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
         </div>
       </VCardText>
     </VCard>

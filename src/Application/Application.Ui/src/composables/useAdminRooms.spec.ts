@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ACCOUNT_CREDENTIAL } from "./adminAuth";
-import { ADMIN_KEY_STORAGE_KEY, useAdminRooms, type AdminHttp } from "./useAdminRooms";
+import en from "@/locales/messages/en";
+import pt from "@/locales/messages/pt";
+import { ADMIN_KEY_STORAGE_KEY, WORLD_EVENT_TRIGGERS, useAdminRooms, type AdminHttp } from "./useAdminRooms";
 
 const room = { id: "r1", code: "ABC234", name: "Friends", isPrivate: true, players: 2, maxPlayers: 4, createdAt: "2026-01-01T00:00:00Z", server: "http://a" };
 
@@ -219,6 +221,23 @@ describe("useAdminRooms gameplay of a room", () => {
 });
 
 describe("useAdminRooms trigger", () => {
+  it("knows every world event a room can be made to start, by the names the manager takes", () => {
+    expect(WORLD_EVENT_TRIGGERS).toEqual(["lightning", "meteors", "turret", "zone", "fruitshower", "bounty", "mines", "sugarrush"]);
+  });
+
+  it("has a name for every world event it can start, in every language", () => {
+    for (const messages of [en, pt])
+      for (const kind of WORLD_EVENT_TRIGGERS) expect((messages as any).gameplayPicker.features[kind], kind).toBeTruthy();
+  });
+
+  it.each(["fruitshower", "bounty", "mines", "sugarrush"])("starts %s in a room", async (kind) => {
+    const admin = create();
+    await admin.signIn("secret");
+
+    expect(await admin.trigger("r1", kind)).toBe("started");
+    expect(http.post).toHaveBeenCalledWith(`http://manager.test/admin/rooms/r1/events/${kind}`, "secret");
+  });
+
   it("starts an event in a room with the key", async () => {
     const admin = create();
     await admin.signIn("secret");

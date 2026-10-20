@@ -1,15 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import RoomGameplayPicker from "@/components/rooms/RoomGameplayPicker.vue";
-import type { AdminRoom, TriggerResult, useAdminRooms } from "@/composables/useAdminRooms";
+import { WORLD_EVENT_TRIGGERS, type AdminRoom, type TriggerResult, type useAdminRooms } from "@/composables/useAdminRooms";
 import { defaultChoices, parseChoices, type RoomGameplayChoices } from "@/game/roomGameplay";
 import { getText } from "@/helpers";
 
 /** What one room does with the gameplay, and a way to start a world event in it right now (to try it, or to liven the room up). */
 const props = defineProps<{ target: AdminRoom | null; admin: ReturnType<typeof useAdminRooms> }>();
 const emit = defineEmits<{ (event: "close"): void }>();
-
-const EVENTS = ["lightning", "meteors", "turret", "zone"] as const;
 
 const choices = ref<RoomGameplayChoices>(defaultChoices());
 const saved = ref<RoomGameplayChoices>(defaultChoices());
@@ -60,7 +58,7 @@ const triggerText = computed(() => {
 
         <p class="mt-5 mb-2">{{ getText({ key: "gameplayPicker.triggerHint" }) }}</p>
         <div class="d-flex flex-wrap ga-2">
-          <VBtn v-for="kind in EVENTS" :key="kind" size="small" variant="tonal" :data-trigger="kind" @click="start(kind)">
+          <VBtn v-for="kind in WORLD_EVENT_TRIGGERS" :key="kind" size="small" variant="tonal" :data-trigger="kind" @click="start(kind)">
             {{ getText({ key: "gameplayPicker.trigger" }) }}: {{ getText({ key: `gameplayPicker.features.${kind}` }) }}
           </VBtn>
         </div>
