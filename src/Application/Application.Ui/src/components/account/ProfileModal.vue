@@ -33,12 +33,12 @@ async function signOut() {
     data-test="profile-modal"
     @update:model-value="(open: boolean) => !open && closeProfile()"
   >
-    <VCard v-if="profileModal.open.value" :title="getText({ key: 'profile.title' })">
+    <VCard v-if="profileModal.open.value" class="profile-card" :title="getText({ key: 'profile.title' })">
       <VTabs v-model="profileModal.tab.value" grow>
         <VTab value="stats" data-test="tab-stats">{{ getText({ key: "profile.statsTab" }) }}</VTab>
         <VTab value="account" data-test="tab-account">{{ getText({ key: "profile.accountTab" }) }}</VTab>
       </VTabs>
-      <VCardText>
+      <VCardText :key="profileModal.tab.value" class="profile-body">
         <ProfileStats v-if="profileModal.tab.value === 'stats'" @no-account="toSignIn" @sign-in="toSignIn" />
         <AccountSettings v-else @sign-in="toSignIn" />
       </VCardText>
@@ -50,3 +50,17 @@ async function signOut() {
     </VCard>
   </VDialog>
 </template>
+
+<style scoped>
+/* One size for both tabs, so the dialog does not jump when switching, and a title that is never pushed off the screen: only the content scrolls. */
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  height: min(85vh, 760px);
+}
+.profile-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+</style>
