@@ -114,6 +114,17 @@ SNAKE_DB="Host=localhost;Database=snake;Username=snake;Password=..." dotnet dotn
 dotnet dotnet-ef migrations script --idempotent --project src/Application/Application.Manager.Api
 ```
 
+**Run migrations as the owner of the tables.** The manager connects as the database owner, which can only use tables it owns. A table made by
+another user (say an admin user) is refused to the manager with `permission denied for table ...` and the page that reads it answers `500`. So apply
+migrations as the owner, or as a user that is a member of the owner role and switches to it for the session, by adding `Options=-c role=<owner>`
+to the connection string. Everything the migration creates is then owned by the owner:
+
+```bash
+SNAKE_DB="Host=...;Database=snake_game;Username=<admin user>;Password=...;Options=-c role=<owner>" dotnet dotnet-ef database update --project src/Application/Application.Manager.Api
+```
+
+If a table already has the wrong owner: `ALTER TABLE <table> OWNER TO <owner>;`, run by a user that is a member of the owner role (or a superuser).
+
 A test (`DatabaseWiringTests`) fails when the model has changes no migration covers, so a forgotten migration does not get through.
 The history table is `migrations_history`.
 
