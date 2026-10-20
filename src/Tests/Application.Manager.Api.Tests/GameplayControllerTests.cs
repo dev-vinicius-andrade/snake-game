@@ -43,4 +43,28 @@ public sealed class GameplayControllerTests
 
         Assert.Equal(0, PerksFor(config).EnumerateArray().Single().GetProperty("tiers").GetArrayLength());
     }
+
+    [Fact]
+    public void Perks_ACooldownPerkSaysHowLongItRechargesAndLasts_AndAnEffectItsTarget()
+    {
+        var config = GameplayConfig.Defaults with
+        {
+            Perks = new PerkOptions
+            {
+                Perks =
+                [
+                    new PerkDefinition
+                    {
+                        Id = "s", Name = "S", FoodsRequired = 3, CooldownSeconds = 30, DurationSeconds = 4,
+                        Effects = [new PerkEffectEntry { Effect = PerkEffect.ShieldBurst, Amount = 1 }, new PerkEffectEntry { Effect = PerkEffect.EventResistance, Amount = 0.4, Target = "zone" }]
+                    }
+                ]
+            }
+        };
+
+        var perk = PerksFor(config).EnumerateArray().Single();
+
+        Assert.Equal((30, 4), (perk.GetProperty("cooldownSeconds").GetInt32(), perk.GetProperty("durationSeconds").GetInt32()));
+        Assert.Equal("zone", perk.GetProperty("effects")[1].GetProperty("target").GetString());
+    }
 }
