@@ -57,8 +57,7 @@ namespace Application.Manager.Api
             services.AddSingleton<RoomCreationService>();
             services.AddHttpClient<IGameServerClient, HttpGameServerClient>(client => client.Timeout = TimeSpan.FromSeconds(5));
             services.AddSingleton<RoomAdminService>();
-            services.AddSingleton(provider => new GameplayConfigStore(
-                configuration["GameplayConfiguration:StorePath"], provider.GetRequiredService<ILoggerFactory>().CreateLogger<GameplayConfigStore>()));
+            services.AddGameplayConfig(configuration);
             services.AddAccounts(configuration);
             services.AddHostedService<RoomRegistryPruneService>();
             

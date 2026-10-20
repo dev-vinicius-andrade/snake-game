@@ -1,4 +1,5 @@
 using Application.Manager.Api.Accounts;
+using Application.Manager.Api.Gameplay;
 using Application.Manager.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -76,5 +77,31 @@ public sealed class DatabaseWiringTests
         using var context = new SnakeDbContext(options);
 
         Assert.NotEmpty(context.GetService<IMigrationsAssembly>().Migrations);
+    }
+
+    private static ServiceProvider GameplayProvider(string? connection)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { [DatabaseServiceCollectionExtensions.ConnectionKey] = connection })
+            .Build();
+        return new ServiceCollection().AddLogging().AddGameplayConfig(configuration).AddAccounts(configuration).BuildServiceProvider();
+    }
+
+    [Fact]
+    public void TheGameplayConfig_LivesInTheDatabaseWhenThereIsOne_AndInItsFileOtherwise()
+    {
+        using var withDatabase = GameplayProvider(Connection);
+        using var without = GameplayProvider(null);
+
+        Assert.IsType<EfGameplayConfigStore>(withDatabase.GetRequiredService<IGameplayConfigStore>());
+        Assert.IsType<GameplayConfigStore>(without.GetRequiredService<IGameplayConfigStore>());
+    }
+
+    [Fact]
+    public void TheDatabaseIsSetUpOnce_EvenWhenBothGameplayAndAccountsAskForIt()
+    {
+        using var provider = GameplayProvider(Connection);
+
+        Assert.Single(provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().OfType<DatabaseMigrationService>());
     }
 }

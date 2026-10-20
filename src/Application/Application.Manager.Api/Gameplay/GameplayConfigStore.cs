@@ -7,7 +7,7 @@ namespace Application.Manager.Api.Gameplay;
 /// The gameplay config the game servers run on. It lives in memory and, when a path is given, in a file, so it survives a
 /// restart of the manager. Without a file, a restart goes back to the defaults.
 /// </summary>
-public sealed class GameplayConfigStore
+public sealed class GameplayConfigStore : IGameplayConfigStore
 {
     private readonly string? _path;
     private readonly ILogger? _logger;
@@ -27,8 +27,7 @@ public sealed class GameplayConfigStore
     public GameplayDocument Update(GameplayConfig config)
     {
         ArgumentNullException.ThrowIfNull(config);
-        var complete = config.WithBuiltInPerks();
-        complete.EnsureValid();
+        var complete = Prepare(config);
         lock (_lock)
         {
             var document = new GameplayDocument(NewRevision(), complete);
@@ -36,6 +35,14 @@ public sealed class GameplayConfigStore
             _current = document;
             return document;
         }
+    }
+
+    /// <summary>The config with the built-in perks spelled out, or an <see cref="ArgumentException"/> when it could not run.</summary>
+    internal static GameplayConfig Prepare(GameplayConfig config)
+    {
+        var complete = config.WithBuiltInPerks();
+        complete.EnsureValid();
+        return complete;
     }
 
     private static string NewRevision() => Guid.NewGuid().ToString("N");

@@ -126,6 +126,79 @@ namespace Application.Manager.Api.Persistence.Migrations
                     b.ToTable("applied_reports", (string)null);
                 });
 
+            modelBuilder.Entity("Application.Manager.Api.Persistence.BossRow", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Arms")
+                        .HasColumnType("integer")
+                        .HasColumnName("arms");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<int>("FireIntervalMilliseconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("fire_interval_milliseconds");
+
+                    b.Property<int>("FoodsCredit")
+                        .HasColumnType("integer")
+                        .HasColumnName("foods_credit");
+
+                    b.Property<string>("GrantsPerk")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("grants_perk");
+
+                    b.Property<int>("HitPoints")
+                        .HasColumnType("integer")
+                        .HasColumnName("hit_points");
+
+                    b.Property<int>("LifetimeSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("lifetime_seconds");
+
+                    b.Property<int>("MaxIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_interval_seconds");
+
+                    b.Property<int>("MinIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_interval_seconds");
+
+                    b.Property<int>("MinPlayers")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_players");
+
+                    b.Property<long>("RewardMass")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reward_mass");
+
+                    b.Property<double>("ShotSpeed")
+                        .HasColumnType("double precision")
+                        .HasColumnName("shot_speed");
+
+                    b.Property<int>("Size")
+                        .HasColumnType("integer")
+                        .HasColumnName("size");
+
+                    b.Property<double>("SpinDegrees")
+                        .HasColumnType("double precision")
+                        .HasColumnName("spin_degrees");
+
+                    b.HasKey("Id")
+                        .HasName("pk_bosses");
+
+                    b.HasIndex("GrantsPerk")
+                        .HasDatabaseName("ix_bosses_grants_perk");
+
+                    b.ToTable("bosses", (string)null);
+                });
+
             modelBuilder.Entity("Application.Manager.Api.Persistence.DeviceRow", b =>
                 {
                     b.Property<string>("Hash")
@@ -183,6 +256,368 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .HasDatabaseName("ux_external_logins_account_id_provider");
 
                     b.ToTable("external_logins", (string)null);
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.GameplaySettingsRow", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<int>("BurstIntervalMilliseconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("burst_interval_milliseconds");
+
+                    b.Property<int>("EmptyPrivateRoomMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("empty_private_room_minutes");
+
+                    b.Property<int>("KillFoodsCredit")
+                        .HasColumnType("integer")
+                        .HasColumnName("kill_foods_credit");
+
+                    b.Property<int>("MaxPrivateRoomMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_private_room_minutes");
+
+                    b.Property<bool>("PerksEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("perks_enabled");
+
+                    b.Property<bool>("PrizesEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("prizes_enabled");
+
+                    b.Property<string>("Revision")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("revision");
+
+                    b.Property<double>("ShotSpreadDegrees")
+                        .HasColumnType("double precision")
+                        .HasColumnName("shot_spread_degrees");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<bool>("WorldEventsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("world_events_enabled");
+
+                    b.HasKey("Id")
+                        .HasName("pk_gameplay_settings");
+
+                    b.ToTable("gameplay_settings", (string)null);
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.LightningEventRow", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<double>("AimedShare")
+                        .HasColumnType("double precision")
+                        .HasColumnName("aimed_share");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<int>("MaxIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_interval_seconds");
+
+                    b.Property<int?>("MaxStrikes")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_strikes");
+
+                    b.Property<int>("MinIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_interval_seconds");
+
+                    b.Property<int?>("MinStrikes")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_strikes");
+
+                    b.Property<int>("Radius")
+                        .HasColumnType("integer")
+                        .HasColumnName("radius");
+
+                    b.Property<int?>("StormSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("storm_seconds");
+
+                    b.Property<int>("TelegraphMilliseconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("telegraph_milliseconds");
+
+                    b.HasKey("Id")
+                        .HasName("pk_world_event_lightning");
+
+                    b.ToTable("world_event_lightning", (string)null);
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.MeteorEventRow", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<double>("AimedShare")
+                        .HasColumnType("double precision")
+                        .HasColumnName("aimed_share");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<int>("MaxIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_interval_seconds");
+
+                    b.Property<int>("MaxMeteors")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_meteors");
+
+                    b.Property<int>("MinIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_interval_seconds");
+
+                    b.Property<int>("MinMeteors")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_meteors");
+
+                    b.Property<int>("Radius")
+                        .HasColumnType("integer")
+                        .HasColumnName("radius");
+
+                    b.Property<int>("RainSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("rain_seconds");
+
+                    b.Property<int>("TelegraphMilliseconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("telegraph_milliseconds");
+
+                    b.HasKey("Id")
+                        .HasName("pk_world_event_meteors");
+
+                    b.ToTable("world_event_meteors", (string)null);
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.PerkEffectRow", b =>
+                {
+                    b.Property<string>("PerkId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("perk_id");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<double>("Amount")
+                        .HasColumnType("double precision")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("Effect")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("effect");
+
+                    b.HasKey("PerkId", "Position")
+                        .HasName("pk_perk_effects");
+
+                    b.ToTable("perk_effects", (string)null);
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.PerkRoomRow", b =>
+                {
+                    b.Property<string>("PerkId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("perk_id");
+
+                    b.Property<bool>("IsExcluded")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_excluded");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<string>("Room")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("room");
+
+                    b.HasKey("PerkId", "IsExcluded", "Position")
+                        .HasName("pk_perk_rooms");
+
+                    b.ToTable("perk_rooms", (string)null);
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.PerkRow", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<int>("FoodsRequired")
+                        .HasColumnType("integer")
+                        .HasColumnName("foods_required");
+
+                    b.Property<string>("Icon")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("icon");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Script")
+                        .HasColumnType("text")
+                        .HasColumnName("script");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.HasKey("Id")
+                        .HasName("pk_perks");
+
+                    b.ToTable("perks", (string)null);
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.PerkTierRow", b =>
+                {
+                    b.Property<string>("PerkId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("perk_id");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<int>("FoodsRequired")
+                        .HasColumnType("integer")
+                        .HasColumnName("foods_required");
+
+                    b.Property<double>("Multiplier")
+                        .HasColumnType("double precision")
+                        .HasColumnName("multiplier");
+
+                    b.HasKey("PerkId", "Position")
+                        .HasName("pk_perk_tiers");
+
+                    b.ToTable("perk_tiers", (string)null);
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.PrizeRoomRow", b =>
+                {
+                    b.Property<string>("PrizeId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("prize_id");
+
+                    b.Property<bool>("IsExcluded")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_excluded");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<string>("Room")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("room");
+
+                    b.HasKey("PrizeId", "IsExcluded", "Position")
+                        .HasName("pk_prize_rooms");
+
+                    b.ToTable("prize_rooms", (string)null);
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.PrizeRow", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("color");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<int>("FoodsCredit")
+                        .HasColumnType("integer")
+                        .HasColumnName("foods_credit");
+
+                    b.Property<string>("GrantsPerk")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("grants_perk");
+
+                    b.Property<int>("LifetimeSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("lifetime_seconds");
+
+                    b.Property<int>("MinPlayers")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_players");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<int>("SpawnIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("spawn_interval_seconds");
+
+                    b.Property<long>("Value")
+                        .HasColumnType("bigint")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id")
+                        .HasName("pk_prizes");
+
+                    b.HasIndex("GrantsPerk")
+                        .HasDatabaseName("ix_prizes_grants_perk");
+
+                    b.ToTable("prizes", (string)null);
                 });
 
             modelBuilder.Entity("Application.Manager.Api.Persistence.StatValueRow", b =>
@@ -252,6 +687,94 @@ namespace Application.Manager.Api.Persistence.Migrations
                     b.ToTable("unlocked_achievements", (string)null);
                 });
 
+            modelBuilder.Entity("Application.Manager.Api.Persistence.WorldEventRoomRow", b =>
+                {
+                    b.Property<string>("Event")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("event");
+
+                    b.Property<bool>("IsExcluded")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_excluded");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<string>("Room")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("room");
+
+                    b.HasKey("Event", "IsExcluded", "Position")
+                        .HasName("pk_world_event_rooms");
+
+                    b.ToTable("world_event_rooms", (string)null);
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.ZoneEventRow", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<int>("DamageIntervalMilliseconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("damage_interval_milliseconds");
+
+                    b.Property<int>("DamageMass")
+                        .HasColumnType("integer")
+                        .HasColumnName("damage_mass");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<int>("FinalRadius")
+                        .HasColumnType("integer")
+                        .HasColumnName("final_radius");
+
+                    b.Property<int>("HoldSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("hold_seconds");
+
+                    b.Property<int>("MaxIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_interval_seconds");
+
+                    b.Property<int>("MinIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_interval_seconds");
+
+                    b.Property<int>("MinPlayers")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_players");
+
+                    b.Property<int>("ShrinkSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("shrink_seconds");
+
+                    b.Property<int>("WarningSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("warning_seconds");
+
+                    b.HasKey("Id")
+                        .HasName("pk_world_event_zone");
+
+                    b.ToTable("world_event_zone", (string)null);
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.BossRow", b =>
+                {
+                    b.HasOne("Application.Manager.Api.Persistence.PerkRow", null)
+                        .WithMany()
+                        .HasForeignKey("GrantsPerk")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_bosses_perks");
+                });
+
             modelBuilder.Entity("Application.Manager.Api.Persistence.DeviceRow", b =>
                 {
                     b.HasOne("Application.Manager.Api.Persistence.AccountRow", null)
@@ -270,6 +793,55 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_external_logins_accounts");
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.PerkEffectRow", b =>
+                {
+                    b.HasOne("Application.Manager.Api.Persistence.PerkRow", null)
+                        .WithMany()
+                        .HasForeignKey("PerkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_perk_effects_perks");
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.PerkRoomRow", b =>
+                {
+                    b.HasOne("Application.Manager.Api.Persistence.PerkRow", null)
+                        .WithMany()
+                        .HasForeignKey("PerkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_perk_rooms_perks");
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.PerkTierRow", b =>
+                {
+                    b.HasOne("Application.Manager.Api.Persistence.PerkRow", null)
+                        .WithMany()
+                        .HasForeignKey("PerkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_perk_tiers_perks");
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.PrizeRoomRow", b =>
+                {
+                    b.HasOne("Application.Manager.Api.Persistence.PrizeRow", null)
+                        .WithMany()
+                        .HasForeignKey("PrizeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_prize_rooms_prizes");
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.PrizeRow", b =>
+                {
+                    b.HasOne("Application.Manager.Api.Persistence.PerkRow", null)
+                        .WithMany()
+                        .HasForeignKey("GrantsPerk")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_prizes_perks");
                 });
 
             modelBuilder.Entity("Application.Manager.Api.Persistence.UnlockedAchievementRow", b =>

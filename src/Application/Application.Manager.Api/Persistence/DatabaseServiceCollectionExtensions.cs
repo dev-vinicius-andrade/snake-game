@@ -20,7 +20,7 @@ public static class DatabaseServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
-        if (!configuration.HasDatabase())
+        if (!configuration.HasDatabase() || services.Any(service => service.ServiceType == typeof(IDbContextFactory<SnakeDbContext>)))
             return services;
         var connection = configuration[ConnectionKey]!.Trim();
         services.AddPooledDbContextFactory<SnakeDbContext>(options => options.UseNpgsql(connection, npgsql => npgsql.MigrationsHistoryTable("migrations_history")));

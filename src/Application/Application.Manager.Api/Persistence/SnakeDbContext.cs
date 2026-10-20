@@ -25,6 +25,30 @@ public sealed class SnakeDbContext(DbContextOptions<SnakeDbContext> options) : D
 
     public DbSet<AppliedReportRow> AppliedReports => Set<AppliedReportRow>();
 
+    public DbSet<GameplaySettingsRow> GameplaySettings => Set<GameplaySettingsRow>();
+
+    public DbSet<PerkRow> Perks => Set<PerkRow>();
+
+    public DbSet<PerkEffectRow> PerkEffects => Set<PerkEffectRow>();
+
+    public DbSet<PerkTierRow> PerkTiers => Set<PerkTierRow>();
+
+    public DbSet<PerkRoomRow> PerkRooms => Set<PerkRoomRow>();
+
+    public DbSet<PrizeRow> Prizes => Set<PrizeRow>();
+
+    public DbSet<PrizeRoomRow> PrizeRooms => Set<PrizeRoomRow>();
+
+    public DbSet<LightningEventRow> LightningEvents => Set<LightningEventRow>();
+
+    public DbSet<MeteorEventRow> MeteorEvents => Set<MeteorEventRow>();
+
+    public DbSet<ZoneEventRow> ZoneEvents => Set<ZoneEventRow>();
+
+    public DbSet<BossRow> Bosses => Set<BossRow>();
+
+    public DbSet<WorldEventRoomRow> WorldEventRooms => Set<WorldEventRoomRow>();
+
     public DbSet<AchievementRow> Achievements => Set<AchievementRow>();
 
     public DbSet<UnlockedAchievementRow> UnlockedAchievements => Set<UnlockedAchievementRow>();
@@ -96,6 +120,7 @@ public sealed class SnakeDbContext(DbContextOptions<SnakeDbContext> options) : D
             unlocked.Property(row => row.AchievementId).HasMaxLength(MaxName);
             unlocked.HasOne<AchievementRow>().WithMany().HasForeignKey(row => row.AchievementId).OnDelete(DeleteBehavior.Restrict);
         });
+        GameplayModel.Configure(model);
         UseSnakeCaseNames(model);
     }
 

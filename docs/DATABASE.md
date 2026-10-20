@@ -37,6 +37,33 @@ not running. A store never answers "no such account" for a database it could not
 Tables and columns are snake_case. Times are stored as UTC (`timestamptz` refuses any other offset). The model uses plain types only (no
 `jsonb`, no arrays), so the same model also runs on SQLite, which is what the store tests use.
 
+### Gameplay config (what the admin page edits)
+
+With a database, the config the game servers run on (perks, prizes, world events, the boss, room lifetimes) is kept in tables instead of
+`gameplay.json`. The admin page and the game servers did not change: the api and the JSON they see are the same.
+
+| Table | What |
+|---|---|
+| `gameplay_settings` | one row: the revision, the switches (perks, prizes, world events), the shot spread, burst interval, kill credit, and the room lifetimes |
+| `perks` | id, name, foods required, enabled, icon, description, **script**, sort order |
+| `perk_effects` | what a perk does, in order: effect name and amount |
+| `perk_tiers` | the steps up of a perk: foods required and multiplier |
+| `perk_rooms` | the rooms a perk is for, or (`is_excluded`) not for |
+| `prizes` | the kinds of prize: timing, value, foods credit, colour, **the perk it gives** (a link to `perks`) |
+| `prize_rooms` | the same for prizes |
+| `world_event_lightning` | the lightning storms (one row) |
+| `world_event_meteors` | the meteor rain (one row) |
+| `world_event_zone` | the shrinking zone (one row) |
+| `bosses` | the boss: today the turret (`id = turret`), with its hit points, volleys, reward and **the perk it gives** (a link to `perks`). A new kind of boss is a new row |
+| `world_event_rooms` | the rooms an event or the boss is for, or not for |
+
+- A save replaces every row in **one transaction**, so the tables always hold one whole config. `gameplay_settings.revision` changes with each
+  save: game servers apply a revision they have not seen. The manager looks at the revision again every 5 seconds, so a change made on
+  another manager, or by hand in the tables with a new revision, reaches it soon.
+- A prize or the boss can only give a perk that is in `perks` (the database refuses anything else).
+- The first time the manager runs on an **empty** database it fills the tables from the old `gameplay.json` when that file is there, else from the defaults.
+- The built-in perks, which an empty list stands for, are written out as rows, so they can be edited like any other.
+
 What is **not** in it, as everywhere else: the recovery phrase, a device token, a social account's id. Only their hashes.
 
 ## The stores
@@ -76,4 +103,4 @@ The migrations are checked against the model by the test above, but only a real 
 ## Not done yet
 
 - Moving the accounts already in the JSON files into the database (there is no importer; today a manager that gets a connection string starts empty).
-- Gameplay config, rooms and perks are still files / memory.
+- Rooms (the live registry) are still memory. Roles are in `docs/ROLES.md`.

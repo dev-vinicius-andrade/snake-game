@@ -11,7 +11,7 @@ namespace Application.Manager.Api.Controllers;
 /// <summary>The gameplay config as game servers fetch it.</summary>
 [Route("gameplay")]
 [ApiController]
-public class GameplayController(GameplayConfigStore store) : Controller
+public class GameplayController(IGameplayConfigStore store) : Controller
 {
     [HttpGet]
     [ApiKeyAuth]
@@ -39,7 +39,7 @@ public class GameplayController(GameplayConfigStore store) : Controller
 [Route("admin/gameplay")]
 [ApiController]
 [AdminKeyAuth]
-public class AdminGameplayController(GameplayConfigStore store) : Controller
+public class AdminGameplayController(IGameplayConfigStore store) : Controller
 {
     /// <summary>The current config, the defaults to go back to, and the effects a perk can have.</summary>
     [HttpGet]
