@@ -60,6 +60,12 @@ public interface IGameStateService
     /// </summary>
     IReadOnlyList<IPlayer> ApplyZoneDamage(IGameState gameState, double x, double y, double radius, long mass);
 
+    /// <summary>
+    /// Sets off every armed mine that a living head touches (the invulnerable pass over them): the mine goes, and the body segments of
+    /// every snake within its blast break off like in a strike. A head is never killed by it.
+    /// </summary>
+    void ResolveMines(IGameState gameState);
+
     /// <param name="kind">What falls: a snake that loses mass to it counts a hit of this kind in its stats.</param>
     IReadOnlyList<IPlayer> StrikeArea(IGameState gameState, double x, double y, double radius, WorldStrikeKind kind = WorldStrikeKind.Lightning);
     IPlayer? GetPlayer(IGameState gameState, ITrackableId trackableId);

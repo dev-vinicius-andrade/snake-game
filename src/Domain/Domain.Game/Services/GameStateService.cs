@@ -186,7 +186,8 @@ public class GameStateService : IGameStateService
     {
         TurnTowardsTarget(player);
         var perks = EffectsOf(gameState, player);
-        var boost = _boostRules.Step(player.IsBoosting, player.BoostTicks, player.Score, perks.BoostSpeedBonus, perks.BoostLengthFactor);
+        var sugarRush = gameState.SugarRushEndsAt is { } rushEnds && _clock.GetUtcNow() < rushEnds;
+        var boost = _boostRules.Step(player.IsBoosting, player.BoostTicks, player.Score, perks.BoostSpeedBonus, perks.BoostLengthFactor, sugarRush);
         player.BoostTicks = boost.BoostTicks;
         player.Score -= boost.MassSpent;
         if (boost.Active) StatsOf(player)?.Boosted(_tickRateService.TickRate);
@@ -637,6 +638,48 @@ public class GameStateService : IGameStateService
         return died;
     }
 
+    public void ResolveMines(IGameState gameState)
+    {
+        ArgumentNullException.ThrowIfNull(gameState);
+        if (gameState.Mines.IsEmpty) return;
+        var now = _clock.GetUtcNow();
+        var half = _snakeConfiguration.Value.HeadSize / 2.0;
+        var heads = gameState.Players.Values
+            .Where(player => player.IsAlive && !EffectsOf(gameState, player).Invulnerable)
+            .Select(player => new Point(player.CurrentPosition.X + half, player.CurrentPosition.Y + half))
+            .ToArray();
+        foreach (var mine in gameState.Mines.Values.Where(mine => mine.ArmedAt <= now).ToArray())
+        {
+            var touched = heads.Any(head => Math.Sqrt(Math.Pow(head.X - mine.X, 2) + Math.Pow(head.Y - mine.Y, 2)) <= mine.TriggerRadius);
+            if (touched && gameState.Mines.TryRemove(mine.Id, out _)) Blast(gameState, mine);
+        }
+    }
+
+    /// <summary>A mine going off breaks the body segments within its reach, like a strike, but never kills a head.</summary>
+    private void Blast(IGameState gameState, WorldMine mine)
+    {
+        var headSize = _snakeConfiguration.Value.HeadSize;
+        foreach (var player in gameState.Players.Values.Where(player => player.IsAlive).ToArray())
+        {
+            if (EffectsOf(gameState, player).Invulnerable) continue;
+            var hit = WorldEventRules.Resolve(ToPoints(player.Path), new Point(mine.X, mine.Y), mine.Radius, headSize, InitialLength);
+            if (hit.BrokenSegments.Count == 0) continue;
+            var before = player.Score;
+            BreakSegments(gameState, player, hit.BrokenSegments);
+            TellLoss(gameState, player, before - player.Score);
+        }
+    }
+
+    /// <summary>Killing the snake that is wanted pays the killer in mass and in foods, once, and takes the mark off.</summary>
+    private void PayBounty(IGameState gameState, IPlayer killer, IPlayer victim)
+    {
+        if (gameState.Bounty is not { } bounty || bounty.Target != victim.Guid) return;
+        gameState.Bounty = null;
+        killer.Score += bounty.RewardMass;
+        CreditFoods(gameState, killer, bounty.FoodsCredit);
+        UpdatePlayer(killer);
+    }
+
     /// <summary>A strike counts in the stats of a snake only when it cost it mass.</summary>
     private void CountStrike(IPlayer player, WorldStrikeKind kind, long massLost)
     {
@@ -765,6 +808,7 @@ public class GameStateService : IGameStateService
         LifeOf(killer).Kills++;
         StatsOf(killer)?.Killed();
         CreditFoods(gameState, killer, _perkRules.KillFoodsCredit);
+        PayBounty(gameState, killer, victim);
         _scriptedEffects.TryRemove(killer.Guid, out _);
         if (!_perkRules.HasScripts(killer.FoodsEaten, gameState.Room, GrantedOf(killer))) return;
         var rewards = _perkRules.RewardsForKilling(

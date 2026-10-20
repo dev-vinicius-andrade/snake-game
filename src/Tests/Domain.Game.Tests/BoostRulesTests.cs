@@ -113,4 +113,22 @@ public sealed class BoostRulesTests
         Assert.Equal(1, later.MassSpent);
         Assert.Equal(0, later.BoostTicks);
     }
+
+    [Fact]
+    public void Step_Free_NeverSpendsMassAndNeedsNone()
+    {
+        var withMass = _rules.Step(true, 2, 10, free: true);
+        var withoutMass = _rules.Step(true, 0, 0, free: true);
+
+        Assert.Equal((true, 0L, 2.0), (withMass.Active, withMass.MassSpent, withMass.SpeedMultiplier));
+        Assert.Equal((true, 0L, 2.0), (withoutMass.Active, withoutMass.MassSpent, withoutMass.SpeedMultiplier));
+    }
+
+    [Fact]
+    public void Step_FreeButNotRequested_IsInactive()
+    {
+        var result = _rules.Step(false, 2, 10, free: true);
+
+        Assert.False(result.Active);
+    }
 }

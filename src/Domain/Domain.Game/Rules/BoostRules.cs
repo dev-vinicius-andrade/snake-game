@@ -19,14 +19,16 @@ public sealed class BoostRules
     /// <param name="mass">Current mass; at least 1 is needed to boost.</param>
     /// <param name="speedBonus">Added to the boost speed factor, from perks.</param>
     /// <param name="boostLengthFactor">How many times longer one mass lasts, from perks.</param>
-    public BoostResult Step(bool requested, int boostTicks, long mass, double speedBonus = 0, double boostLengthFactor = 1.0)
+    /// <param name="free">Boosting costs nothing and needs no mass (a sugar rush).</param>
+    public BoostResult Step(bool requested, int boostTicks, long mass, double speedBonus = 0, double boostLengthFactor = 1.0, bool free = false)
     {
         if (boostTicks < 0) throw new ArgumentOutOfRangeException(nameof(boostTicks), boostTicks, "Must not be negative.");
-        if (!requested || mass < 1) return new BoostResult(false, 0, 0, 1.0);
+        if (!requested || (!free && mass < 1)) return new BoostResult(false, 0, 0, 1.0);
 
         var ticks = boostTicks + 1;
         var ticksPerMass = (int)Math.Ceiling(_options.BoostTicksPerMass * Math.Max(1.0, boostLengthFactor));
         var speed = _options.BoostSpeedMultiplier + Math.Max(0, speedBonus);
+        if (free) return new BoostResult(true, 0, 0, speed);
         return ticks >= ticksPerMass
             ? new BoostResult(true, 0, 1, speed)
             : new BoostResult(true, ticks, 0, speed);

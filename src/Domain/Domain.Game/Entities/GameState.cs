@@ -26,6 +26,14 @@ internal record GameState:IGameState
     [JsonIgnore]
     public ConcurrentDictionary<Guid, WorldStrike> Strikes { get; } = new();
     [JsonIgnore]
+    public ConcurrentDictionary<Guid, WorldMine> Mines { get; } = new();
+    [JsonIgnore]
+    public WorldBounty? Bounty { get; set; }
+    [JsonIgnore]
+    public DateTimeOffset? FruitShowerEndsAt { get; set; }
+    [JsonIgnore]
+    public DateTimeOffset? SugarRushEndsAt { get; set; }
+    [JsonIgnore]
     public WorldBoss? Boss { get; set; }
     [JsonIgnore]
     public WorldZone? Zone { get; set; }

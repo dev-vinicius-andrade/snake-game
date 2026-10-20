@@ -14,7 +14,7 @@ using Color = Domain.Game.Entities.Color;
 namespace Domain.Game.Tests;
 
 /// <summary>Wiring of the pure rules inside <see cref="GameStateService"/>: real rules, real entities, faked collaborators.</summary>
-public sealed class GameStateServiceTests
+public sealed partial class GameStateServiceTests
 {
     private const int HeadSize = 15;
     private const int InitialLength = 6;
