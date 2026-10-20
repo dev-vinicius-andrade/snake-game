@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using Application.Manager.Api.Accounts.OAuth;
+using Application.Manager.Api.Persistence;
 
 namespace Application.Manager.Api.Accounts;
 
@@ -21,8 +22,12 @@ public static class AccountsServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
         services.TryAddSingleton(TimeProvider.System);
-        services.AddSingleton<IAccountStore>(provider =>
-            new FileAccountStore(configuration[StorePathKey], provider.GetService<ILoggerFactory>()?.CreateLogger<FileAccountStore>()));
+        services.AddDatabase(configuration);
+        if (configuration.HasDatabase())
+            services.AddSingleton<IAccountStore, EfAccountStore>();
+        else
+            services.AddSingleton<IAccountStore>(provider =>
+                new FileAccountStore(configuration[StorePathKey], provider.GetService<ILoggerFactory>()?.CreateLogger<FileAccountStore>()));
         services.AddSingleton<IWordFilter>(SimpleWordFilter.Default);
         services.AddSingleton(_ => new RecoveryPhrase());
         services.AddSingleton(_ => new SecretHasher());
@@ -44,8 +49,11 @@ public static class AccountsServiceCollectionExtensions
             provider.GetRequiredService<AccountService>(),
             provider.GetRequiredService<TimeProvider>(),
             provider.GetService<ILogger<OAuthService>>()));
-        services.AddSingleton<IStatsStore>(provider =>
-            new FileStatsStore(configuration[StatsPathKey], provider.GetService<ILoggerFactory>()?.CreateLogger<FileStatsStore>()));
+        if (configuration.HasDatabase())
+            services.AddSingleton<IStatsStore, EfStatsStore>();
+        else
+            services.AddSingleton<IStatsStore>(provider =>
+                new FileStatsStore(configuration[StatsPathKey], provider.GetService<ILoggerFactory>()?.CreateLogger<FileStatsStore>()));
         services.AddSingleton(provider => new AchievementService(
             provider.GetRequiredService<IAccountStore>(),
             provider.GetRequiredService<IStatsStore>(),
