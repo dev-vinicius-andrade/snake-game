@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Enums;
 
 namespace Library.Commons.Game.Domain.Interfaces.Entities;
@@ -34,6 +35,24 @@ public interface IPlayer : IId, ITrackableId
     /// <summary>Ids of perks the snake was given, for example by a prize, whatever the foods it has eaten. Lost with the snake.</summary>
     [JsonIgnore]
     IList<string> GrantedPerks { get; set; }
+    /// <summary>Tiers a reward lifted each perk by, beyond its foods. Lost with the snake.</summary>
+    [JsonIgnore]
+    IDictionary<string, int> TierSurges { get; set; }
+    /// <summary>Lives rewards gave, on top of the ones perks give.</summary>
+    [JsonIgnore]
+    int BonusLives { get; set; }
+    /// <summary>Lives already used up in this life, to be saved from dying.</summary>
+    [JsonIgnore]
+    int LivesUsed { get; set; }
+    /// <summary>Nothing can hurt the snake until this moment (after a life saved it). Null: not protected.</summary>
+    [JsonIgnore]
+    DateTimeOffset? ProtectedUntil { get; set; }
+    /// <summary>For each cooldown perk (by id): when it can be used again and until when it is on.</summary>
+    [JsonIgnore]
+    IDictionary<string, AbilityTimer> Abilities { get; set; }
+    /// <summary>True when the player asked for cooldown perks to be used by themselves (for the eye controls, which have no spare gesture).</summary>
+    [JsonIgnore]
+    bool AutoAbilities { get; set; }
     /// <summary>True when a perk lets the snake keep shooting while the shoot control is held.</summary>
     bool AutoFire { get; set; }
     /// <summary>Shots of a burst still to fire.</summary>

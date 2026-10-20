@@ -1,3 +1,4 @@
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 
 namespace Domain.Game.Rules;
@@ -7,6 +8,12 @@ public sealed record PerkEffectEntry
 {
     public PerkEffect Effect { get; init; }
     public double Amount { get; init; }
+
+    /// <summary>
+    /// For <see cref="PerkEffect.EventResistance"/>: the one world event it is about (<c>lightning</c>, <c>meteors</c>, <c>mines</c> or
+    /// <c>zone</c>). Empty: all of them.
+    /// </summary>
+    public string? Target { get; init; }
 }
 
 /// <summary>
@@ -38,6 +45,15 @@ public sealed record PerkDefinition
     /// <summary>The tiers of the perk with the first one, the perk itself, put in front, from the lowest to the highest.</summary>
     public IReadOnlyList<PerkTier> TiersInOrder()
         => [new PerkTier { FoodsRequired = FoodsRequired, Multiplier = 1 }, .. Tiers.OrderBy(tier => tier.FoodsRequired)];
+
+    /// <summary>
+    /// Seconds a cooldown ability of the perk (shield burst, dash, heal pulse, vacuum burst) takes to be ready again, counted from when it
+    /// was used. Needed when the perk has one; 0 for any other perk.
+    /// </summary>
+    public int CooldownSeconds { get; init; }
+
+    /// <summary>Seconds a shield burst, dash or vacuum burst of the perk lasts once used. A heal pulse is instant.</summary>
+    public int DurationSeconds { get; init; }
 
     /// <summary>Everything the perk does. Several effects can be combined in one perk.</summary>
     public List<PerkEffectEntry> Effects { get; init; } = [];
@@ -97,6 +113,12 @@ public sealed record PerkOptions
     /// <summary>How many foods killing another snake counts for toward perks and their tiers.</summary>
     public int KillFoodsCredit { get; init; } = 3;
 
+    /// <summary>Share (0..1) of its mass a snake keeps when an extra life saves it.</summary>
+    public double ExtraLifeKeepShare { get; init; } = 0.5;
+
+    /// <summary>Seconds a snake that an extra life saved cannot be hurt.</summary>
+    public int ExtraLifeProtectSeconds { get; init; } = 3;
+
     /// <summary>Left empty, the built-in perks are used. Configuration lists add to a default list, so none is preset here.</summary>
     public List<PerkDefinition> Perks { get; init; } = [];
 
@@ -118,7 +140,15 @@ public sealed record PerkOptions
         new() { Id = "auto-fire", Name = "Auto fire", FoodsRequired = 45, Effect = PerkEffect.AutoFire, Amount = 1 },
         new() { Id = "triple-shot", Name = "Triple shot", FoodsRequired = 50, Effect = PerkEffect.ExtraShots, Amount = 1 },
         new() { Id = "piercing-shot", Name = "Piercing shot", FoodsRequired = 60, Effect = PerkEffect.PiercingShot, Amount = 1 },
-        new() { Id = "turbo", Name = "Turbo", FoodsRequired = 70, Effect = PerkEffect.BoostSpeed, Amount = 0.3, Tiers = BuiltInTiers(70) }
+        new() { Id = "turbo", Name = "Turbo", FoodsRequired = 70, Effect = PerkEffect.BoostSpeed, Amount = 0.3, Tiers = BuiltInTiers(70) },
+        new() { Id = "dash", Name = "Dash", FoodsRequired = 18, Effect = PerkEffect.Dash, Amount = 0.8, CooldownSeconds = 15, DurationSeconds = 2, Tiers = BuiltInTiers(18) },
+        new() { Id = "steady-aim", Name = "Steady aim", FoodsRequired = 22, Effect = PerkEffect.Precision, Amount = 0.4, Tiers = BuiltInTiers(22) },
+        new() { Id = "stormproof", Name = "Stormproof", FoodsRequired = 28, Effect = PerkEffect.EventResistance, Amount = 0.3, Tiers = BuiltInTiers(28) },
+        new() { Id = "shield-burst", Name = "Shield burst", FoodsRequired = 33, Effect = PerkEffect.ShieldBurst, Amount = 1, CooldownSeconds = 40, DurationSeconds = 3 },
+        new() { Id = "heal-pulse", Name = "Heal pulse", FoodsRequired = 38, Effect = PerkEffect.HealPulse, Amount = 60, CooldownSeconds = 25, Tiers = BuiltInTiers(38) },
+        new() { Id = "vacuum", Name = "Vacuum", FoodsRequired = 42, Effect = PerkEffect.VacuumBurst, Amount = 220, CooldownSeconds = 30, DurationSeconds = 4, Tiers = BuiltInTiers(42) },
+        new() { Id = "second-chance", Name = "Second chance", FoodsRequired = 55, Effect = PerkEffect.ExtraLife, Amount = 1 },
+        new() { Id = "plunder", Name = "Plunder", FoodsRequired = 65, Effect = PerkEffect.Plunder, Amount = 0.15, Tiers = BuiltInTiers(65) }
     ];
 }
 
@@ -148,6 +178,9 @@ public sealed record PrizeDefinition
 
     /// <summary>The id of a perk the snake that eats it gets, whatever the foods it has eaten. Empty: none.</summary>
     public string? GrantsPerk { get; init; }
+
+    /// <summary>What else it gives: a random perk, extra lives, a tier surge, mass, a mend. Off by default.</summary>
+    public PerkReward Reward { get; init; } = new();
 
     /// <summary>How it looks: six hex digits such as #ffd23f.</summary>
     public string Color { get; init; } = "#ffd23f";

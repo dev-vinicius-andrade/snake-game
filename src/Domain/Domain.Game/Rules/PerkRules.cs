@@ -28,9 +28,32 @@ public readonly record struct PerkEffects
     public bool Invulnerable { get; init; }
     /// <summary>True while shooting costs no mass.</summary>
     public bool FreeShots { get; init; }
+    /// <summary>Share of the angle between the shots of a volley that is left, 1 without precision.</summary>
+    public double SpreadFactor { get; init; } = 1.0;
+    /// <summary>Times the snake is saved from dying.</summary>
+    public int ExtraLives { get; init; }
+    /// <summary>Share of the mass of a snake it kills that the snake takes at once.</summary>
+    public double PlunderShare { get; init; }
+    public double LightningResistance { get; init; }
+    public double MeteorResistance { get; init; }
+    public double MineResistance { get; init; }
+    public double ZoneResistance { get; init; }
 
     public PerkEffects() { }
+
+    /// <summary>Share (0..1) of the mass an event would take that the snake is spared: <c>lightning</c>, <c>meteors</c>, <c>mines</c> or <c>zone</c>.</summary>
+    public double ResistanceTo(string kind) => kind switch
+    {
+        PerkRules.Lightning => LightningResistance,
+        PerkRules.Meteors => MeteorResistance,
+        PerkRules.Mines => MineResistance,
+        PerkRules.Zone => ZoneResistance,
+        _ => 0
+    };
 }
+
+/// <summary>A cooldown ability a snake has: what it does, how strongly, how long it lasts and how long it takes to recharge.</summary>
+public sealed record AbilitySpec(string PerkId, PerkEffect Effect, double Amount, int CooldownMilliseconds, int DurationMilliseconds);
 
 /// <summary>Which perks a snake has for the foods it ate, and what they do.</summary>
 public sealed class PerkRules
@@ -38,6 +61,19 @@ public sealed class PerkRules
     public const int MaxDescriptionLength = 200;
 
     private static readonly System.Text.RegularExpressions.Regex IconName = new(@"^(mdi-[a-z0-9]+(-[a-z0-9]+)*|game-icons:[a-z0-9]+(-[a-z0-9]+)*)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    public const string Lightning = "lightning";
+    public const string Meteors = "meteors";
+    public const string Mines = "mines";
+    public const string Zone = "zone";
+
+    /// <summary>The world events a resistance can be limited to.</summary>
+    public static IReadOnlyList<string> EventKinds { get; } = [Lightning, Meteors, Mines, Zone];
+
+    /// <summary>The tightest a volley can be made: precision never folds the fan into one line.</summary>
+    private const double MinSpreadFactor = 0.1;
+
+    private const int MaxExtraLives = 5;
 
     private const double MinReloadFactor = 0.2;
     private const double MinDamageFactor = 0.2;
@@ -68,6 +104,12 @@ public sealed class PerkRules
     /// <summary>How many foods killing another snake counts for toward perks and their tiers.</summary>
     public int KillFoodsCredit => _settings.Options.KillFoodsCredit;
 
+    /// <summary>Share of its mass a snake keeps when an extra life saves it.</summary>
+    public double ExtraLifeKeepShare => _settings.Options.ExtraLifeKeepShare;
+
+    /// <summary>Seconds a snake that an extra life saved cannot be hurt.</summary>
+    public int ExtraLifeProtectSeconds => _settings.Options.ExtraLifeProtectSeconds;
+
     private static Settings Build(PerkOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -75,6 +117,10 @@ public sealed class PerkRules
             throw new ArgumentOutOfRangeException(nameof(options), options.ShotSpreadDegrees, "Shot spread must be in (0, 90).");
         if (options.KillFoodsCredit is < 0 or > 1000)
             throw new ArgumentOutOfRangeException(nameof(options), options.KillFoodsCredit, "The credit for a kill must be 0 to 1000 foods.");
+        if (options.ExtraLifeKeepShare is < 0 or > 1)
+            throw new ArgumentOutOfRangeException(nameof(options), options.ExtraLifeKeepShare, "The share of mass an extra life keeps must be 0 to 1.");
+        if (options.ExtraLifeProtectSeconds is < 0 or > 60)
+            throw new ArgumentOutOfRangeException(nameof(options), options.ExtraLifeProtectSeconds, "The protection after an extra life must be 0 to 60 seconds.");
         if (options.BurstIntervalMilliseconds < 1)
             throw new ArgumentOutOfRangeException(nameof(options), options.BurstIntervalMilliseconds, "Burst interval must be at least 1 ms.");
         var perks = Validated(options.Perks.Count == 0 ? PerkOptions.BuiltIn : options.Perks)
@@ -187,20 +233,55 @@ public sealed class PerkRules
         => Unlocked(foodsEaten, room, granted).Select(perk => perk.Id).ToArray();
 
     /// <summary>The tier each perk a snake has is at, 1 for the first, in the order of <see cref="UnlockedIds"/>.</summary>
-    public IReadOnlyList<int> TiersFor(int foodsEaten, IRoom? room = null, IReadOnlyCollection<string>? granted = null)
-        => Unlocked(foodsEaten, room, granted).Select(perk => TierOf(perk, foodsEaten).Number).ToArray();
+    public IReadOnlyList<int> TiersFor(int foodsEaten, IRoom? room = null, IReadOnlyCollection<string>? granted = null, IReadOnlyDictionary<string, int>? surges = null)
+        => Unlocked(foodsEaten, room, granted).Select(perk => TierOf(perk, foodsEaten, SurgeOf(surges, perk)).Number).ToArray();
 
-    /// <summary>The tier a perk is at for these foods, and what it multiplies its amounts by. A perk that was given is at least at the first.</summary>
-    private static (int Number, double Multiplier) TierOf(PerkDefinition perk, int foodsEaten)
+    private static int SurgeOf(IReadOnlyDictionary<string, int>? surges, PerkDefinition perk)
+        => surges is not null && surges.TryGetValue(perk.Id, out var surge) ? Math.Max(0, surge) : 0;
+
+    /// <summary>
+    /// The tier a perk is at, and what it multiplies its amounts by. The rule for surges: the tier is the one the foods give (the first for
+    /// a perk that was given with few foods) plus the tiers a reward added, but never past the last tier of the perk. So a surge is not lost
+    /// as foods go up, and a perk at its last tier is not lifted further.
+    /// </summary>
+    private static (int Number, double Multiplier) TierOf(PerkDefinition perk, int foodsEaten, int surge = 0)
     {
-        var reached = perk.TiersInOrder().Where(tier => tier.FoodsRequired <= foodsEaten).ToArray();
-        return reached.Length == 0 ? (1, 1) : (reached.Length, reached[^1].Multiplier);
+        var tiers = perk.TiersInOrder();
+        var reached = Math.Max(1, tiers.Count(tier => tier.FoodsRequired <= foodsEaten));
+        var number = Math.Min(tiers.Count, reached + Math.Max(0, surge));
+        return (number, tiers[number - 1].Multiplier);
     }
 
-    /// <summary>What the perks a snake has do, in the room it plays in.</summary>
-    public PerkEffects EffectsFor(int foodsEaten, IRoom? room = null, IReadOnlyCollection<string>? granted = null)
+    /// <summary>The perks a snake has that a tier surge can still lift: those with a tier above the one they are at.</summary>
+    public IReadOnlyList<string> SurgeCandidates(int foodsEaten, IRoom? room = null, IReadOnlyCollection<string>? granted = null, IReadOnlyDictionary<string, int>? surges = null)
+        => Unlocked(foodsEaten, room, granted)
+            .Where(perk => TierOf(perk, foodsEaten, SurgeOf(surges, perk)).Number < perk.TiersInOrder().Count)
+            .Select(perk => perk.Id).ToArray();
+
+    /// <summary>The most tiers the perk has, 0 for a perk that does not exist.</summary>
+    public int TierCountOf(string perkId) => _settings.Perks.FirstOrDefault(perk => perk.Id == perkId)?.TiersInOrder().Count ?? 0;
+
+    /// <summary>Perks the snake does not have that work in this room and are on: what a random perk reward can give.</summary>
+    public IReadOnlyList<string> UnownedPerkIds(int foodsEaten, IRoom? room = null, IReadOnlyCollection<string>? granted = null)
     {
-        var unlocked = Entries(Unlocked(foodsEaten, room, granted), foodsEaten);
+        var settings = _settings;
+        if (!settings.Enabled || room.GameplayOf().PerksOff) return [];
+        var owned = UnlockedIds(foodsEaten, room, granted).ToHashSet();
+        return settings.Perks.Where(perk => perk.AppliesTo(room) && !owned.Contains(perk.Id)).Select(perk => perk.Id).ToArray();
+    }
+
+    /// <summary>The cooldown abilities of the perks a snake has, each at the strength its tier gives.</summary>
+    public IReadOnlyList<AbilitySpec> AbilitiesFor(int foodsEaten, IRoom? room = null, IReadOnlyCollection<string>? granted = null, IReadOnlyDictionary<string, int>? surges = null)
+        => Unlocked(foodsEaten, room, granted)
+            .SelectMany(perk => Scaled(perk, TierOf(perk, foodsEaten, SurgeOf(surges, perk)).Multiplier)
+                .Where(entry => entry.Effect.IsAbility())
+                .Select(entry => new AbilitySpec(perk.Id, entry.Effect, entry.Amount, perk.CooldownSeconds * 1000, perk.DurationSeconds * 1000)))
+            .ToArray();
+
+    /// <summary>What the perks a snake has do, in the room it plays in.</summary>
+    public PerkEffects EffectsFor(int foodsEaten, IRoom? room = null, IReadOnlyCollection<string>? granted = null, IReadOnlyDictionary<string, int>? surges = null)
+    {
+        var unlocked = Entries(Unlocked(foodsEaten, room, granted), foodsEaten, surges);
         if (unlocked.Length == 0) return PerkEffects.None;
         return new PerkEffects
         {
@@ -214,15 +295,28 @@ public sealed class PerkRules
             Piercing = Has(unlocked, PerkEffect.PiercingShot),
             DamageFactor = Math.Max(MinDamageFactor, Product(unlocked, PerkEffect.Armor)),
             RegenPerSecond = Sum(unlocked, PerkEffect.Regeneration),
-            MagnetRadius = Sum(unlocked, PerkEffect.Magnet)
+            MagnetRadius = Sum(unlocked, PerkEffect.Magnet),
+            SpreadFactor = Math.Max(MinSpreadFactor, Product(unlocked, PerkEffect.Precision)),
+            ExtraLives = Math.Min(MaxExtraLives, (int)Math.Round(Sum(unlocked, PerkEffect.ExtraLife))),
+            PlunderShare = Sum(unlocked, PerkEffect.Plunder),
+            LightningResistance = Resistance(unlocked, Lightning),
+            MeteorResistance = Resistance(unlocked, Meteors),
+            MineResistance = Resistance(unlocked, Mines),
+            ZoneResistance = Resistance(unlocked, Zone)
         };
     }
 
+    /// <summary>What is spared of an event: shares of what is left, like armor, from the entries that are for all events or for this one.</summary>
+    private static double Resistance(IEnumerable<PerkEffectEntry> entries, string kind)
+        => 1 - entries
+            .Where(entry => entry.Effect == PerkEffect.EventResistance && (string.IsNullOrWhiteSpace(entry.Target) || entry.Target == kind))
+            .Aggregate(1.0, (left, entry) => left * (1 - entry.Amount));
+
     /// <summary>Angles (radians) to add to the aim for each shot of a volley of <paramref name="shots"/>, centred on the aim.</summary>
-    public IEnumerable<double> ShotOffsets(int shots)
+    public IEnumerable<double> ShotOffsets(int shots, double spreadFactor = 1)
     {
         if (shots < 1) throw new ArgumentOutOfRangeException(nameof(shots), shots, "Must be at least 1.");
-        var spread = _settings.SpreadRadians;
+        var spread = _settings.SpreadRadians * spreadFactor;
         return Enumerable.Range(0, shots).Select(index => (index - (shots - 1) / 2.0) * spread);
     }
 
@@ -239,16 +333,17 @@ public sealed class PerkRules
     private const double MaxScaledRatio = 0.95;
 
     /// <summary>The effects of the perks, each scaled by the tier its perk is at. Switches have no strength to scale.</summary>
-    private static PerkEffectEntry[] Entries(IEnumerable<PerkDefinition> perks, int foodsEaten)
-        => perks.SelectMany(perk => Scaled(perk, TierOf(perk, foodsEaten).Multiplier)).ToArray();
+    private static PerkEffectEntry[] Entries(IEnumerable<PerkDefinition> perks, int foodsEaten, IReadOnlyDictionary<string, int>? surges = null)
+        => perks.SelectMany(perk => Scaled(perk, TierOf(perk, foodsEaten, SurgeOf(surges, perk)).Multiplier)).ToArray();
 
     private static IEnumerable<PerkEffectEntry> Scaled(PerkDefinition perk, double multiplier)
     {
         if (multiplier == 1) return perk.AllEffects();
         return perk.AllEffects().Select(entry => entry.Effect switch
         {
-            PerkEffect.AutoFire or PerkEffect.PiercingShot => entry,
-            PerkEffect.FasterReload or PerkEffect.EfficientBoost or PerkEffect.Armor => entry with { Amount = Math.Min(MaxScaledRatio, entry.Amount * multiplier) },
+            var effect when effect.IsSwitch() => entry,
+            var effect when effect.IsRatio() => entry with { Amount = Math.Min(MaxScaledRatio, entry.Amount * multiplier) },
+            PerkEffect.ExtraLife => entry with { Amount = Math.Min(MaxExtraLives, Math.Round(entry.Amount * multiplier)) },
             _ => entry with { Amount = entry.Amount * multiplier }
         });
     }
@@ -285,6 +380,7 @@ public sealed class PerkRules
         if (effects.Count == 0 && !perk.HasScript)
             throw new ArgumentException($"Perk '{perk.Id}' needs at least one effect, or a script.", nameof(perk));
         foreach (var entry in effects) EnsureValid(perk, entry);
+        EnsureValidAbilities(perk, effects);
         EnsureValidTiers(perk);
         if (perk.Rooms.Concat(perk.ExcludedRooms).Any(string.IsNullOrWhiteSpace))
             throw new ArgumentException($"Perk '{perk.Id}' has a blank room.", nameof(perk));
@@ -313,8 +409,23 @@ public sealed class PerkRules
     {
         if (entry.Amount <= 0)
             throw new ArgumentOutOfRangeException(nameof(perk), entry.Amount, $"Perk '{perk.Id}' needs an amount above zero.");
-        var isRatio = entry.Effect is PerkEffect.FasterReload or PerkEffect.EfficientBoost or PerkEffect.Armor;
-        if (isRatio && entry.Amount >= 1)
+        if (entry.Effect.IsRatio() && entry.Amount >= 1)
             throw new ArgumentOutOfRangeException(nameof(perk), entry.Amount, $"Perk '{perk.Id}' needs an amount below 1.");
+        if (entry.Effect == PerkEffect.ExtraLife && entry.Amount > MaxExtraLives)
+            throw new ArgumentOutOfRangeException(nameof(perk), entry.Amount, $"Perk '{perk.Id}': an extra life perk gives at most {MaxExtraLives} lives.");
+        if (!string.IsNullOrWhiteSpace(entry.Target) && (entry.Effect != PerkEffect.EventResistance || !EventKinds.Contains(entry.Target)))
+            throw new ArgumentException($"Perk '{perk.Id}': a target is only for event resistance, and is one of {string.Join(", ", EventKinds)}.", nameof(perk));
+    }
+
+    private static void EnsureValidAbilities(PerkDefinition perk, IReadOnlyList<PerkEffectEntry> effects)
+    {
+        if (perk.CooldownSeconds is < 0 or > 3600 || perk.DurationSeconds is < 0 or > 600)
+            throw new ArgumentOutOfRangeException(nameof(perk), perk.CooldownSeconds, $"Perk '{perk.Id}': the cooldown is 0 to 3600 seconds and the duration 0 to 600.");
+        var abilities = effects.Where(entry => entry.Effect.IsAbility()).ToArray();
+        if (abilities.Length == 0) return;
+        if (perk.CooldownSeconds < 1)
+            throw new ArgumentException($"Perk '{perk.Id}' has a cooldown ability and needs a cooldown of at least 1 second.", nameof(perk));
+        if (perk.DurationSeconds < 1 && abilities.Any(entry => entry.Effect != PerkEffect.HealPulse))
+            throw new ArgumentException($"Perk '{perk.Id}': a shield burst, dash or vacuum burst needs a duration of at least 1 second.", nameof(perk));
     }
 }

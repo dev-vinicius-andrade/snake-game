@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Enums;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 
@@ -25,6 +26,18 @@ internal record Player(Guid Guid, string Name) : IPlayer
     public IList<int> PerkTiers { get; set; } = new List<int>();
     [JsonIgnore]
     public IList<string> GrantedPerks { get; set; } = new List<string>();
+    [JsonIgnore]
+    public IDictionary<string, int> TierSurges { get; set; } = new Dictionary<string, int>();
+    [JsonIgnore]
+    public int BonusLives { get; set; }
+    [JsonIgnore]
+    public int LivesUsed { get; set; }
+    [JsonIgnore]
+    public DateTimeOffset? ProtectedUntil { get; set; }
+    [JsonIgnore]
+    public IDictionary<string, AbilityTimer> Abilities { get; set; } = new Dictionary<string, AbilityTimer>();
+    [JsonIgnore]
+    public bool AutoAbilities { get; set; }
     public bool AutoFire { get; set; }
     [JsonIgnore]
     public int BurstRemaining { get; set; }
