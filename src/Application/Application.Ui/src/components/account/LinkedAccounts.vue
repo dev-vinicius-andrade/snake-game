@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { getText } from "@/helpers";
 import type { SocialProvider } from "@/composables/useAccount";
-import { providerIcon } from "@/game/socialLogin";
+import ProviderLogo from "./ProviderLogo.vue";
 import SocialLoginButton from "./SocialLoginButton.vue";
 
 /** The social accounts of a signed in player: which are linked, and a button for each one that can still be. Presses are the page's to act on. */
@@ -19,7 +19,7 @@ const rows = computed(() => props.providers.map((provider) => ({ ...provider, is
     <div class="list">
       <template v-for="row in rows" :key="row.id">
         <div v-if="row.isLinked" class="done" :data-test="`linked-${row.id}`">
-          <VIcon size="20" aria-hidden="true">{{ providerIcon(row.id) }}</VIcon>
+          <ProviderLogo :id="row.id" />
           <span>{{ getText({ key: "account.linkedWith", params: { provider: row.title } }) }}</span>
         </div>
         <SocialLoginButton

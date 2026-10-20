@@ -24,6 +24,11 @@ const ICONS: Readonly<Record<string, string>> = { github: "mdi-github", discord:
 
 export const providerIcon = (id: string): string => ICONS[id] ?? "mdi-account-circle";
 
+/** How a provider's logo is drawn: its own picture (the icon font has no Discord mark, and cannot have Google's colours), or an icon of the font. */
+export type LogoKind = "google" | "discord" | "font";
+
+export const logoKind = (id: string): LogoKind => (id === "google" || id === "discord" ? id : "font");
+
 /** How a provider's button looks: the colours of the provider's own brand, so a player knows at a glance which account it is. */
 export interface ProviderLook {
   background: string;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import en from "@/locales/messages/en";
 import pt from "@/locales/messages/pt";
-import { contrastRatio, OAUTH_ERRORS, providerIcon, providerLook, readOAuthOutcome } from "./socialLogin";
+import { contrastRatio, logoKind, OAUTH_ERRORS, providerIcon, providerLook, readOAuthOutcome } from "./socialLogin";
 
 describe("readOAuthOutcome", () => {
   it("reads the ticket the manager sent the browser back with", () => {
@@ -38,6 +38,18 @@ describe("providerIcon", () => {
   it("has an icon for each provider the manager knows, and a generic one for another", () => {
     for (const id of ["github", "discord", "google", "steam"]) expect(providerIcon(id)).toMatch(/^mdi-/);
     expect(providerIcon("somethingnew")).toBe("mdi-account-circle");
+  });
+});
+
+describe("logoKind", () => {
+  it("draws Google's four colours and Discord's mark itself, since the icon font cannot, and uses the font for the others", () => {
+    expect(logoKind("google")).toBe("google");
+    expect(logoKind("discord")).toBe("discord");
+    for (const id of ["github", "steam", "somethingnew"]) expect(logoKind(id)).toBe("font");
+  });
+
+  it("only sends providers the font really has to the font", () => {
+    for (const id of ["github", "steam"]) expect(providerIcon(id)).toMatch(/^mdi-(github|steam)$/);
   });
 });
 

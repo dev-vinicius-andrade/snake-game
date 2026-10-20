@@ -119,6 +119,10 @@ async function link(provider: string) {
   }
 }
 
+/** A short message that says a change went through; the page was easy to leave wondering. */
+const toast = ref({ open: false, text: "" });
+const notify = (text: string) => (toast.value = { open: true, text });
+
 const handleSaved = ref(false);
 const handleProblem = ref("");
 const handleBusy = ref(false);
@@ -130,6 +134,7 @@ async function saveHandle(username: string, tag: number | undefined) {
   try {
     await accounts.changeHandle(username, tag);
     handleSaved.value = true;
+    notify(getText({ key: "account.handleSaved" }));
   } catch (failure) {
     if (!(failure instanceof AccountError)) throw failure;
     handleProblem.value = getText({ key: failure.code === "throttled" ? "account.errors.throttledNow" : `account.errors.${failure.code}` });
@@ -147,6 +152,7 @@ async function saveDisplayName() {
   try {
     await accounts.changeDisplayName(newDisplayName.value);
     displayNameSaved.value = true;
+    notify(getText({ key: "account.displayNameSaved" }));
   } catch (failure) {
     if (!(failure instanceof AccountError)) throw failure;
     displayNameProblem.value = getText({ key: `account.errors.${failure.code}` });
@@ -355,7 +361,8 @@ onBeforeUnmount(() => clearTimeout(availabilityTimer));
         </VCardActions>
       </VCard>
     </VCol>
-  </VRow>
+    <VSnackbar v-model="toast.open" color="success" :timeout="4000" location="bottom" data-test="toast">{{ toast.text }}</VSnackbar>
+</VRow>
 </template>
 
 <style scoped>
