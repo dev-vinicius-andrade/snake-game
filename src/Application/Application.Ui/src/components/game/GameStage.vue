@@ -6,6 +6,7 @@ import { onDetectTiming } from "@/input/gaze/detectTimings";
 import { FramePerf } from "@/render/framePerf";
 import { useCanvasRenderer } from "@/composables/useCanvasRenderer";
 import { followCamera, viewLayout, type Camera } from "@/render/camera";
+import { MineTracker } from "@/render/mines";
 import { StrikeTracker } from "@/render/strikes";
 import { DEFAULT_HEAD_SIZE } from "@/render/pixelRenderer";
 import { CameraSmoother } from "@/render/cameraSmoothing";
@@ -74,6 +75,8 @@ onBeforeUnmount(() => {
 });
 /** Lightning warnings are shown as they arrive, not a moment in the past: the countdown is the server's, not the snakes' motion. */
 const strikeTracker = new StrikeTracker();
+/** Mines too: a mine that is gone from the newest snapshot blows up at once. */
+const mineTracker = new MineTracker();
 watch(
   () => props.snapshot,
   (snapshot) => {
@@ -84,9 +87,11 @@ watch(
         snapshot.snakes.reduce((total, snake) => total + snake.path.length, 0)
       );
       strikeTracker.observeFrame(snapshot, performance.now());
+      mineTracker.observe(snapshot.mines ?? [], performance.now());
     } else {
       buffer.clear();
       strikeTracker.clear();
+      mineTracker.clear();
     }
   },
   { immediate: true }
@@ -145,6 +150,7 @@ useCanvasRenderer(
       timeMs: performance.now(),
       damage: props.damage,
       strikes: strikeTracker.view(performance.now()),
+      mines: mineTracker.view(performance.now()),
       origin: frame?.camera?.origin,
       view: frame?.camera?.view,
     },

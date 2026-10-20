@@ -1,6 +1,8 @@
 import type { BossSnapshot, ZoneSnapshot, FloatingDamage, FoodSnapshot, GamePoint, GameSnapshot, RoomDimensions, ShotSnapshot, SnakeSnapshot } from "@/types/game";
 import { GLYPH_HEIGHT, GLYPH_WIDTH, damageColor as damageNumberColor, damageLabel, damagePosition, glyphFor, isVisible } from "./damageNumbers";
 import { armPixels, hpBarPixels } from "./boss";
+import { wantedSnake } from "./bounty";
+import { isMineNear, type MineBlast, type MineMark, type MineView } from "./mines";
 import { discPoints, discRows, ringPoints, splashParticles, type StrikeRing, type StrikeFlash, type StrikeSplash, type StrikeView } from "./strikes";
 import { DAMAGE_COLOR, contrastColor, headColor, lightenColor, segmentColor, shadeColor } from "./segmentColor";
 
@@ -37,6 +39,8 @@ export interface RenderOptions {
   damage?: FloatingDamage[];
   /** Lightning warnings and flashes. The warning is drawn under the snakes, the flash over everything. */
   strikes?: StrikeView;
+  /** Mines and the blasts of those that went off. The mines are drawn under the snakes, the blasts over everything. */
+  mines?: MineView;
 }
 
 const BACKGROUND = "#16161d";
@@ -336,6 +340,85 @@ function drawBoss(painter: Painter, boss: BossSnapshot, pixelSize: number) {
   }
 }
 
+export const MINE_BODY_COLOR = "#2e3140";
+export const MINE_SPIKE_COLOR = "#8a8f9e";
+export const MINE_ARMED_LIGHT_COLOR = "#ff3b3b";
+export const MINE_ARMED_LIGHT_OFF_COLOR = "#5a1010";
+export const MINE_DIM_BODY_COLOR = "#24262f";
+const MINE_DIM_SPIKE_COLOR = "#4a4e5c";
+export const MINE_ARMING_LIGHT_COLOR = "#b0b4c0";
+export const MINE_ARMING_LIGHT_OFF_COLOR = "#3a3d48";
+export const MINE_RING_COLOR = "#4a2630";
+export const MINE_RING_NEAR_COLOR = "#ff4d4d";
+export const MINE_BLAST_COLOR = "#fff1c1";
+const MINE_AFTERGLOW_COLOR = "#ff6a2f";
+/** An armed mine's light is on for this long, then off as long; one that is arming blinks faster. */
+const MINE_ARMED_BLINK_MS = 400;
+const MINE_ARMING_BLINK_MS = 150;
+/** A naval mine, 5 by 5 pixels: `s` a spike, `b` the body, `l` the light in the middle. */
+const MINE_SPRITE = ["s.s.s", ".bbb.", "sblbs", ".bbb.", "s.s.s"];
+const MINE_SPRITE_PIXELS = 5;
+
+/** A mine and the reach of its blast: a faint dashed ring, red and denser when a snake's head is near an armed one. */
+function drawMine(painter: Painter, mark: MineMark, snapshot: GameSnapshot, pixelSize: number, timeMs: number) {
+  const danger = mark.armed && isMineNear(mark, snapshot);
+  ringPoints(mark.center, mark.radius, pixelSize).forEach((point, index) => {
+    if (index % (danger ? 2 : 3) === 0) painter.block(danger ? MINE_RING_NEAR_COLOR : MINE_RING_COLOR, point, 1);
+  });
+
+  const lit = mark.armed ? Math.floor(timeMs / MINE_ARMED_BLINK_MS) % 2 === 0 : Math.floor(timeMs / MINE_ARMING_BLINK_MS) % 2 === 0;
+  const colors: Record<string, string> = mark.armed
+    ? { s: MINE_SPIKE_COLOR, b: MINE_BODY_COLOR, l: lit ? MINE_ARMED_LIGHT_COLOR : MINE_ARMED_LIGHT_OFF_COLOR }
+    : { s: MINE_DIM_SPIKE_COLOR, b: MINE_DIM_BODY_COLOR, l: lit ? MINE_ARMING_LIGHT_COLOR : MINE_ARMING_LIGHT_OFF_COLOR };
+  const corner = { x: mark.center.x - 2 * pixelSize, y: mark.center.y - 2 * pixelSize };
+  MINE_SPRITE.forEach((row, dy) =>
+    [...row].forEach((cell, dx) => {
+      if (cell !== ".") painter.pixel(colors[cell], corner, MINE_SPRITE_PIXELS, dx, dy);
+    })
+  );
+}
+
+/** A mine going off is the shape of its blast in fire colours, in rows of pixels: solid, then every other row, then only the rim. */
+function drawMineBlast(painter: Painter, blast: MineBlast, pixelSize: number) {
+  if (blast.age < FLASH_SOLID_UNTIL) {
+    discRows(blast.center, blast.radius, pixelSize).forEach((row) => painter.row(MINE_BLAST_COLOR, { x: row.x, y: row.y }, row.width));
+  } else if (blast.age < FLASH_THIN_UNTIL) {
+    discRows(blast.center, blast.radius, pixelSize).forEach((row, index) => {
+      if (index % 2 === 0) painter.row(MINE_AFTERGLOW_COLOR, { x: row.x, y: row.y }, row.width);
+    });
+  } else {
+    ringPoints(blast.center, blast.radius, pixelSize).forEach((point) => painter.block(MINE_AFTERGLOW_COLOR, point, 1));
+  }
+}
+
+export const BOUNTY_CROWN_COLOR = "#ffd23f";
+export const BOUNTY_GEM_COLOR = "#ff3b3b";
+const BOUNTY_BAND_COLOR = "#b8860b";
+const BOUNTY_SHADOW_COLOR = "#000000";
+/** A crown, 7 by 5 pixels: `g` gold, `r` a red gem, `d` the darker band at the bottom. */
+const BOUNTY_CROWN = ["g..g..g", "gg.g.gg", "ggggggg", "grgrgrg", "ddddddd"];
+const BOUNTY_CROWN_WIDTH = 7;
+/** Pixels between the crown and the head. */
+const BOUNTY_GAP = 2;
+/** The crown is up one pixel for this long, then down as long. */
+const BOUNTY_BOB_MS = 400;
+
+/** A crown over the head of the snake with a price on it, that every player sees, with a dark shadow so it reads on any floor. */
+function drawBountyMark(painter: Painter, head: GamePoint, segmentPixels: number, pixelSize: number, timeMs: number) {
+  const colors: Record<string, string> = { g: BOUNTY_CROWN_COLOR, r: BOUNTY_GEM_COLOR, d: BOUNTY_BAND_COLOR };
+  const bob = Math.floor(timeMs / BOUNTY_BOB_MS) % 2;
+  const corner = {
+    x: head.x + ((segmentPixels - BOUNTY_CROWN_WIDTH) / 2) * pixelSize,
+    y: head.y - (BOUNTY_CROWN.length + BOUNTY_GAP + bob) * pixelSize,
+  };
+  for (const shadow of [1, 0])
+    BOUNTY_CROWN.forEach((row, dy) =>
+      [...row].forEach((cell, dx) => {
+        if (cell !== ".") painter.pixel(shadow ? BOUNTY_SHADOW_COLOR : colors[cell], corner, BOUNTY_CROWN_WIDTH, dx + shadow, dy + shadow);
+      })
+    );
+}
+
 function drawShot(painter: Painter, shot: ShotSnapshot, bossGuid?: string) {
   painter.block(bossGuid !== undefined && shot.ownerGuid === bossGuid ? BOSS_SHOT_COLOR : SHOT_COLOR, shot.position, SHOT_PIXELS);
 }
@@ -411,13 +494,17 @@ export function drawFrame(ctx: PixelContext, snapshot: GameSnapshot, options: Re
   if (options.strikes) drawStrikeWarning(painter, options.strikes, pixelSize, options.timeMs ?? 0);
   snapshot.foods.forEach((food) => drawFood(painter, food, options.timeMs ?? 0));
   if (snapshot.zone) drawZone(painter, snapshot.zone, pixelSize);
+  options.mines?.mines.forEach((mark) => drawMine(painter, mark, snapshot, pixelSize, options.timeMs ?? 0));
   if (snapshot.boss) drawBoss(painter, snapshot.boss, pixelSize);
   snapshot.shots.forEach((shot) => drawShot(painter, shot, snapshot.boss?.guid));
   const living = snapshot.snakes.filter((snake) => snake.isAlive);
   const others = living.filter((snake) => snake.guid !== options.selfGuid);
   const own = living.filter((snake) => snake.guid === options.selfGuid);
   [...others, ...own].forEach((snake) => drawSnake(painter, snake, segmentPixels, damageTint, snapshot.room));
+  const wanted = wantedSnake(snapshot);
+  if (wanted) drawBountyMark(painter, wanted.head, segmentPixels, pixelSize, options.timeMs ?? 0);
   if (options.strikes) drawStrikeFlash(painter, options.strikes, pixelSize);
+  options.mines?.blasts.forEach((blast) => drawMineBlast(painter, blast, pixelSize));
   const now = options.timeMs;
   if (now !== undefined)
     (options.damage ?? []).filter((entry) => isVisible(entry, now)).forEach((entry) => drawDamage(painter, entry, options.selfGuid, now, pixelSize));

@@ -102,6 +102,27 @@ export interface ZoneSnapshot {
   msLeft: number;
 }
 
+/** A mine lying in the room until a snake touches it. Like food, the place is its identity. */
+export interface MineSnapshot {
+  guid: string;
+  /** The middle of it, in world units. */
+  position: GamePoint;
+  /** World units its blast reaches. */
+  radius: number;
+  /** Milliseconds until it is armed when the snapshot was sent; 0 is armed. */
+  msToArm: number;
+}
+
+/** A price on the head of one snake, that every player sees. */
+export interface BountySnapshot {
+  /** The guid of the wanted snake. */
+  guid: string;
+  /** Milliseconds left when the snapshot was sent. */
+  msLeft: number;
+  /** Mass the snake that kills it gets. */
+  rewardMass: number;
+}
+
 /** `lost` is not a shot: the own snake lost mass to lightning, a meteor or the zone, at its head. */
 export type DamageKind = "hit" | "broke" | "kill" | "lost";
 
@@ -142,6 +163,14 @@ export interface GameSnapshot {
   boss: BossSnapshot | null;
   /** The safe zone of the room, or null. */
   zone: ZoneSnapshot | null;
+  /** Mines lying in the room. Left out or empty: none. */
+  mines?: MineSnapshot[];
+  /** The bounty on a snake's head. Left out or null: none. */
+  bounty?: BountySnapshot | null;
+  /** Milliseconds left of a fruit shower, when fruit falls all over the room. Left out or 0: none. */
+  showerMsLeft?: number;
+  /** Milliseconds left of a sugar rush, when boosting costs no mass. Left out or 0: none. */
+  rushMsLeft?: number;
 }
 
 export interface LeaderboardEntry {

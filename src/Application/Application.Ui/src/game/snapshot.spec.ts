@@ -171,6 +171,74 @@ describe("parseSnapshot", () => {
     expect(parseSnapshot(raw)!.boss!.arms).toBe(1);
   });
 
+  it("has no mines, no bounty, no shower and no rush when the server sends none", () => {
+    const snapshot = parseSnapshot(fixture)!;
+
+    expect(snapshot.mines).toEqual([]);
+    expect(snapshot.bounty).toBeNull();
+    expect(snapshot.showerMsLeft).toBe(0);
+    expect(snapshot.rushMsLeft).toBe(0);
+  });
+
+  it("reads mines as a spot, a blast radius and the time until each is armed", () => {
+    const raw = clone(fixture) as any;
+    raw.mines = [{ x: 100, y: 200, r: 60, t: 1500 }, { x: 300, y: 400, r: 60, t: 0 }];
+
+    expect(parseSnapshot(raw)!.mines).toEqual([
+      { guid: "100,200", position: { x: 100, y: 200 }, radius: 60, msToArm: 1500 },
+      { guid: "300,400", position: { x: 300, y: 400 }, radius: 60, msToArm: 0 },
+    ]);
+  });
+
+  it("drops mines that are not usable, and takes one without a time as armed", () => {
+    const raw = clone(fixture) as any;
+    raw.mines = ["nope", { x: 1 }, { x: 1, y: 2, r: 0, t: 5 }, { x: 3, y: 4, r: 50, t: -10 }, { x: 5, y: 6, r: 40 }];
+
+    expect(parseSnapshot(raw)!.mines!.map((mine) => [mine.guid, mine.msToArm])).toEqual([
+      ["3,4", 0],
+      ["5,6", 0],
+    ]);
+  });
+
+  it("reads the bounty: the wanted snake, the time left and the reward", () => {
+    const raw = clone(fixture) as any;
+    raw.bounty = { guid: playerGuid, t: 45000, m: 150 };
+
+    expect(parseSnapshot(raw)!.bounty).toEqual({ guid: playerGuid, msLeft: 45000, rewardMass: 150 });
+  });
+
+  it("ignores a bounty without a wanted snake, and fills in what else it lacks", () => {
+    const raw = clone(fixture) as any;
+    for (const bounty of ["nope", { t: 100, m: 5 }, { guid: "", t: 100, m: 5 }, { guid: 7, t: 100, m: 5 }]) {
+      raw.bounty = bounty;
+      expect(parseSnapshot(raw)!.bounty).toBeNull();
+    }
+
+    raw.bounty = { guid: "g", t: -5, m: "lots" };
+    expect(parseSnapshot(raw)!.bounty).toEqual({ guid: "g", msLeft: 0, rewardMass: 0 });
+  });
+
+  it("reads the time left of a fruit shower and of a sugar rush, both at once", () => {
+    const raw = clone(fixture) as any;
+    raw.shower = 12000;
+    raw.rush = 3000;
+
+    const snapshot = parseSnapshot(raw)!;
+
+    expect(snapshot.showerMsLeft).toBe(12000);
+    expect(snapshot.rushMsLeft).toBe(3000);
+  });
+
+  it("takes a shower or a rush that is not a positive number as none", () => {
+    const raw = clone(fixture) as any;
+    for (const value of [-5, "soon", null, {}]) {
+      raw.shower = value;
+      raw.rush = value;
+      expect(parseSnapshot(raw)!.showerMsLeft).toBe(0);
+      expect(parseSnapshot(raw)!.rushMsLeft).toBe(0);
+    }
+  });
+
   it("reads the prize kind of a food", () => {
     const raw = clone(fixture) as any;
     raw.foods[0].k = 1;

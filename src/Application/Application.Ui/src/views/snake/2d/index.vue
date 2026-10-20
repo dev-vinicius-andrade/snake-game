@@ -10,6 +10,8 @@ import TouchControls from "@/components/game/TouchControls.vue";
 import PerkList from "@/components/game/PerkList.vue";
 import BossHint from "@/components/game/BossHint.vue";
 import ZoneHint from "@/components/game/ZoneHint.vue";
+import BountyHint from "@/components/game/BountyHint.vue";
+import TimedEventHint from "@/components/game/TimedEventHint.vue";
 import StrikeHint from "@/components/game/StrikeHint.vue";
 import PrizeHint from "@/components/game/PrizeHint.vue";
 import { readStoredAccountToken, tokenRejected, useAccount } from "@/composables/useAccount";
@@ -29,6 +31,8 @@ import { targetOnScreen } from "@/render/camera";
 import { strikeWarning } from "@/render/strikes";
 import { bossCompass } from "@/render/boss";
 import { zoneWarning } from "@/render/zone";
+import { bountyWarning } from "@/render/bounty";
+import { timedEvents } from "@/render/timedEvents";
 import { prizeCompass } from "@/render/prizeCompass";
 import { DEFAULT_HEAD_SIZE } from "@/render/pixelRenderer";
 import { usePlayerStore } from "@/store/usePlayerStore";
@@ -49,6 +53,8 @@ const compass = computed(() => (game.snapshot.value ? prizeCompass(game.snapshot
 const boss = computed(() => (game.snapshot.value ? bossCompass(game.snapshot.value, game.self.value?.guid) : null));
 const zone = computed(() => (game.snapshot.value ? zoneWarning(game.snapshot.value, game.self.value?.guid) : null));
 const strikes = computed(() => (game.snapshot.value ? strikeWarning(game.snapshot.value, game.self.value?.guid) : null));
+const bounty = computed(() => (game.snapshot.value ? bountyWarning(game.snapshot.value, game.self.value?.guid) : null));
+const timed = computed(() => (game.snapshot.value ? timedEvents(game.snapshot.value) : []));
 const mouseAim = useStorage("snake.mouseAim", false);
 /** Controls, mouse aim and face control settings: out of the way until asked for. */
 const showDetails = useStorage("snake.hudDetails", false);
@@ -170,6 +176,8 @@ onBeforeUnmount(() => {
     <StrikeHint :warning="strikes" />
     <BossHint :compass="boss" />
     <ZoneHint :warning="zone" />
+    <BountyHint :warning="bounty" />
+    <TimedEventHint :events="timed" />
     <TouchControls v-if="session.phase.value === 'playing'" @intent="session.handleIntent" />
     <EyeControlPanel
       v-if="showDetails || eye.phase.value === 'error'"

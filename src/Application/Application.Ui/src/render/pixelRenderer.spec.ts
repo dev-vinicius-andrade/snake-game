@@ -19,10 +19,23 @@ import {
   METEOR_FLASH_COLOR,
   METEOR_RING_COLOR,
   METEOR_SHADOW_COLOR,
+  MINE_ARMED_LIGHT_COLOR,
+  MINE_ARMED_LIGHT_OFF_COLOR,
+  MINE_ARMING_LIGHT_COLOR,
+  MINE_ARMING_LIGHT_OFF_COLOR,
+  MINE_BLAST_COLOR,
+  MINE_BODY_COLOR,
+  MINE_DIM_BODY_COLOR,
+  MINE_RING_COLOR,
+  MINE_RING_NEAR_COLOR,
+  MINE_SPIKE_COLOR,
+  BOUNTY_CROWN_COLOR,
+  BOUNTY_GEM_COLOR,
   drawFrame,
   logicalSize,
   type PixelContext,
 } from "./pixelRenderer";
+import type { MineBlast, MineMark, MineView } from "./mines";
 import type { StrikeView } from "./strikes";
 import { contrastColor, headColor, segmentColor, shadeColor } from "./segmentColor";
 
@@ -580,6 +593,150 @@ describe("drawFrame", () => {
       drawFrame(ctx, snapshot());
 
       expect(styled(BOSS_BODY_COLOR)).toHaveLength(0);
+    });
+  });
+
+  describe("mines", () => {
+    const mark = (armed = true, center = { x: 500, y: 400 }): MineMark => ({ center, radius: 60, armed });
+    const mines = (marks: MineMark[], blasts: MineBlast[] = []): MineView => ({ mines: marks, blasts });
+    const styled = (style: string) => ctx.calls.filter((call) => call.style === style);
+    const distance = (call: { x: number; y: number }) => Math.hypot(call.x * 5 - 500, call.y * 5 - 400);
+    const area = (calls: Array<{ w: number; h: number }>) => calls.reduce((sum, call) => sum + call.w * call.h, 0);
+    /** The colours drawn at every moment of a few blinks. */
+    const colorsOver = (view: MineView, parts: Partial<GameSnapshot> = {}) =>
+      new Set(
+        [0, 100, 200, 300, 400, 500, 600, 700, 800].flatMap((timeMs) => {
+          ctx.calls = [];
+          drawFrame(ctx, snapshot(parts), { mines: view, timeMs });
+          return ctx.calls.map((call) => call.style);
+        })
+      );
+
+    it("draws a dark body with spikes round it, on the spot of the mine", () => {
+      drawFrame(ctx, snapshot(), { mines: mines([mark()]), timeMs: 0 });
+
+      const body = styled(MINE_BODY_COLOR);
+      const spikes = styled(MINE_SPIKE_COLOR);
+      expect(body.length).toBeGreaterThanOrEqual(6);
+      expect(spikes.length).toBeGreaterThanOrEqual(6);
+      [...body, ...spikes].forEach((call) => expect(distance(call)).toBeLessThanOrEqual(15));
+    });
+
+    it("blinks a red light on an armed mine", () => {
+      const colors = colorsOver(mines([mark()]));
+
+      expect(colors.has(MINE_ARMED_LIGHT_COLOR)).toBe(true);
+      expect(colors.has(MINE_ARMED_LIGHT_OFF_COLOR)).toBe(true);
+    });
+
+    it("draws a mine that is not armed yet grey and dim, blinking, without the red light", () => {
+      const colors = colorsOver(mines([mark(false)]));
+
+      expect(colors.has(MINE_ARMED_LIGHT_COLOR)).toBe(false);
+      expect(colors.has(MINE_BODY_COLOR)).toBe(false);
+      expect(colors.has(MINE_DIM_BODY_COLOR)).toBe(true);
+      expect(colors.has(MINE_ARMING_LIGHT_COLOR)).toBe(true);
+      expect(colors.has(MINE_ARMING_LIGHT_OFF_COLOR)).toBe(true);
+    });
+
+    it("always marks the blast with a faint dashed ring", () => {
+      drawFrame(ctx, snapshot(), { mines: mines([mark()]), timeMs: 0 });
+
+      const ring = styled(MINE_RING_COLOR);
+      expect(ring.length).toBeGreaterThan(10);
+      ring.forEach((call) => expect(Math.abs(distance(call) - 60)).toBeLessThanOrEqual(8));
+    });
+
+    it("turns the ring of an armed mine to danger when a snake's head is near it", () => {
+      const near = { snakes: [snake({ path: [{ x: 590, y: 392.5 }] })] };
+      drawFrame(ctx, snapshot(near), { mines: mines([mark()]), timeMs: 0 });
+
+      expect(styled(MINE_RING_NEAR_COLOR).length).toBeGreaterThan(10);
+      expect(styled(MINE_RING_COLOR)).toHaveLength(0);
+
+      ctx.calls = [];
+      drawFrame(ctx, snapshot(near), { mines: mines([mark(false)]), timeMs: 0 });
+      expect(styled(MINE_RING_NEAR_COLOR)).toHaveLength(0);
+    });
+
+    it("blows up over the blast radius, thinning out as it ages", () => {
+      const blast = (age: number) => mines([], [{ center: { x: 500, y: 400 }, radius: 60, age }]);
+      drawFrame(ctx, snapshot(), { mines: blast(0) });
+      const fresh = area(styled(MINE_BLAST_COLOR));
+      ctx.calls = [];
+      drawFrame(ctx, snapshot(), { mines: blast(0.6) });
+
+      expect(fresh).toBeGreaterThan(Math.PI * 12 * 12 * 0.9);
+      const fading = area(ctx.calls.slice(1));
+      expect(fading).toBeGreaterThan(0);
+      expect(fading).toBeLessThan(fresh);
+    });
+
+    it("draws mines under the snakes and the blast over them", () => {
+      const parts = { snakes: [snake({ path: [{ x: 500, y: 400 }] })] };
+      drawFrame(ctx, snapshot(parts), { mines: mines([mark()], [{ center: { x: 500, y: 400 }, radius: 60, age: 0 }]), timeMs: 0 });
+
+      const styles = ctx.calls.map((call) => call.style);
+      const head = styles.lastIndexOf(headColor("#00ff00"));
+      expect(styles.lastIndexOf(MINE_BODY_COLOR)).toBeLessThan(head);
+      expect(styles.lastIndexOf(MINE_BLAST_COLOR)).toBeGreaterThan(head);
+    });
+
+    it("draws nothing without mines", () => {
+      drawFrame(ctx, snapshot(), { timeMs: 0 });
+
+      expect(styled(MINE_BODY_COLOR)).toHaveLength(0);
+      expect(styled(MINE_RING_COLOR)).toHaveLength(0);
+    });
+  });
+
+  describe("bounty", () => {
+    const wanted = (guid = "s1", x = 500) => snake({ guid, path: [{ x, y: 400 }] });
+    const styled = (style: string) => ctx.calls.filter((call) => call.style === style);
+
+    it("puts a crown above the head of the wanted snake, centred on it", () => {
+      drawFrame(ctx, snapshot({ snakes: [wanted()], bounty: { guid: "s1", msLeft: 9000, rewardMass: 150 } }), { timeMs: 0 });
+
+      const crown = styled(BOUNTY_CROWN_COLOR);
+      expect(crown.length).toBeGreaterThan(10);
+      // The head is the block at 100..102, 80..82 in pixels.
+      crown.forEach((call) => {
+        expect(call.y).toBeLessThan(80);
+        expect(call.y).toBeGreaterThanOrEqual(70);
+        expect(Math.abs(call.x + 0.5 - 101.5)).toBeLessThanOrEqual(3.5);
+      });
+      expect(styled(BOUNTY_GEM_COLOR).length).toBeGreaterThan(0);
+    });
+
+    it("marks only the wanted snake", () => {
+      drawFrame(ctx, snapshot({ snakes: [wanted("a", 200), wanted("b", 1000)], bounty: { guid: "b", msLeft: 9000, rewardMass: 150 } }), { timeMs: 0 });
+
+      styled(BOUNTY_CROWN_COLOR).forEach((call) => expect(call.x).toBeGreaterThan(190));
+    });
+
+    it("bobs up and down", () => {
+      const parts = { snakes: [wanted()], bounty: { guid: "s1", msLeft: 9000, rewardMass: 150 } };
+      const top = (timeMs: number) => {
+        ctx.calls = [];
+        drawFrame(ctx, snapshot(parts), { timeMs });
+        return Math.min(...styled(BOUNTY_CROWN_COLOR).map((call) => call.y));
+      };
+
+      expect(new Set([0, 200, 400, 600, 800].map(top)).size).toBe(2);
+    });
+
+    it("draws the crown over the snakes", () => {
+      drawFrame(ctx, snapshot({ snakes: [wanted()], bounty: { guid: "s1", msLeft: 9000, rewardMass: 150 } }), { timeMs: 0 });
+
+      const styles = ctx.calls.map((call) => call.style);
+      expect(styles.indexOf(BOUNTY_CROWN_COLOR)).toBeGreaterThan(styles.lastIndexOf(headColor("#00ff00")));
+    });
+
+    it("draws no crown without a bounty, or when the wanted snake is dead", () => {
+      drawFrame(ctx, snapshot({ snakes: [wanted()] }), { timeMs: 0 });
+      drawFrame(ctx, snapshot({ snakes: [snake({ guid: "s1", isAlive: false })], bounty: { guid: "s1", msLeft: 9000, rewardMass: 150 } }), { timeMs: 0 });
+
+      expect(styled(BOUNTY_CROWN_COLOR)).toHaveLength(0);
     });
   });
 

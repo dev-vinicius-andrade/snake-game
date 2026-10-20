@@ -3,8 +3,10 @@ import type {
   GameColor,
   GamePoint,
   BossSnapshot,
+  BountySnapshot,
   GameSnapshot,
   LeaderboardEntry,
+  MineSnapshot,
   RoomDimensions,
   ShotSnapshot,
   SnakeDirection,
@@ -149,6 +151,32 @@ function parseZone(zone: unknown): ZoneSnapshot | null {
   };
 }
 
+/** A mine: where (`x`, `y`), how far its blast reaches (`r`) and the milliseconds until it is armed (`t`, 0 armed). Like food, the place is its identity. */
+function parseMine(mine: unknown): MineSnapshot | null {
+  if (!isDictionary(mine) || !isFinite(mine.x) || !isFinite(mine.y) || !isFinite(mine.r) || mine.r <= 0) return null;
+  return {
+    guid: `${mine.x},${mine.y}`,
+    position: { x: mine.x, y: mine.y },
+    radius: mine.r,
+    msToArm: isFinite(mine.t) ? Math.max(0, mine.t) : 0,
+  };
+}
+
+/** The bounty: the guid of the wanted snake, the milliseconds left (`t`) and the reward mass (`m`). */
+function parseBounty(bounty: unknown): BountySnapshot | null {
+  if (!isDictionary(bounty)) return null;
+  const guid = asString(bounty.guid);
+  if (!guid) return null;
+  return {
+    guid,
+    msLeft: isFinite(bounty.t) ? Math.max(0, bounty.t) : 0,
+    rewardMass: isFinite(bounty.m) ? Math.max(0, bounty.m) : 0,
+  };
+}
+
+/** The milliseconds left of an event that is only a countdown (a fruit shower, a sugar rush); 0 when there is none. */
+const msLeftOf = (value: unknown): number => (isFinite(value) && value > 0 ? value : 0);
+
 export function parseRoomSize(raw: unknown): RoomDimensions | null {
   if (!isDictionary(raw) || !isFinite(raw.width) || !isFinite(raw.height)) return null;
   return raw.width > 0 && raw.height > 0 ? { width: raw.width, height: raw.height } : null;
@@ -169,6 +197,10 @@ export function parseSnapshot(raw: unknown): GameSnapshot | null {
     strikes: asList(raw.strikes).map(parseStrike).filter((s): s is StrikeSnapshot => s !== null),
     boss: parseBoss(raw.boss),
     zone: parseZone(raw.zone),
+    mines: asList(raw.mines).map(parseMine).filter((m): m is MineSnapshot => m !== null),
+    bounty: parseBounty(raw.bounty),
+    showerMsLeft: msLeftOf(raw.shower),
+    rushMsLeft: msLeftOf(raw.rush),
   };
 }
 
