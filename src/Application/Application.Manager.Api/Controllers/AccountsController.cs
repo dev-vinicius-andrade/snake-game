@@ -39,6 +39,8 @@ public sealed class RegisteredAccountResponse
     public string Display { get; set; } = null!;
     /// <summary>The name other players see.</summary>
     public string DisplayName { get; set; } = null!;
+    /// <summary>The social accounts linked, by provider (github, discord...). Nothing of their ids.</summary>
+    public IReadOnlyList<string> Linked { get; set; } = [];
     public string Token { get; set; } = null!;
     /// <summary>To show the player once.</summary>
     public string RecoveryPhrase { get; set; } = null!;
@@ -49,6 +51,7 @@ public sealed class RegisteredAccountResponse
         Tag = registration.Account.Tag,
         Display = registration.Account.Display,
         DisplayName = registration.Account.PublicName,
+        Linked = AccountResponse.Providers(registration.Account),
         Token = registration.Token,
         RecoveryPhrase = registration.RecoveryPhrase,
     };
@@ -60,6 +63,7 @@ public sealed class SignedInResponse
     public int Tag { get; set; }
     public string Display { get; set; } = null!;
     public string DisplayName { get; set; } = null!;
+    public IReadOnlyList<string> Linked { get; set; } = [];
     public string Token { get; set; } = null!;
 
     public static implicit operator SignedInResponse(SignIn signIn) => new()
@@ -68,6 +72,7 @@ public sealed class SignedInResponse
         Tag = signIn.Account.Tag,
         Display = signIn.Account.Display,
         DisplayName = signIn.Account.PublicName,
+        Linked = AccountResponse.Providers(signIn.Account),
         Token = signIn.Token,
     };
 }
@@ -79,7 +84,11 @@ public sealed class AccountResponse
     public int Tag { get; set; }
     public string Display { get; set; } = null!;
     public string DisplayName { get; set; } = null!;
+    public IReadOnlyList<string> Linked { get; set; } = [];
     public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>The providers of the social accounts linked to an account, in order. Only their names: the ids are not even kept.</summary>
+    public static IReadOnlyList<string> Providers(Account account) => account.Logins.Select(login => login.Provider).Distinct().Order().ToList();
 
     public static implicit operator AccountResponse(Account account) => new()
     {
@@ -88,6 +97,7 @@ public sealed class AccountResponse
         Tag = account.Tag,
         Display = account.Display,
         DisplayName = account.PublicName,
+        Linked = Providers(account),
         CreatedAt = account.CreatedAt,
     };
 }

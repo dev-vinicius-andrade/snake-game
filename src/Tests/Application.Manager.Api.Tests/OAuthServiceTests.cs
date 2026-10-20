@@ -532,4 +532,88 @@ public sealed class OAuthServiceTests
         Assert.False(credentials.IsComplete);
         Assert.Equal(string.Empty, credentials.ClientSecret);
     }
+
+    private Account NewPlayer(string name = "Vini", int tag = 9291)
+        => _accounts.Register(name, tag, null, Ip).Value.Account;
+
+    [Fact]
+    public async Task Link_AddsTheSocialAccountToTheAccountThatStartedIt_AndMakesNoTicket()
+    {
+        var service = Service();
+        var player = NewPlayer();
+        var started = service.StartLink("github", player.Id).Value;
+
+        var completed = await service.CompleteAsync("github", "code", started.State, started.State, Ip, CancellationToken.None);
+
+        Assert.True(completed.Succeeded, completed.Error);
+        Assert.Equal("github", completed.Value.LinkedProvider);
+        Assert.Null(completed.Value.Ticket);
+        Assert.Equal(new[] { "github" }, _accounts.SignInWithExternal("github", "583231", null, null, Ip).Value.Account.Logins.Select(login => login.Provider));
+    }
+
+    [Fact]
+    public async Task Link_TheAccountNowSignsInWithTheProvider()
+    {
+        var service = Service();
+        var player = NewPlayer();
+        var linking = service.StartLink("github", player.Id).Value;
+        await service.CompleteAsync("github", "code", linking.State, linking.State, Ip, CancellationToken.None);
+
+        var signing = service.Start("github").Value;
+        var completed = await service.CompleteAsync("github", "code", signing.State, signing.State, Ip, CancellationToken.None);
+
+        Assert.Equal(player.Id, service.Redeem(completed.Value).Value.Account.Id);
+    }
+
+    [Fact]
+    public async Task Link_ASocialAccountOfAnotherPlayerIsRefused_AndNothingIsLinked()
+    {
+        var service = Service();
+        var owner = NewPlayer("Bob", 1);
+        _accounts.LinkExternal(owner.Id, "github", "583231");
+        var me = NewPlayer("Ana", 2);
+        var started = service.StartLink("github", me.Id).Value;
+
+        var completed = await service.CompleteAsync("github", "code", started.State, started.State, Ip, CancellationToken.None);
+
+        Assert.Equal(AccountErrors.AlreadyLinked, completed.Error);
+    }
+
+    [Fact]
+    public async Task Link_StillNeedsTheBrowsersState_AndWorksOnce()
+    {
+        var service = Service();
+        var player = NewPlayer();
+        var started = service.StartLink("github", player.Id).Value;
+
+        var wrong = await service.CompleteAsync("github", "code", started.State, "another", Ip, CancellationToken.None);
+        var first = await service.CompleteAsync("github", "code", started.State, started.State, Ip, CancellationToken.None);
+        var again = await service.CompleteAsync("github", "code", started.State, started.State, Ip, CancellationToken.None);
+
+        Assert.Equal(AccountErrors.InvalidState, wrong.Error);
+        Assert.True(first.Succeeded);
+        Assert.Equal(AccountErrors.InvalidState, again.Error);
+    }
+
+    [Theory]
+    [InlineData("myspace")]
+    [InlineData("google")]
+    [InlineData(null)]
+    public void StartLink_AnUnknownOrUnconfiguredProviderIsRefused(string? provider)
+        => Assert.Equal(AccountErrors.UnknownProvider, Service().StartLink(provider, Guid.NewGuid()).Error);
+
+    [Fact]
+    public async Task Link_Steam_WorksLikeTheOthers()
+    {
+        AllowSteam();
+        var service = Service();
+        var player = NewPlayer();
+        var started = service.StartLink("steam", player.Id).Value;
+
+        var completed = await service.CompleteOpenIdAsync("steam", SteamReturn(started.State), started.State, Ip, CancellationToken.None);
+
+        Assert.True(completed.Succeeded, completed.Error);
+        Assert.Equal("steam", completed.Value.LinkedProvider);
+        Assert.Equal(player.Id, _accounts.SignInWithExternal("steam", SteamId, null, null, Ip).Value.Account.Id);
+    }
 }

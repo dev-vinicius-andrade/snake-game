@@ -752,4 +752,95 @@ public sealed class AccountServiceTests
         Assert.Equal(first.Id, again.Id);
         Assert.NotEqual(first.Id, other.Id);
     }
+
+    [Fact]
+    public void LinkExternal_AddsASocialLoginToAnAccountWithAPhrase_WhichThenSignsInWithIt()
+    {
+        var service = Service();
+        var registered = Registered(service, "Vini", 9291);
+
+        var linked = service.LinkExternal(registered.Account.Id, "github", "583231");
+        var signedIn = service.SignInWithExternal("github", "583231", "octocat", "The Octocat", Ip);
+
+        Assert.True(linked.Succeeded, linked.Error);
+        Assert.Equal(registered.Account.Id, signedIn.Value.Account.Id);
+        Assert.Equal("Vini", signedIn.Value.Account.Username);
+        Assert.Equal(new[] { "github" }, linked.Value.Logins.Select(login => login.Provider));
+    }
+
+    [Fact]
+    public void LinkExternal_KeepsTheRecoveryPhraseWorking_AndOnlyAHashOfTheId()
+    {
+        var service = Service();
+        var registered = Registered(service, "Vini", 9291, StrongPhrase);
+
+        var linked = service.LinkExternal(registered.Account.Id, "discord", "80351110224678912").Value;
+
+        Assert.Equal(registered.Account.PhraseHash, linked.PhraseHash);
+        Assert.True(service.Login("Vini", 9291, StrongPhrase, Ip).Succeeded);
+        Assert.Equal(LoginIdentifier.Hash("discord", "80351110224678912", AccountService.DevelopmentPepper), Assert.Single(linked.Logins).IdHash);
+    }
+
+    [Fact]
+    public void LinkExternal_TheSameLoginAgainChangesNothing()
+    {
+        var service = Service();
+        var registered = Registered(service);
+        service.LinkExternal(registered.Account.Id, "github", "1");
+
+        var again = service.LinkExternal(registered.Account.Id, "GitHub", "1");
+
+        Assert.True(again.Succeeded);
+        Assert.Single(again.Value.Logins);
+    }
+
+    [Fact]
+    public void LinkExternal_ASocialAccountThatBelongsToAnotherPlayerIsRefused()
+    {
+        var service = Service();
+        var mine = Registered(service, "Ana", 1);
+        var yours = Registered(service, "Bob", 2);
+        service.LinkExternal(yours.Account.Id, "github", "1");
+
+        var result = service.LinkExternal(mine.Account.Id, "github", "1");
+
+        Assert.Equal(AccountErrors.AlreadyLinked, result.Error);
+        Assert.Empty(service.Authenticate(mine.Token)!.Logins);
+    }
+
+    [Fact]
+    public void LinkExternal_AnAccountOnlyHasOneLoginPerProvider()
+    {
+        var service = Service();
+        var registered = Registered(service);
+        service.LinkExternal(registered.Account.Id, "github", "1");
+
+        var result = service.LinkExternal(registered.Account.Id, "github", "2");
+
+        Assert.Equal(AccountErrors.ProviderInUse, result.Error);
+        Assert.Single(service.Authenticate(registered.Token)!.Logins);
+    }
+
+    [Fact]
+    public void LinkExternal_AccountsCanHaveSeveralProviders()
+    {
+        var service = Service();
+        var registered = Registered(service);
+
+        service.LinkExternal(registered.Account.Id, "github", "1");
+        var result = service.LinkExternal(registered.Account.Id, "discord", "1");
+
+        Assert.Equal(new[] { "discord", "github" }, result.Value.Logins.Select(login => login.Provider).Order());
+    }
+
+    [Fact]
+    public void LinkExternal_AnAccountThatIsGoneOrAnEmptyLoginIsRefused()
+    {
+        var service = Service();
+        var registered = Registered(service);
+
+        Assert.Equal(AccountErrors.InvalidToken, service.LinkExternal(Guid.NewGuid(), "github", "1").Error);
+        Assert.Equal(AccountErrors.InvalidCredentials, service.LinkExternal(registered.Account.Id, "", "1").Error);
+        Assert.Equal(AccountErrors.InvalidCredentials, service.LinkExternal(registered.Account.Id, "github", " ").Error);
+    }
 }

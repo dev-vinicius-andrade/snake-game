@@ -11,6 +11,20 @@ public sealed record OAuthProviderSummary(string Id, string Title);
 public sealed record OAuthStart(string Url, string State);
 
 /// <summary>
+/// How a sign in with a provider ended: a one time <see cref="Ticket"/> to trade for the device token, or, when the player was linking a social
+/// account to the account they already have, the provider that was <see cref="LinkedProvider"/>.
+/// </summary>
+public sealed record OAuthOutcome(string? Ticket, string? LinkedProvider)
+{
+    public static OAuthOutcome ForTicket(string ticket) => new(ticket, null);
+
+    public static OAuthOutcome Linked(string provider) => new(null, provider);
+
+    /// <summary>The ticket, so a sign in's outcome can be handed to <see cref="OAuthService.Redeem"/> as it is. Empty for a link.</summary>
+    public static implicit operator string(OAuthOutcome outcome) => outcome.Ticket ?? string.Empty;
+}
+
+/// <summary>
 /// Signing in with a social account (docs/ACCOUNTS.md): the authorization code flow with PKCE. The game asks the provider only who the
 /// player is (an id, a username, a name; never the email), makes or finds the account linked to that id, and forgets the provider's token.
 /// The browser then trades a one time ticket for the game's own device token, so the token is never in an address.
@@ -20,7 +34,7 @@ public sealed class OAuthService
     private static readonly TimeSpan StateLifetime = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan TicketLifetime = TimeSpan.FromMinutes(2);
 
-    private sealed record Pending(string Provider, string Verifier);
+    private sealed record Pending(string Provider, string Verifier, Guid? LinkTo = null);
 
     private readonly OAuthOptions _options;
     private readonly IOAuthClient _client;
@@ -53,12 +67,20 @@ public sealed class OAuthService
     public OAuthKind? KindOf(string? providerId) => Configured(providerId) is var (provider, _) ? provider.Kind : null;
 
     /// <summary>The address to send the player to. <see cref="AccountErrors.UnknownProvider"/> for a provider that is unknown or has no keys.</summary>
-    public AccountResult<OAuthStart> Start(string? providerId)
+    public AccountResult<OAuthStart> Start(string? providerId) => Begin(providerId, null);
+
+    /// <summary>
+    /// The same, for a player who is signed in and wants to link this social account to their account. The account is kept with the state, so
+    /// only the browser that was given the state can finish it, and the link goes to the account that asked.
+    /// </summary>
+    public AccountResult<OAuthStart> StartLink(string? providerId, Guid accountId) => Begin(providerId, accountId);
+
+    private AccountResult<OAuthStart> Begin(string? providerId, Guid? linkTo)
     {
         if (Configured(providerId) is not var (provider, credentials))
             return AccountResult<OAuthStart>.Failure(AccountErrors.UnknownProvider);
         var verifier = Random(48);
-        var state = _pending.Put(new Pending(provider.Id, verifier));
+        var state = _pending.Put(new Pending(provider.Id, verifier, linkTo));
         if (provider.Kind == OAuthKind.OpenId)
             return AccountResult<OAuthStart>.Success(new OAuthStart(SteamOpenId.StartUrl(provider.AuthorizeUrl, RedirectUri(provider), Realm(), state), state));
         var query = new List<KeyValuePair<string, string>>
@@ -80,18 +102,18 @@ public sealed class OAuthService
     /// The player came back from the provider with a code. The state has to be the one the browser was given and still be waiting, and for
     /// the same provider. Gives a one time ticket for <see cref="Redeem"/>.
     /// </summary>
-    public async Task<AccountResult<string>> CompleteAsync(string? providerId, string? code, string? state, string? browserState, string? clientIp, CancellationToken cancellationToken)
+    public async Task<AccountResult<OAuthOutcome>> CompleteAsync(string? providerId, string? code, string? state, string? browserState, string? clientIp, CancellationToken cancellationToken)
     {
         if (Configured(providerId) is not var (provider, credentials) || provider.Kind != OAuthKind.OAuth)
-            return AccountResult<string>.Failure(AccountErrors.UnknownProvider);
+            return AccountResult<OAuthOutcome>.Failure(AccountErrors.UnknownProvider);
         if (!SameState(state, browserState))
-            return AccountResult<string>.Failure(AccountErrors.InvalidState);
+            return AccountResult<OAuthOutcome>.Failure(AccountErrors.InvalidState);
         var pending = _pending.Take(state);
         if (pending is null || pending.Provider != provider.Id)
-            return AccountResult<string>.Failure(AccountErrors.InvalidState);
+            return AccountResult<OAuthOutcome>.Failure(AccountErrors.InvalidState);
         if (string.IsNullOrWhiteSpace(code))
-            return AccountResult<string>.Failure(AccountErrors.ProviderFailed);
-        return await SignInAsync(provider, credentials, code, pending.Verifier, clientIp, cancellationToken);
+            return AccountResult<OAuthOutcome>.Failure(AccountErrors.ProviderFailed);
+        return await SignInAsync(provider, credentials, code, pending, clientIp, cancellationToken);
     }
 
     /// <summary>
@@ -99,20 +121,20 @@ public sealed class OAuthService
     /// address the browser came back with. The state has to be this browser's, the answer has to be for the address the game asked for, the
     /// identity has to be Steam's own address for a player, and Steam itself has to say the answer is its own. Only then is the player signed in.
     /// </summary>
-    public async Task<AccountResult<string>> CompleteOpenIdAsync(string? providerId, IReadOnlyDictionary<string, string> answer, string? browserState, string? clientIp, CancellationToken cancellationToken)
+    public async Task<AccountResult<OAuthOutcome>> CompleteOpenIdAsync(string? providerId, IReadOnlyDictionary<string, string> answer, string? browserState, string? clientIp, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(answer);
         if (Configured(providerId) is not var (provider, credentials) || provider.Kind != OAuthKind.OpenId)
-            return AccountResult<string>.Failure(AccountErrors.UnknownProvider);
+            return AccountResult<OAuthOutcome>.Failure(AccountErrors.UnknownProvider);
         var state = Field(answer, "state");
         if (!SameState(state, browserState) || _pending.Take(state) is not { } pending || pending.Provider != provider.Id)
-            return AccountResult<string>.Failure(AccountErrors.InvalidState);
+            return AccountResult<OAuthOutcome>.Failure(AccountErrors.InvalidState);
         if (Field(answer, "openid.mode") == "cancel")
-            return AccountResult<string>.Failure(AccountErrors.Cancelled);
+            return AccountResult<OAuthOutcome>.Failure(AccountErrors.Cancelled);
         var steamId = AnswerIsForUs(provider, answer, state!);
         if (steamId is null)
-            return AccountResult<string>.Failure(AccountErrors.ProviderFailed);
-        return await SignInSteamAsync(provider, credentials, answer, steamId, clientIp, cancellationToken);
+            return AccountResult<OAuthOutcome>.Failure(AccountErrors.ProviderFailed);
+        return await SignInSteamAsync(provider, credentials, answer, steamId, pending, clientIp, cancellationToken);
     }
 
     /// <summary>The Steam id the answer is about, or null when it is not an answer to the request the game made.</summary>
@@ -126,24 +148,22 @@ public sealed class OAuthService
         return ok ? SteamOpenId.ReadSteamId(claimed) : null;
     }
 
-    private async Task<AccountResult<string>> SignInSteamAsync(OAuthProviderInfo provider, OAuthCredentials credentials, IReadOnlyDictionary<string, string> answer, string steamId, string? clientIp, CancellationToken cancellationToken)
+    private async Task<AccountResult<OAuthOutcome>> SignInSteamAsync(OAuthProviderInfo provider, OAuthCredentials credentials, IReadOnlyDictionary<string, string> answer, string steamId, Pending pending, string? clientIp, CancellationToken cancellationToken)
     {
         string? persona;
         try
         {
             if (!await _client.VerifyOpenIdAsync(provider, answer, cancellationToken))
-                return AccountResult<string>.Failure(AccountErrors.ProviderFailed);
-            persona = await _client.GetSteamPersonaAsync(provider, credentials.ClientSecret, steamId, cancellationToken);
+                return AccountResult<OAuthOutcome>.Failure(AccountErrors.ProviderFailed);
+            // A link only needs to know who the Steam account is, not what it is called.
+            persona = pending.LinkTo is null ? await _client.GetSteamPersonaAsync(provider, credentials.ClientSecret, steamId, cancellationToken) : null;
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
         {
             _logger?.LogWarning("Signing in with {Provider} failed: {Reason}", provider.Id, exception.GetType().Name);
-            return AccountResult<string>.Failure(AccountErrors.ProviderFailed);
+            return AccountResult<OAuthOutcome>.Failure(AccountErrors.ProviderFailed);
         }
-        var signIn = _accounts.SignInWithExternal(provider.Id, steamId, persona, persona, clientIp);
-        return signIn.Succeeded
-            ? AccountResult<string>.Success(_tickets.Put(signIn.Value))
-            : signIn.Error == AccountErrors.Throttled ? AccountResult<string>.Throttled(TimeSpan.FromSeconds(signIn.RetryAfterSeconds ?? 60)) : AccountResult<string>.Failure(signIn.Error);
+        return Finish(provider, pending, steamId, persona, persona, clientIp);
     }
 
     private static string? Field(IReadOnlyDictionary<string, string> answer, string name) => answer.TryGetValue(name, out var value) ? value : null;
@@ -158,15 +178,29 @@ public sealed class OAuthService
         return signIn is null ? AccountResult<SignIn>.Failure(AccountErrors.InvalidTicket) : AccountResult<SignIn>.Success(signIn);
     }
 
-    private async Task<AccountResult<string>> SignInAsync(OAuthProviderInfo provider, OAuthCredentials credentials, string code, string verifier, string? clientIp, CancellationToken cancellationToken)
+    private async Task<AccountResult<OAuthOutcome>> SignInAsync(OAuthProviderInfo provider, OAuthCredentials credentials, string code, Pending pending, string? clientIp, CancellationToken cancellationToken)
     {
-        var profile = await ReadProfileAsync(provider, credentials, code, verifier, cancellationToken);
+        var profile = await ReadProfileAsync(provider, credentials, code, pending.Verifier, cancellationToken);
         if (profile is null)
-            return AccountResult<string>.Failure(AccountErrors.ProviderFailed);
-        var signIn = _accounts.SignInWithExternal(provider.Id, profile.Subject, profile.Username, profile.DisplayName, clientIp);
+            return AccountResult<OAuthOutcome>.Failure(AccountErrors.ProviderFailed);
+        return Finish(provider, pending, profile.Subject, profile.Username, profile.DisplayName, clientIp);
+    }
+
+    /// <summary>
+    /// A sign in makes or finds the account and gives a ticket. A link, started by a player who is signed in, adds this social account to
+    /// that player's account instead, and gives no ticket: the player already has their device token.
+    /// </summary>
+    private AccountResult<OAuthOutcome> Finish(OAuthProviderInfo provider, Pending pending, string subject, string? username, string? displayName, string? clientIp)
+    {
+        if (pending.LinkTo is Guid account)
+        {
+            var linked = _accounts.LinkExternal(account, provider.Id, subject);
+            return linked.Succeeded ? AccountResult<OAuthOutcome>.Success(OAuthOutcome.Linked(provider.Id)) : AccountResult<OAuthOutcome>.Failure(linked.Error);
+        }
+        var signIn = _accounts.SignInWithExternal(provider.Id, subject, username, displayName, clientIp);
         return signIn.Succeeded
-            ? AccountResult<string>.Success(_tickets.Put(signIn.Value))
-            : signIn.Error == AccountErrors.Throttled ? AccountResult<string>.Throttled(TimeSpan.FromSeconds(signIn.RetryAfterSeconds ?? 60)) : AccountResult<string>.Failure(signIn.Error);
+            ? AccountResult<OAuthOutcome>.Success(OAuthOutcome.ForTicket(_tickets.Put(signIn.Value)))
+            : signIn.Error == AccountErrors.Throttled ? AccountResult<OAuthOutcome>.Throttled(TimeSpan.FromSeconds(signIn.RetryAfterSeconds ?? 60)) : AccountResult<OAuthOutcome>.Failure(signIn.Error);
     }
 
     private async Task<OAuthProfile?> ReadProfileAsync(OAuthProviderInfo provider, OAuthCredentials credentials, string code, string verifier, CancellationToken cancellationToken)

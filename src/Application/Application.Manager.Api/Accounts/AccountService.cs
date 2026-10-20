@@ -115,6 +115,33 @@ public sealed class AccountService
         return AccountResult<SignIn>.Failure(AccountErrors.NoTagsLeft);
     }
 
+    /// <summary>
+    /// Links a social account to an existing account, so the player can sign in with it too (their phrase keeps working). Only the keyed hash of the
+    /// provider's id is kept. Linking what is already linked to this account changes nothing. <see cref="AccountErrors.AlreadyLinked"/> when
+    /// another player's account has it, <see cref="AccountErrors.ProviderInUse"/> when this account already has another account of that provider.
+    /// </summary>
+    public AccountResult<Account> LinkExternal(Guid accountId, string? provider, string? subject)
+    {
+        if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(subject))
+            return AccountResult<Account>.Failure(AccountErrors.InvalidCredentials);
+        var idHash = LoginIdentifier.Hash(provider, subject, _loginPepper);
+        var name = provider.Trim().ToLowerInvariant();
+        lock (_accountChanges)
+        {
+            var account = _store.Find(accountId);
+            if (account is null)
+                return AccountResult<Account>.Failure(AccountErrors.InvalidToken);
+            if (_store.FindByExternalLogin(name, idHash) is { } owner)
+                return owner.Id == account.Id ? AccountResult<Account>.Success(account) : AccountResult<Account>.Failure(AccountErrors.AlreadyLinked);
+            if (account.Logins.Any(login => login.Provider == name))
+                return AccountResult<Account>.Failure(AccountErrors.ProviderInUse);
+            var linked = account with { ExternalLogins = account.Logins.Append(new ExternalLogin(name, idHash, _time.GetUtcNow())).ToList().AsReadOnly() };
+            return _store.Update(linked)
+                ? AccountResult<Account>.Success(linked)
+                : AccountResult<Account>.Failure(AccountErrors.AlreadyLinked);
+        }
+    }
+
     /// <summary>The new account, a refusal, or null when the add lost a race and the caller should look again.</summary>
     private AccountResult<SignIn>? CreateExternalAccount(string provider, string idHash, string? usernameSuggestion, string? displayNameSuggestion, string? clientIp)
     {

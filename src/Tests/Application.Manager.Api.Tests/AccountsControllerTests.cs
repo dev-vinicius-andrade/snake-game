@@ -83,13 +83,13 @@ public sealed class AccountsControllerTests
 
         var (loginStatus, signedIn) = Read(Login("vini", 9291, phrase, OtherIp));
         Assert.Equal(StatusCodes.Status200OK, loginStatus);
-        Assert.Equal(new[] { "username", "tag", "display", "displayName", "token" }, signedIn.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(new[] { "username", "tag", "display", "displayName", "linked", "token" }, signedIn.EnumerateObject().Select(property => property.Name));
         var secondToken = signedIn.GetProperty("token").GetString()!;
         Assert.NotEqual(firstToken, secondToken);
 
         var (meStatus, me) = Read(Controller(authorization: $"Bearer {secondToken}").Me());
         Assert.Equal(StatusCodes.Status200OK, meStatus);
-        Assert.Equal(new[] { "id", "username", "tag", "display", "displayName", "createdAt" }, me.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(new[] { "id", "username", "tag", "display", "displayName", "linked", "createdAt" }, me.EnumerateObject().Select(property => property.Name));
         Assert.Equal("Vini#09291", me.GetProperty("display").GetString());
         Assert.Equal(_time.GetUtcNow(), me.GetProperty("createdAt").GetDateTimeOffset());
 
@@ -104,7 +104,7 @@ public sealed class AccountsControllerTests
     {
         var (_, body) = Read(Controller().Register(new RegisterAccountRequest { Username = "Vini" }));
 
-        Assert.Equal(new[] { "username", "tag", "display", "displayName", "token", "recoveryPhrase" }, body.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(new[] { "username", "tag", "display", "displayName", "linked", "token", "recoveryPhrase" }, body.EnumerateObject().Select(property => property.Name));
     }
 
     [Theory]
@@ -325,5 +325,31 @@ public sealed class AccountsControllerTests
         var created = Assert.IsAssignableFrom<ObjectResult>(result);
         var body = JsonSerializer.SerializeToElement(created.Value, created.Value!.GetType(), WebJson);
         Assert.Equal("Rattler", body.GetProperty("displayName").GetString());
+    }
+
+    [Fact]
+    public void Me_ListsTheLinkedSocialAccountsByProvider_NeverAnythingOfTheirIds()
+    {
+        var registered = _service.Register("Vini", 9291, null, Ip).Value;
+        _service.LinkExternal(registered.Account.Id, "github", "583231");
+        _service.LinkExternal(registered.Account.Id, "discord", "80351110224678912");
+
+        var (status, body) = Read(Controller(authorization: $"Bearer {registered.Token}").Me());
+
+        Assert.Equal(StatusCodes.Status200OK, status);
+        Assert.Equal(new[] { "discord", "github" }, body.GetProperty("linked").EnumerateArray().Select(entry => entry.GetString()));
+        var text = body.GetRawText();
+        Assert.DoesNotContain("583231", text);
+        Assert.DoesNotContain("idHash", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Me_AnAccountWithNoLinksHasAnEmptyList()
+    {
+        var token = Register("Vini", 9291).Token;
+
+        var (_, body) = Read(Controller(authorization: $"Bearer {token}").Me());
+
+        Assert.Empty(body.GetProperty("linked").EnumerateArray());
     }
 }

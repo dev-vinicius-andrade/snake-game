@@ -15,6 +15,10 @@ public static class AccountErrors
     public const string Throttled = "throttled";
     public const string UnknownProvider = "unknownProvider";
     public const string Cancelled = "cancelled";
+    /// <summary>The social account is already linked to another player's account.</summary>
+    public const string AlreadyLinked = "alreadyLinked";
+    /// <summary>The account already has another account of that provider linked.</summary>
+    public const string ProviderInUse = "providerInUse";
     public const string InvalidState = "invalidState";
     public const string ProviderFailed = "providerFailed";
     public const string InvalidTicket = "invalidTicket";

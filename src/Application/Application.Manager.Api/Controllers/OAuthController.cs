@@ -10,6 +10,12 @@ public sealed class ExchangeTicketRequest
     public string? Ticket { get; set; }
 }
 
+public sealed class LinkStartResponse
+{
+    /// <summary>Where to send the browser: the provider's page.</summary>
+    public string Url { get; set; } = null!;
+}
+
 public sealed class OAuthProviderResponse
 {
     public string Id { get; set; } = null!;
@@ -24,7 +30,7 @@ public sealed class OAuthProviderResponse
 [Route("accounts/oauth")]
 [ApiController]
 [AllowAnonymous]
-public sealed class OAuthController(OAuthService oauth, OAuthOptions options) : Controller
+public sealed class OAuthController(OAuthService oauth, OAuthOptions options, AccountService accounts) : Controller
 {
     /// <summary>Holds the state of a sign in that is under way, so only the browser that started it can finish it.</summary>
     public const string StateCookie = "snake_oauth_state";
@@ -49,6 +55,27 @@ public sealed class OAuthController(OAuthService oauth, OAuthOptions options) : 
         return Redirect(started.Value.Url);
     }
 
+    /// <summary>
+    /// For a player who is signed in (bearer token) and wants to link a social account to their account. A browser cannot send a header when it
+    /// follows a link, so the site asks here and then sends the browser to the address that comes back. The same callback finishes it.
+    /// </summary>
+    [HttpPost("{provider}/link")]
+    [ProducesResponseType(typeof(LinkStartResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AccountErrorResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(AccountErrorResponse), StatusCodes.Status404NotFound)]
+    public IActionResult Link(string provider)
+    {
+        NoStore();
+        var account = accounts.Authenticate(BearerToken());
+        if (account is null)
+            return StatusCode(StatusCodes.Status401Unauthorized, new AccountErrorResponse { Error = AccountErrors.InvalidToken });
+        var started = oauth.StartLink(provider, account.Id);
+        if (!started.Succeeded)
+            return StatusCode(StatusCodes.Status404NotFound, new AccountErrorResponse { Error = started.Error });
+        Response.Cookies.Append(StateCookie, started.Value.State, StateCookieOptions(CookieLifetime));
+        return Ok(new LinkStartResponse { Url = started.Value.Url });
+    }
+
     /// <summary>Where the provider sends the browser back to. Always answers with a redirect to the site: a ticket, or the reason it failed.</summary>
     [HttpGet("{provider}/callback")]
     public async Task<IActionResult> Callback(string provider, [FromQuery] string? code, [FromQuery] string? state, [FromQuery] string? error, CancellationToken cancellationToken)
@@ -62,7 +89,9 @@ public sealed class OAuthController(OAuthService oauth, OAuthOptions options) : 
         var completed = oauth.KindOf(provider) == OAuthKind.OpenId
             ? await oauth.CompleteOpenIdAsync(provider, Request.Query.ToDictionary(pair => pair.Key, pair => pair.Value.ToString()), browserState, ClientIp(), cancellationToken)
             : await oauth.CompleteAsync(provider, code, state, browserState, ClientIp(), cancellationToken);
-        return completed.Succeeded ? Back(("ticket", completed.Value)) : Back(("error", completed.Error));
+        if (!completed.Succeeded)
+            return Back(("error", completed.Error));
+        return completed.Value.Ticket is { } ticket ? Back(("ticket", ticket)) : Back(("linked", completed.Value.LinkedProvider!));
     }
 
     /// <summary>Trades the ticket for the game's device token, once.</summary>
@@ -91,6 +120,14 @@ public sealed class OAuthController(OAuthService oauth, OAuthOptions options) : 
         MaxAge = lifetime,
         Path = "/",
     };
+
+    private string? BearerToken()
+    {
+        var header = Request.Headers.Authorization.ToString();
+        return System.Net.Http.Headers.AuthenticationHeaderValue.TryParse(header, out var value) && string.Equals(value.Scheme, "Bearer", StringComparison.OrdinalIgnoreCase)
+            ? value.Parameter
+            : null;
+    }
 
     private void NoStore() => Response.Headers.CacheControl = "no-store";
 

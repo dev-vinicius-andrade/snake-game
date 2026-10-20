@@ -168,7 +168,7 @@ public sealed class AccountStatsControllerTests
         Assert.Equal(StatusCodes.Status200OK, status);
         Assert.Equal(new[] { "account", "stats", "achievements" }, Names(body));
         var account = body.GetProperty("account");
-        Assert.Equal(new[] { "id", "username", "tag", "display", "displayName", "createdAt" }, Names(account));
+        Assert.Equal(new[] { "id", "username", "tag", "display", "displayName", "linked", "createdAt" }, Names(account));
         Assert.Equal("Vini#09291", account.GetProperty("display").GetString());
         var stats = body.GetProperty("stats");
         Assert.Equal(StatKeys.Counters.Concat(StatKeys.Maxima), Names(stats));

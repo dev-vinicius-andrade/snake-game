@@ -27,6 +27,7 @@ public sealed class OAuthControllerTests
     };
     private readonly Fake _client = new();
     private readonly OAuthService _service;
+    private readonly AccountService _accounts;
 
     private sealed class Fake : IOAuthClient
     {
@@ -48,17 +49,19 @@ public sealed class OAuthControllerTests
 
     public OAuthControllerTests()
     {
-        var accounts = new AccountService(new FileAccountStore(null), AccountThrottles.Create(_time), null, new RecoveryPhrase(), new SecretHasher(1), _time);
-        _service = new OAuthService(_options, _client, accounts, _time);
+        _accounts = new AccountService(new FileAccountStore(null), AccountThrottles.Create(_time), null, new RecoveryPhrase(), new SecretHasher(1), _time);
+        _service = new OAuthService(_options, _client, _accounts, _time);
     }
 
-    private OAuthController Controller(string? stateCookie = null)
+    private OAuthController Controller(string? stateCookie = null, string? bearer = null)
     {
         var http = new DefaultHttpContext();
         http.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(Ip);
         if (stateCookie is not null)
             http.Request.Headers.Cookie = $"{CookieName}={stateCookie}";
-        return new OAuthController(_service, _options) { ControllerContext = new ControllerContext { HttpContext = http } };
+        if (bearer is not null)
+            http.Request.Headers.Authorization = $"Bearer {bearer}";
+        return new OAuthController(_service, _options, _accounts) { ControllerContext = new ControllerContext { HttpContext = http } };
     }
 
     private static string RedirectOf(IActionResult result) => Assert.IsType<RedirectResult>(result).Url;
@@ -188,7 +191,7 @@ public sealed class OAuthControllerTests
 
         var ok = Assert.IsType<OkObjectResult>(first);
         var body = JsonSerializer.SerializeToElement(ok.Value, WebJson);
-        Assert.Equal(new[] { "username", "tag", "display", "displayName", "token" }, body.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(new[] { "username", "tag", "display", "displayName", "linked", "token" }, body.EnumerateObject().Select(property => property.Name));
         Assert.Equal("The Octocat", body.GetProperty("username").GetString());
         Assert.Equal("The Octocat", body.GetProperty("displayName").GetString());
         Assert.Equal(StatusCodes.Status401Unauthorized, Assert.IsAssignableFrom<ObjectResult>(again).StatusCode);
@@ -213,5 +216,72 @@ public sealed class OAuthControllerTests
         var url = RedirectOf(await controller.Callback("steam", null, null, null, CancellationToken.None));
 
         Assert.StartsWith($"{Ui}/account/oauth?ticket=", url);
+    }
+
+    private (string Token, Guid Id) NewPlayer()
+    {
+        var registered = _accounts.Register("Vini", 9291, null, Ip).Value;
+        return (registered.Token, registered.Account.Id);
+    }
+
+    [Fact]
+    public void Link_NeedsASignedInPlayer()
+    {
+        var anonymous = Controller().Link("github");
+        var wrong = Controller(bearer: "not-a-token").Link("github");
+
+        Assert.Equal(StatusCodes.Status401Unauthorized, Assert.IsAssignableFrom<ObjectResult>(anonymous).StatusCode);
+        Assert.Equal(StatusCodes.Status401Unauthorized, Assert.IsAssignableFrom<ObjectResult>(wrong).StatusCode);
+    }
+
+    [Fact]
+    public void Link_GivesTheAddressToSendTheBrowserTo_AndKeepsTheStateInTheCookie()
+    {
+        var (token, _) = NewPlayer();
+        var controller = Controller(bearer: token);
+
+        var result = Assert.IsType<OkObjectResult>(controller.Link("github"));
+
+        var url = JsonSerializer.SerializeToElement(result.Value, WebJson).GetProperty("url").GetString()!;
+        Assert.StartsWith("https://github.com/login/oauth/authorize?", url);
+        Assert.Contains($"{CookieName}={QueryOf(url)["state"]}", SetCookie(controller));
+        Assert.Equal("no-store", controller.Response.Headers.CacheControl.ToString());
+    }
+
+    [Fact]
+    public void Link_AnUnknownProviderIs404()
+    {
+        var (token, _) = NewPlayer();
+
+        var result = Controller(bearer: token).Link("myspace");
+
+        Assert.Equal(StatusCodes.Status404NotFound, Assert.IsAssignableFrom<ObjectResult>(result).StatusCode);
+    }
+
+    [Fact]
+    public async Task Callback_AfterALink_SendsTheBrowserBackToSayItWasLinked_WithNoTicket()
+    {
+        var (token, id) = NewPlayer();
+        var start = Assert.IsType<OkObjectResult>(Controller(bearer: token).Link("github"));
+        var state = QueryOf(JsonSerializer.SerializeToElement(start.Value, WebJson).GetProperty("url").GetString()!)["state"]!;
+
+        var url = RedirectOf(await Controller(stateCookie: state).Callback("github", "code", state, null, CancellationToken.None));
+
+        Assert.Equal($"{Ui}/account/oauth?linked=github", url);
+        Assert.Equal(new[] { "github" }, _accounts.Authenticate(token)!.Logins.Select(login => login.Provider));
+    }
+
+    [Fact]
+    public async Task Callback_ALinkThatIsRefusedSaysWhy()
+    {
+        var other = _accounts.Register("Bob", 1, null, Ip).Value.Account;
+        _accounts.LinkExternal(other.Id, "github", "7");
+        var (token, _) = NewPlayer();
+        var start = Assert.IsType<OkObjectResult>(Controller(bearer: token).Link("github"));
+        var state = QueryOf(JsonSerializer.SerializeToElement(start.Value, WebJson).GetProperty("url").GetString()!)["state"]!;
+
+        var url = RedirectOf(await Controller(stateCookie: state).Callback("github", "code", state, null, CancellationToken.None));
+
+        Assert.Equal($"{Ui}/account/oauth?error=alreadyLinked", url);
     }
 }
