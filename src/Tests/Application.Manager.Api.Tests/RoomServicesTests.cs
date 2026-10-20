@@ -298,4 +298,16 @@ public sealed class RoomAdminServiceTests
         Assert.Equal(AdminRoomResult.NotFound, await _service.TriggerAsync(Guid.NewGuid(), "zone"));
         await _servers.DidNotReceiveWithAnyArgs().TriggerEventAsync(default!, default, default!, default);
     }
+
+    [Theory]
+    [InlineData("fruitshower")]
+    [InlineData("bounty")]
+    [InlineData("mines")]
+    [InlineData("sugarrush")]
+    public async Task TriggerAsync_PassesTheNewEventKindsOnToTheServer(string kind)
+    {
+        _servers.TriggerEventAsync("http://a:5000", _id, kind, Arg.Any<CancellationToken>()).Returns(ServerCall.Done);
+
+        Assert.Equal(AdminRoomResult.Done, await _service.TriggerAsync(_id, kind));
+    }
 }

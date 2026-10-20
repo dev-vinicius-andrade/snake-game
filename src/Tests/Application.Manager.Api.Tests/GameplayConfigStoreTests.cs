@@ -158,4 +158,61 @@ public sealed class GameplayConfigStoreTests : IDisposable
         Assert.Equal(new[] { "ABC234" }, perk.Rooms);
         Assert.Contains("extraShots: 2", perk.Script);
     }
+
+    [Fact]
+    public void Update_TheNewWorldEventsWithBadValuesAreRefused_AndTheOldConfigStays()
+    {
+        var store = new GameplayConfigStore();
+        store.Update(Config());
+        var before = store.Current;
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => store.Update(Config() with
+        {
+            WorldEvents = new WorldEventOptions { Mines = new MineFieldOptions { MinMines = 5, MaxMines = 2 } }
+        }));
+        Assert.Throws<ArgumentOutOfRangeException>(() => store.Update(Config() with
+        {
+            WorldEvents = new WorldEventOptions { SugarRush = new SugarRushOptions { DurationSeconds = 0 } }
+        }));
+
+        Assert.Equal(before, store.Current);
+    }
+
+    [Fact]
+    public void Update_TheNewWorldEventsAreKeptOnDiskAndComeBackAfterARestart()
+    {
+        var first = new GameplayConfigStore(StorePath);
+        first.Update(Config() with
+        {
+            WorldEvents = new WorldEventOptions
+            {
+                FruitShower = new FruitShowerOptions { FruitsPerSecond = 15 },
+                Bounty = new BountyOptions { RewardMass = 400, Rooms = ["arena"] },
+                Mines = new MineFieldOptions { MaxMines = 20 },
+                SugarRush = new SugarRushOptions { DurationSeconds = 45, Enabled = false }
+            }
+        });
+
+        var events = new GameplayConfigStore(StorePath).Current.Config.WorldEvents;
+
+        Assert.Equal(15, events.FruitShower.FruitsPerSecond);
+        Assert.Equal(400L, events.Bounty.RewardMass);
+        Assert.Equal(["arena"], events.Bounty.Rooms);
+        Assert.Equal(20, events.Mines.MaxMines);
+        Assert.Equal((45, false), (events.SugarRush.DurationSeconds, events.SugarRush.Enabled));
+    }
+
+    [Fact]
+    public void Load_AFileFromBeforeTheNewEventsGivesThemTheirDefaults()
+    {
+        Directory.CreateDirectory(_folder);
+        File.WriteAllText(StorePath, "{\"revision\":\"abc\",\"config\":{\"worldEvents\":{\"enabled\":true,\"zone\":{\"enabled\":true}}}}");
+
+        var events = new GameplayConfigStore(StorePath).Current.Config.WorldEvents;
+
+        Assert.True(events.FruitShower.Enabled);
+        Assert.Equal(new BountyOptions().RewardMass, events.Bounty.RewardMass);
+        Assert.Equal(new MineFieldOptions().MinMines, events.Mines.MinMines);
+        Assert.Equal(new SugarRushOptions().DurationSeconds, events.SugarRush.DurationSeconds);
+    }
 }
