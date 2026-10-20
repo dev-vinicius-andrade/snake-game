@@ -51,6 +51,22 @@ public sealed class PrizeSpawnerTests
     }
 
     [Fact]
+    public void Update_TheMazePrize_IsNotATakenForAStrayPrizeAndStays()
+    {
+        AddPlayers(2);
+        var maze = new Food(Guid.NewGuid())
+        {
+            Position = new PointAxis(), Color = new Color("#ffd23f", "#ffd23f"), Kind = FoodKind.Prize, PrizeId = MazeOptions.PrizeId
+        };
+        _state.Foods.Add(maze.Guid, maze);
+
+        _spawner.Update(_state);
+        Pass(1);
+
+        Assert.Contains(maze.Guid, _state.Foods.Keys);
+    }
+
+    [Fact]
     public void Update_ARoomWithPrizesSwitchedOff_GetsNone_AndLosesTheOnesItHad()
     {
         AddPlayers(2);

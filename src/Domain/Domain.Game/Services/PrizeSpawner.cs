@@ -42,7 +42,8 @@ public sealed class PrizeSpawner
             ? _rules.Definitions.Where(definition => definition.AppliesTo(gameState.Room)).ToArray()
             : [];
         var activeIds = active.Select(definition => definition.Id).ToHashSet();
-        RemovePrizes(gameState, food => food.PrizeId is null || !activeIds.Contains(food.PrizeId));
+        // The maze's own prize is the maze runner's to take away, not a kind in the list.
+        RemovePrizes(gameState, food => food.PrizeId is null || (food.PrizeId != MazeOptions.PrizeId && !activeIds.Contains(food.PrizeId)));
         ForgetStates(roomId, kind => !activeIds.Contains(kind));
         foreach (var definition in active) Step(gameState, definition);
     }
