@@ -1,6 +1,6 @@
 # World events
 
-Things that happen to a whole room now and then, apart from what the snakes do. There are eight:
+Things that happen to a whole room now and then, apart from what the snakes do. There are nine:
 
 - **Lightning storm**: a burst of small strikes over a few seconds.
 - **Meteor rain**: a shower of big, slow meteors over a few seconds. Lightning and meteors share one engine.
@@ -8,8 +8,9 @@ Things that happen to a whole room now and then, apart from what the snakes do. 
 - **Shrinking safe zone**: a circle that closes in on the room; snakes outside it lose mass and die. It has its own state and runner.
 - **Fruit shower**, **bounty**, **mine field** and **sugar rush**: see [below](#fruit-shower-bounty-mine-field-and-sugar-rush).
 
-The next ones (earthquakes that open fissures, procedurally generated challenge paths) are to be added beside them; see
-[Adding the next event](#adding-the-next-event).
+- **Maze**: a procedurally generated maze rises in a clear part of the room, with a big prize at the far end. See [Maze](#maze).
+
+The next ones (earthquakes that open fissures) are to be added beside them; see [Adding the next event](#adding-the-next-event).
 
 ## What a storm does
 
@@ -142,6 +143,66 @@ On the wire, in the snapshot (all left out while idle): `mines: [{ x, y, r, t }]
 armed; a mine that disappears from the newest snapshot was set off, which the client shows as an explosion), `bounty: { guid, t, m }`
 (the wanted snake's guid in `snakes`, milliseconds left, reward mass), `shower: ms` and `rush: ms` (milliseconds left).
 
+## Maze
+
+Every `minIntervalSeconds` to `maxIntervalSeconds` (7 to 15 minutes by default) a room with at least `minPlayers` players (2) gets a
+**maze**: a region of `columns` x `rows` cells (12 x 8) that stands for `durationSeconds` (240) in a part of the room, with one big
+prize at its far end. Snakes race through it. It is an event inside a room, not a game mode, but the pieces (the generator and the wall
+collision) know nothing about rooms and could carry a race mode later.
+
+- **Shape.** A branching maze with dead ends and a few loops (6 walls per hundred cells are opened after the carving). `twistiness`
+  (0 to 100, 60) is the chance at each step that a corridor turns instead of going straight on: 0 makes long straight halls, 100
+  turns at every chance. The outer wall is closed except for one **entrance** on a random side. The **prize** is in the cell farthest
+  from the entrance by the way through the maze.
+- **Sizes are in head sizes** (`SnakeConfiguration.HeadSize`, 15 world units). A wall is one head size thick and a corridor is
+  `corridorHeads` wide (4, at least 3 so a long snake can turn). The maze is a grid of blocks of one head size.
+- **Where.** At least 4 head sizes from every edge of the room, and not within 2 head sizes of a living snake's head: a spot is drawn
+  up to 30 times, and if none is clear the maze does not rise this time. A room too small for the size asked for gets a smaller maze
+  (down to 3 x 3 cells); one that cannot hold even that gets none.
+- **Walls stop heads and cost mass, and never kill.** A head that would enter a wall is held where it was, or **slides** along the wall
+  if it can (so a snake pressing on a wall at an angle keeps moving). The snake loses `wallMassLoss` (2) mass, at most once every half
+  second, never more than it has, and it falls as food where the head is. A long snake cannot die of walls. An invulnerable snake is held
+  but pays nothing. A head already inside a wall (a snake there when the maze rose, or that spawned there) may walk out, for free.
+- **Walls stop shots.** A shot that reaches a wall vanishes; it is looked at every half block, so a fast shot cannot jump over a wall.
+  Walls cannot be broken. They are static: mines, the zone and strikes work as before.
+- **Fruit.** `foodPercent` (25) of the cells get a fruit when the maze rises (never the entrance cell or the prize cell). Set 0 for none.
+  Fruit stays when the maze goes, like any food.
+- **The prize** is a normal prize (food of kind prize, prize id `maze`, which no kind in the prize list may use) worth `prizeMass`
+  (200) mass and `prizeFoodsCredit` (20) foods toward perks, and it can give a perk (`prizeGrantsPerk`, a perk of the list). The prize
+  **compass** points at it while the maze stands, even when another prize is nearer.
+- **The end.** The maze goes when the prize is taken, or when `durationSeconds` is up (then the prize goes with it), or when the room
+  empties. The next one is scheduled from then. The walls simply disappear.
+- A banner counts the time down ("Maze! Race to the prize at the far end", warmer and "Walls cost mass" while the own snake is inside).
+- An administrator can start one at once (`maze`; the number of players is ignored), like the other events.
+
+The server and the client build the same walls from the seed: the snapshot carries only the corner, the cells, the corridor width, the
+twistiness, the seed and the size of a block. The generator is `MazeGenerator` (`Domain.Game/Rules`) and `generateMaze`
+(`Application.Ui/src/game/maze.ts`); both use only integer arithmetic (mulberry32 for the random numbers) and are checked against one
+shared test vector, `src/Tests/Shared/maze-vector.json` (the walls of five mazes as text). Change the algorithm in both languages, then
+rewrite the vector with `MAZE_VECTOR_WRITE=1 dotnet test --filter MazeGeneratorTests` and run the UI tests. Collision is one lookup of a
+block per check (`WorldMaze.BlocksSquare` looks at the at most four blocks a head overlaps).
+
+```jsonc
+"maze": { "enabled": true, "minIntervalSeconds": 420, "maxIntervalSeconds": 900,
+          "durationSeconds": 240,               // 10 to 3600
+          "columns": 12, "rows": 8,             // cells, 3 to 30 each
+          "corridorHeads": 4,                   // corridor width in head sizes, 3 to 12
+          "twistiness": 60,                     // 0 to 100
+          "wallMassLoss": 2,                    // mass lost on a wall, 0 to 1000
+          "foodPercent": 25,                    // cells with a fruit, 0 to 100
+          "minPlayers": 2,
+          "prizeMass": 200,                     // 1 to 10000
+          "prizeFoodsCredit": 20,               // 0 to 1000
+          "prizeGrantsPerk": "magnet",          // optional: a perk of the list
+          "prizeColor": "#ffd23f",
+          "rooms": [], "excludedRooms": [] }
+```
+
+A saved config from before the maze has no `maze` section and gets its defaults, switched on. In the database it is the table
+`world_event_maze` (one row, see [DATABASE.md](DATABASE.md)); the migration `WorldEventMaze` writes the default row, and a config read
+from a database with no such row gets the defaults too. On the wire, in the snapshot (left out while there is none): `maze: { x, y, c,
+r, k, v, s, u, t }` (corner, cells across and down, blocks across a corridor, twistiness, seed, world units per block, milliseconds left).
+
 ## What a strike costs, and how it is felt
 
 - **A splash on the body.** When a strike falls, every segment of every snake that was inside it throws bits off: white and yellow
@@ -184,7 +245,7 @@ the game server, which applies them at once.
 ```
 POST /rooms                          { id, name?, maxPlayers, gameplay?: { turret: "off", lightning: "wild", ... } }   (host)
 PUT  /admin/rooms/{id}/gameplay      { turret: "off", ... }                              (admin key; only what differs from the default)
-POST /admin/rooms/{id}/events/{kind}  kind: lightning | meteors | turret | zone | fruitshower | bounty | mines | sugarrush         (admin key; 204, 409 not now, 404, 502)
+POST /admin/rooms/{id}/events/{kind}  kind: lightning | meteors | turret | zone | fruitshower | bounty | mines | sugarrush | maze         (admin key; 204, 409 not now, 404, 502)
 ```
 
 ## Settings
@@ -305,6 +366,11 @@ makes it a storm. A config without `meteors`, `turret` or `zone` gets their defa
 | `EventSchedule`, `EventWindow` | `Domain.Game/Rules/EventSchedule.cs` | Pure timing shared by them: wait, begin (for a duration, or at once), end. Clock and random numbers are passed in. |
 | `ScheduledEventRunner`, `FruitShowerRunner`, `BountyRunner`, `MineFieldRunner`, `SugarRushRunner` | `Domain.Game/Services` | Per room, from the game loop every frame: begin, tick, clear (also when the room empties or the event is switched off), and `Trigger`. They keep what the clients must see in `IGameState` (`Mines`, `Bounty`, `FruitShowerEndsAt`, `SugarRushEndsAt`). |
 | `GameStateService.ResolveMines`, `PayBounty`, free boost in `MovePlayer` | `Domain.Game/Services/GameStateService.cs` | What a mine does when touched, what killing the wanted snake pays (from `RegisterKill`), and boosting for free during a sugar rush. |
+| `MazeOptions`, `MazeGenerator`, `MazeLayout`, `MazeRunner` | `Domain.Game/Rules/ScheduledEventOptions.cs`, `MazeGenerator.cs`, `Domain.Game/Services/MazeRunner.cs` | The maze: its settings (validated in `WorldEventRules`), the pure seeded generator, and the runner (a `ScheduledEventRunner`) that finds a clear spot, raises the maze with its prize and fruit, and takes it down. |
+| `WorldMaze`, `IMazeWalls` | `Library.Commons.Game.Domain/Entities/WorldEffects.cs` | The maze in a room (`IGameState.Maze`): corner, size, seed, walls, the prize id, the wall cost; `BlocksPoint` and `BlocksSquare`. |
+| `GameStateService.HoldAtWalls`, `ShotHitsWall` | `Domain.Game/Services/GameStateService.cs` | Holds a head back from walls (sliding, the mass cost, never a death) in `MovePlayer`; removes a shot that reaches a wall in `MoveObstacles`. |
+| `generateMaze`, `mazeLayoutOf`, `visibleBlocks`, `wallBlocks`, `mazeWarning` | `Application.Ui/src/game/maze.ts`, `render/maze.ts` | The TypeScript port of the generator, and what the renderer and the banner need from it. |
+| `MazeHint.vue` | `components/game` | The banner for the maze. |
 | `WorldEventsEditor.vue` | `components/admin` | The admin form, one card per event. Props: `{ gameplay: ReturnType<typeof useAdminGameplay> }`. |
 
 ### Why the game loop, not the 1 s food worker

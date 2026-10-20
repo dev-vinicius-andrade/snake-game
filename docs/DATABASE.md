@@ -61,15 +61,18 @@ With a database, the config the game servers run on (perks, prizes, world events
 | `world_event_bounty` | the bounty on a random snake: duration, reward mass, foods credit (one row) |
 | `world_event_mine_field` | the mine field: mine count, blast and trigger radius, arming time (one row) |
 | `world_event_sugar_rush` | the sugar rush, free boost for a while (one row) |
+| `world_event_maze` | the maze: size in cells, corridor width, twistiness, wall mass loss, fruit share and the prize (mass, foods credit, colour, **the perk it gives**, a link to `perks`) (one row) |
 | `bosses` | the boss: today the turret (`id = turret`), with its hit points, volleys, reward and **the perk it gives** (a link to `perks`). A new kind of boss is a new row |
-| `world_event_rooms` | the rooms an event or the boss is for, or not for (`event` is `lightning`, `meteors`, `zone`, `fruit_shower`, `bounty`, `mine_field`, `sugar_rush` or `turret`; no foreign key, so a new event needs no schema change) |
+| `world_event_rooms` | the rooms an event or the boss is for, or not for (`event` is `lightning`, `meteors`, `zone`, `fruit_shower`, `bounty`, `mine_field`, `sugar_rush`, `maze` or `turret`; no foreign key, so a new event needs no schema change) |
 
 - A save replaces every row in **one transaction**, so the tables always hold one whole config. `gameplay_settings.revision` changes with each
   save: game servers apply a revision they have not seen. The manager looks at the revision again every 5 seconds, so a change made on
   another manager, or by hand in the tables with a new revision, reaches it soon.
-- A prize or the boss can only give a perk that is in `perks` (the database refuses anything else).
+- A prize, the boss or the maze prize can only give a perk that is in `perks` (the database refuses anything else).
 - The first time the manager runs on an **empty** database it fills the tables from the old `gameplay.json` when that file is there, else from the defaults.
 - The built-in perks, which an empty list stands for, are written out as rows, so they can be edited like any other.
+- The migration `WorldEventMaze` added `world_event_maze` and wrote its default row the same way. Like the others, it is **ready but not
+  applied** until you run it. Tables created by the admin database user must be usable by the manager's database user (see below).
 - The migration that added the fruit shower, bounty, mine field and sugar rush tables also wrote their default row, so a config saved before
   them keeps working. If one of those rows is missing anyway, the manager reads that event at its defaults and the next save writes the row.
 

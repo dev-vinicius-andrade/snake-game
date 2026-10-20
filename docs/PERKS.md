@@ -119,6 +119,8 @@ Fields of a kind (`PrizeConfiguration:Prizes`):
 | `FoodsCredit` | 8 | Foods it counts for, toward perks. |
 | `MinPlayers` | 2 | Players needed in the room. |
 
+The prize of the [maze](WORLD_EVENTS.md#maze) is a prize too (food of kind prize, with its own `foodsCredit` and optional perk), but not one of these kinds: its id `maze` is reserved, so no kind in the list may use it, and `PrizeSpawner` leaves it to the maze.
+
 Rules live in `Domain/Domain.Game/Rules/PerkRules.cs` and `PrizeRules.cs`; `PrizeSpawner` applies them to a room once a second from the food generator worker.
 
 ## Controls
