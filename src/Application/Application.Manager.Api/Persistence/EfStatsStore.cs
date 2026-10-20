@@ -109,5 +109,27 @@ public sealed class EfStatsStore(IDbContextFactory<SnakeDbContext> factory) : IS
         if (surplus > 0) context.AppliedReports.RemoveRange(reports.Take(surplus));
     }
 
+    /// <summary>
+    /// Adds the rows of the stats of an account that has none yet (the database import). An unlock of an achievement the definitions no longer have
+    /// is left out, since the catalog could not point to it; their number is what is returned.
+    /// </summary>
+    internal static int AddImported(SnakeDbContext context, Guid accountId, AccountStats stats, IReadOnlyList<AchievementDefinition> definitions)
+    {
+        context.StatsHeads.Add(new StatsHeadRow { AccountId = accountId, Version = 1 });
+        foreach (var (key, value) in stats.Counters)
+            context.StatValues.Add(new StatValueRow { AccountId = accountId, Kind = StatKind.Counter, Key = key, Value = value });
+        foreach (var (key, value) in stats.Maxima)
+            context.StatValues.Add(new StatValueRow { AccountId = accountId, Kind = StatKind.Maximum, Key = key, Value = value });
+        for (var position = 0; position < stats.AppliedReports.Count; position++)
+            context.AppliedReports.Add(new AppliedReportRow { AccountId = accountId, ReportId = stats.AppliedReports[position], Sequence = position + 1 });
+        var skipped = 0;
+        foreach (var (id, at) in stats.Unlocked)
+        {
+            if (definitions.All(definition => definition.Id != id)) skipped++;
+            else context.UnlockedAchievements.Add(new UnlockedAchievementRow { AccountId = accountId, AchievementId = id, UnlockedAt = at });
+        }
+        return skipped;
+    }
+
     private sealed record Loaded(AccountStats Stats, StatsHeadRow? Head, List<StatValueRow> Values, List<AppliedReportRow> Reports);
 }

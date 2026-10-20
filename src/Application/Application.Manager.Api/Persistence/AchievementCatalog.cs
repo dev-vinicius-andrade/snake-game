@@ -50,25 +50,3 @@ public static class AchievementCatalog
         }
     }
 }
-
-/// <summary>
-/// Puts the game's achievements in the catalog when the manager starts. A failure is logged, not fatal: the stats store adds the row of any
-/// achievement it unlocks, so nothing waits on this.
-/// </summary>
-public sealed class AchievementCatalogService(IDbContextFactory<SnakeDbContext> factory, Accounts.AchievementService achievements, ILogger<AchievementCatalogService> logger) : IHostedService
-{
-    public Task StartAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            AchievementCatalog.Sync(factory, achievements.Definitions);
-        }
-        catch (Exception exception)
-        {
-            logger.LogWarning(exception, "The achievements could not be put in the database catalog; they are added as players unlock them");
-        }
-        return Task.CompletedTask;
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-}

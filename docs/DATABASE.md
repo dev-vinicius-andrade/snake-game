@@ -68,6 +68,26 @@ With a database, the config the game servers run on (perks, prizes, world events
 
 What is **not** in it, as everywhere else: the recovery phrase, a device token, a social account's id. Only their hashes.
 
+## What goes in at start (the seed)
+
+When the manager starts with a connection string, after the migrations (if switched on), it puts in the database what the game starts from. Every
+step is safe to run again, and a failed step is logged and does not stop the manager.
+
+| Step | What | When |
+|---|---|---|
+| Achievements | the achievements of the game, from the code | always: new ones are added, changed ones updated, removed ones kept |
+| Gameplay config | the perks, prizes, events, boss and room lifetimes: the old `gameplay.json` if the file is there (`GameplayConfiguration__StorePath`), else the defaults (the built-in perks written out) | only when the gameplay tables are empty |
+| Files | the accounts (`AccountsConfiguration__StorePath`) and their stats and unlocks (`AccountsConfiguration__StatsPath`) | only when `accounts` is **empty**, in one transaction: all of it or none |
+
+So the data the game already has in its files is what the database starts with. The files are only read: they are not changed or deleted, and
+they stay as the way back (remove the connection string and the manager uses them again). Once the database has accounts the files are ignored,
+so anything players did after that is only in the database.
+
+An unlock of an achievement that is no longer in the game is left out of the import (the catalog could not point to it); the log says how many.
+
+On the home cluster the manager keeps the two paths set (`deploy/homelab/values/manager.yaml`), so the first start with a connection string imports
+what is on the pod's volume.
+
 ## The stores
 
 `EfAccountStore` and `EfStatsStore` implement `IAccountStore` and `IStatsStore`, the same interfaces the file stores do, so `AccountService`
@@ -104,5 +124,4 @@ The migrations are checked against the model by the test above, but only a real 
 
 ## Not done yet
 
-- Moving the accounts already in the JSON files into the database (there is no importer; today a manager that gets a connection string starts empty).
 - Rooms (the live registry) are still memory. Roles are in `docs/ROLES.md`.

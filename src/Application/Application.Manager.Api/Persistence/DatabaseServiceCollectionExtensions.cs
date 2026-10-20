@@ -24,9 +24,15 @@ public static class DatabaseServiceCollectionExtensions
             return services;
         var connection = configuration[ConnectionKey]!.Trim();
         services.AddPooledDbContextFactory<SnakeDbContext>(options => options.UseNpgsql(connection, npgsql => npgsql.MigrationsHistoryTable("migrations_history")));
-        services.AddHostedService<AchievementCatalogService>();
+        // In this order: the tables first, then what goes in them.
         if (!string.Equals(configuration[MigrateOnStartKey], "false", StringComparison.OrdinalIgnoreCase))
             services.AddHostedService<DatabaseMigrationService>();
+        services.AddHostedService(provider => new DatabaseSeedService(
+            provider.GetRequiredService<IDbContextFactory<SnakeDbContext>>(),
+            provider.GetRequiredService<Accounts.AchievementService>(),
+            configuration,
+            provider,
+            provider.GetRequiredService<ILogger<DatabaseSeedService>>()));
         return services;
     }
 }

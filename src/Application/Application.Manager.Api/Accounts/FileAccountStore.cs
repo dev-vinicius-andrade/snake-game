@@ -33,6 +33,12 @@ public sealed class FileAccountStore : IAccountStore
     /// <summary>Called with the temp file once it is written and flushed, right before it replaces the file. Tests use it to cut a write short.</summary>
     internal Action<string>? BeforeReplacingFile { get; set; }
 
+    /// <summary>Every account in the store, as a copy. For moving them somewhere else (the database import).</summary>
+    internal IReadOnlyList<Account> All()
+    {
+        lock (_lock) return _index.All.ToList();
+    }
+
     /// <summary>Throws away what is in memory and reads the file again.</summary>
     internal void Reload()
     {

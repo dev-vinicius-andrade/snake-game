@@ -143,7 +143,7 @@ public sealed class EfAccountStore(IDbContextFactory<SnakeDbContext> factory) : 
 
     private static string NameKey(string username) => username.Trim().ToLowerInvariant();
 
-    private static AccountRow ToRow(Account account)
+    internal static AccountRow ToRow(Account account)
     {
         ArgumentNullException.ThrowIfNull(account);
         ArgumentNullException.ThrowIfNull(account.Devices, nameof(account.Devices));

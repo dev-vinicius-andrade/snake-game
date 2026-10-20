@@ -32,6 +32,12 @@ public sealed class FileStatsStore : IStatsStore
     /// <summary>Called with the temp file once it is written and flushed, right before it replaces the file. Tests use it to cut a write short.</summary>
     internal Action<string>? BeforeReplacingFile { get; set; }
 
+    /// <summary>The stats of every account that has any, as a copy. For moving them somewhere else (the database import).</summary>
+    internal IReadOnlyDictionary<Guid, AccountStats> All()
+    {
+        lock (_lock) return new Dictionary<Guid, AccountStats>(_byAccount);
+    }
+
     public AccountStats Get(Guid accountId)
     {
         lock (_lock) return _byAccount.GetValueOrDefault(accountId) ?? AccountStats.Empty;
