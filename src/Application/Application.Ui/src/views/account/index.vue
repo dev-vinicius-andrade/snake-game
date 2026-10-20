@@ -17,6 +17,7 @@ const busy = computed(() => status.value === "loading");
 
 // Register
 const regName = ref("");
+const regDisplayName = ref("");
 const regTag = ref("");
 const phraseMode = ref<"give" | "own">("give");
 const ownPhrase = ref("");
@@ -86,6 +87,7 @@ async function register() {
       username: cleanUsername(regName.value),
       tag: regTagNumber.value ?? undefined,
       phrase: phraseMode.value === "own" ? ownPhrase.value : undefined,
+      displayName: regDisplayName.value,
     });
     created.value = { display: account.value?.display ?? "", phrase };
     savedConfirmed.value = false;
@@ -94,6 +96,25 @@ async function register() {
     if (!(failure instanceof AccountError)) throw failure;
   }
 }
+
+// Signed in: the name other players see
+const newDisplayName = ref("");
+const displayNameSaved = ref(false);
+const displayNameProblem = ref("");
+
+async function saveDisplayName() {
+  displayNameSaved.value = false;
+  displayNameProblem.value = "";
+  try {
+    await accounts.changeDisplayName(newDisplayName.value);
+    displayNameSaved.value = true;
+  } catch (failure) {
+    if (!(failure instanceof AccountError)) throw failure;
+    displayNameProblem.value = getText({ key: `account.errors.${failure.code}` });
+  }
+}
+
+watch(account, (current) => (newDisplayName.value = current?.displayName ?? ""), { immediate: true });
 
 async function login() {
   const tag = loginTagNumber.value;
@@ -163,6 +184,21 @@ onBeforeUnmount(() => clearTimeout(availabilityTimer));
           <template v-else-if="status === 'signedIn' && account">
             <div>{{ getText({ key: "account.signedInAs" }) }}</div>
             <div class="text-h5 my-2" data-test="signed-in-display">{{ account.display }}</div>
+            <div class="text-caption mb-4" data-test="handle-private">{{ getText({ key: "account.handlePrivate" }) }}</div>
+            <VForm class="mb-4" @submit.prevent="saveDisplayName">
+              <VTextField
+                v-model="newDisplayName"
+                :label="getText({ key: 'account.displayName' })"
+                :hint="getText({ key: 'account.displayNameHint' })"
+                :error-messages="displayNameProblem"
+                persistent-hint
+                maxlength="20"
+                autocomplete="nickname"
+                data-test="display-name"
+              />
+              <div v-if="displayNameSaved" class="text-success text-caption mt-1" role="status">{{ getText({ key: "account.displayNameSaved" }) }}</div>
+              <VBtn type="submit" size="small" variant="tonal" class="mt-2" data-test="save-display-name">{{ getText({ key: "account.displayNameSave" }) }}</VBtn>
+            </VForm>
             <VBtn variant="tonal" :to="{ name: 'profile' }" data-test="profile-link">{{ getText({ key: "profile.link" }) }}</VBtn>
           </template>
 
@@ -182,6 +218,15 @@ onBeforeUnmount(() => clearTimeout(availabilityTimer));
                 persistent-hint
                 maxlength="20"
                 autocomplete="username"
+                class="mb-2"
+              />
+              <VTextField
+                v-model="regDisplayName"
+                :label="getText({ key: 'account.displayName' })"
+                :hint="getText({ key: 'account.displayNameHint' })"
+                persistent-hint
+                maxlength="20"
+                autocomplete="nickname"
                 class="mb-2"
               />
               <VTextField

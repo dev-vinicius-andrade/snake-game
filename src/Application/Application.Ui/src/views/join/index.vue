@@ -71,7 +71,7 @@ onMounted(() => {
             <div>{{ getText({ key: "rooms.roomName" }) }}: <strong>{{ preview?.name || code }}</strong></div>
             <div class="mb-4">{{ players }}</div>
             <div v-if="signedIn" data-test="account-display">
-              {{ getText({ key: "profile.playingAs" }) }}: <strong>{{ accounts.account.value?.display }}</strong>
+              {{ getText({ key: "profile.playingAs" }) }}: <strong>{{ accounts.account.value?.displayName }}</strong>
             </div>
             <VTextField
               v-else

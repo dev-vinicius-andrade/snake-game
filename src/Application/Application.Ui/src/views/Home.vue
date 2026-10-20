@@ -40,7 +40,7 @@ function playNow() {
     <section class="card pixel-card" aria-label="Play">
       <div v-if="signedIn" class="signed-in" data-test="signed-in">
         <div class="text-caption">{{ getText({ key: "profile.playingAs" }) }}</div>
-        <div class="text-h6" data-test="account-display">{{ accounts.account.value?.display }}</div>
+        <div class="text-h6" data-test="account-display">{{ accounts.account.value?.displayName }}</div>
         <div class="signed-in-actions">
           <RouterLink :to="{ name: 'profile' }" data-test="profile-link">{{ getText({ key: "profile.link" }) }}</RouterLink>
           <button type="button" class="link-button" data-test="sign-out" @click="accounts.logout()">

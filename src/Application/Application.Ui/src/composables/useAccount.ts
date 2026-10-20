@@ -9,6 +9,7 @@ export type AccountStatus = "guest" | "loading" | "signedIn" | "error";
 /** The error codes of the manager contract (docs/ACCOUNTS.md), plus `unavailable` for anything else (network, 5xx, odd answer). */
 export type AccountErrorCode =
   | "invalidUsername"
+  | "invalidDisplayName"
   | "invalidTag"
   | "weakPhrase"
   | "noTagsLeft"
@@ -19,6 +20,7 @@ export type AccountErrorCode =
 
 const KNOWN_CODES: readonly AccountErrorCode[] = [
   "invalidUsername",
+  "invalidDisplayName",
   "invalidTag",
   "weakPhrase",
   "noTagsLeft",
@@ -41,12 +43,14 @@ export class AccountError extends Error {
 export interface AccountInfo {
   username: string;
   tag: number;
-  /** `Name#09291` */
+  /** `Name#09291`: how the owner signs in. Private: never show it to other players, it tells them which account to go after. */
   display: string;
+  /** What other players see in the game and on the ranking. The username unless the player chose another name. */
+  displayName: string;
 }
 
 export interface AccountCall {
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "PUT";
   url: string;
   body?: unknown;
   /** Sent as `Authorization: Bearer`. */
@@ -79,6 +83,8 @@ export interface RegisterInput {
   username: string;
   tag?: number;
   phrase?: string;
+  /** The name other players see; left out, the username is shown. */
+  displayName?: string;
 }
 
 export interface LoginInput {
@@ -146,9 +152,9 @@ function toError(reply: AccountReply): AccountError {
 }
 
 function toInfo(data: unknown): AccountInfo {
-  const { username, tag, display } = asRecord(data);
+  const { username, tag, display, displayName } = asRecord(data);
   if (typeof username !== "string" || typeof tag !== "number" || typeof display !== "string") throw new AccountError("unavailable");
-  return { username, tag, display };
+  return { username, tag, display, displayName: typeof displayName === "string" && displayName.trim() ? displayName : username };
 }
 
 export function useAccount(options: UseAccountOptions = {}) {
@@ -218,6 +224,7 @@ export function useAccount(options: UseAccountOptions = {}) {
       const body: RegisterInput = { username: input.username };
       if (input.tag !== undefined) body.tag = input.tag;
       if (input.phrase) body.phrase = input.phrase;
+      if (input.displayName?.trim()) body.displayName = input.displayName.trim();
       const reply = await send({ method: "POST", url: `${base}/accounts`, body });
       if (reply.status !== 201) throw toError(reply);
       const phrase = asRecord(reply.data).recoveryPhrase;
@@ -282,6 +289,24 @@ export function useAccount(options: UseAccountOptions = {}) {
     }
   }
 
+  /**
+   * Changes the name other players see; blank goes back to the username. Throws the reason when it is refused and leaves the account as it
+   * was. A token the manager no longer knows signs this device out.
+   */
+  async function changeDisplayName(name: string): Promise<void> {
+    const stored = readToken();
+    if (!stored) throw new AccountError("invalidToken");
+    const reply = await send({ method: "PUT", url: `${base}/accounts/me/display-name`, body: { displayName: name.trim() }, token: stored });
+    if (reply.status === 401) {
+      writeToken(null);
+      account.value = null;
+      status.value = "guest";
+      throw new AccountError("invalidToken");
+    }
+    if (reply.status !== 200) throw toError(reply);
+    account.value = toInfo(reply.data);
+  }
+
   /** Does not change the state. Debounce is the caller's job. */
   async function checkAvailability(username: string, tag?: number): Promise<Availability> {
     const query = `username=${encodeURIComponent(username)}${tag === undefined ? "" : `&tag=${tag}`}`;
@@ -292,5 +317,5 @@ export function useAccount(options: UseAccountOptions = {}) {
     return { available, username: typeof kept === "string" ? kept : username };
   }
 
-  return { status, account, error, register, login, loadMe, logout, checkAvailability };
+  return { status, account, error, register, login, loadMe, logout, checkAvailability, changeDisplayName };
 }

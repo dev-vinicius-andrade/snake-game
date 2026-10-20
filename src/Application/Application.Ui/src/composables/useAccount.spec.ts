@@ -35,8 +35,28 @@ describe("useAccount register", () => {
     expect(request).toHaveBeenCalledWith({ method: "POST", url: "http://manager.test/accounts", body: { username: "Vini", tag: 9291 } });
     expect(storage.data[ACCOUNT_TOKEN_STORAGE_KEY]).toBe("tok-1");
     expect(account.status.value).toBe("signedIn");
-    expect(account.account.value).toEqual({ username: "Vini", tag: 9291, display: "Vini#09291" });
+    expect(account.account.value).toEqual({ username: "Vini", tag: 9291, display: "Vini#09291", displayName: "Vini" });
     expect(account.error.value).toBeNull();
+  });
+
+  it("shows the display name the manager sent, and the username when it sent none", async () => {
+    const named = setup(() => ({ status: 201, data: { ...registered, displayName: "Rattler" } }));
+    await named.account.register({ username: "Vini", tag: 9291 });
+    expect(named.account.account.value?.displayName).toBe("Rattler");
+
+    const plain = setup(() => ({ status: 201, data: { ...registered, displayName: "  " } }));
+    await plain.account.register({ username: "Vini", tag: 9291 });
+    expect(plain.account.account.value?.displayName).toBe("Vini");
+  });
+
+  it("sends a display name when there is one, trimmed, and leaves it out when blank", async () => {
+    const { account, request } = setup(() => ({ status: 201, data: registered }));
+
+    await account.register({ username: "Vini", displayName: "  Rattler " });
+    await account.register({ username: "Vini", displayName: "   " });
+
+    expect(request.mock.calls[0][0].body).toEqual({ username: "Vini", displayName: "Rattler" });
+    expect(request.mock.calls[1][0].body).toEqual({ username: "Vini" });
   });
 
   it("sends a chosen phrase and leaves out an empty tag", async () => {
@@ -79,6 +99,42 @@ describe("useAccount register", () => {
 
     await expect(account.register({ username: "x" })).rejects.toMatchObject({ code: "unavailable" });
     expect(account.status.value).toBe("error");
+  });
+});
+
+describe("useAccount changeDisplayName", () => {
+  const signedInWith = (reply: (call: { method: string; url: string; body?: unknown; token?: string }) => { status: number; data?: unknown }) =>
+    setup(reply, { [ACCOUNT_TOKEN_STORAGE_KEY]: "tok-1" });
+
+  it("puts the name with the bearer token and shows the name the manager kept", async () => {
+    const { account, request } = signedInWith((call) =>
+      call.method === "PUT" ? { status: 200, data: { ...registered, displayName: "Rattler" } } : { status: 200, data: registered }
+    );
+    await account.loadMe();
+
+    await account.changeDisplayName("  Rattler ");
+
+    expect(request).toHaveBeenLastCalledWith({ method: "PUT", url: "http://manager.test/accounts/me/display-name", body: { displayName: "Rattler" }, token: "tok-1" });
+    expect(account.account.value?.displayName).toBe("Rattler");
+    expect(account.status.value).toBe("signedIn");
+  });
+
+  it("keeps the old name and says why when the name is not allowed", async () => {
+    const { account } = signedInWith((call) => (call.method === "PUT" ? { status: 400, data: { error: "invalidDisplayName" } } : { status: 200, data: registered }));
+    await account.loadMe();
+
+    await expect(account.changeDisplayName("Vini#12345")).rejects.toMatchObject({ code: "invalidDisplayName" });
+
+    expect(account.account.value?.displayName).toBe("Vini");
+    expect(account.status.value).toBe("signedIn");
+  });
+
+  it("is invalidToken without a token, and makes no call", async () => {
+    const { account, request } = setup(() => ({ status: 200, data: registered }));
+
+    await expect(account.changeDisplayName("Rattler")).rejects.toMatchObject({ code: "invalidToken" });
+
+    expect(request).not.toHaveBeenCalled();
   });
 });
 

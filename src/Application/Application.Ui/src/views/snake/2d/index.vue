@@ -100,8 +100,8 @@ function enableEyeControl() {
 }
 
 const accounts = useAccount();
-/** A signed-in player joins under the account name (the manager sets it anyway); a guest under the nickname. */
-const nickname = computed(() => accounts.account.value?.display ?? playerStore.data?.nickname?.trim() ?? "");
+/** A signed-in player joins under the display name (the manager sets it anyway, and never uses the tag); a guest under the nickname. */
+const nickname = computed(() => accounts.account.value?.displayName ?? playerStore.data?.nickname?.trim() ?? "");
 
 // The manager refused the token on join: this view is a guest from now on.
 watch(tokenRejected, (rejected) => rejected && void accounts.logout());
