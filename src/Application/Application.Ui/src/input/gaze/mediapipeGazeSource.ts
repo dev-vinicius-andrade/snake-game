@@ -22,7 +22,8 @@ export interface LandmarkerResultLike {
 }
 
 export interface LandmarkerLike {
-  detectForVideo(video: VideoLike, timestampMs: number): LandmarkerResultLike;
+  /** The result now, or later when the model runs on another thread. */
+  detectForVideo(video: VideoLike, timestampMs: number): LandmarkerResultLike | Promise<LandmarkerResultLike>;
   /** Turns on or off the parts of the result that cost something and are not always read (the head's transformation matrix). */
   setOutputs?(outputs: { matrices: boolean }): void;
   close(): void;
@@ -233,6 +234,8 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
   let lastDetectAt = Number.NEGATIVE_INFINITY;
   let averageDetectMs = 0;
   let longestDetectMs = 0;
+  /** A frame is with the model (on another thread): the next is not sent until it comes back. */
+  let inFlight = false;
 
   const emit = (sample: GazeSample) => listeners.forEach((listener) => listener(sample));
 
@@ -288,11 +291,16 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
     }
   }
 
-  function detect(currentVideo: VideoLike, currentLandmarker: LandmarkerLike, t: number): LandmarkerResultLike | null {
+  /** A failed detection is one frame without a face. The next frame may work again. */
+  function detect(currentVideo: VideoLike, currentLandmarker: LandmarkerLike, t: number): LandmarkerResultLike | null | Promise<LandmarkerResultLike | null> {
     try {
-      return currentLandmarker.detectForVideo(currentVideo, t);
+      const outcome = currentLandmarker.detectForVideo(currentVideo, t);
+      if (!(outcome instanceof Promise)) return outcome;
+      return outcome.catch((failure: unknown) => {
+        onDetectError(failure);
+        return null;
+      });
     } catch (failure) {
-      // A failed detection is one frame without a face. The next frame may work again.
       onDetectError(failure);
       return null;
     }
@@ -344,10 +352,28 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
       return;
     }
     const t = now();
+    if (inFlight) {
+      counters.throttled++;
+      return;
+    }
     if (!dueForDetection(t)) return;
     lastVideoTime = currentVideo.currentTime;
     lastDetectAt = t;
-    const result = detect(currentVideo, currentLandmarker, t);
+    const outcome = detect(currentVideo, currentLandmarker, t);
+    if (outcome instanceof Promise) {
+      inFlight = true;
+      const myGeneration = generation;
+      void outcome.then((result) => {
+        inFlight = false;
+        if (running && myGeneration === generation) finishFrame(t, result);
+      });
+      return;
+    }
+    finishFrame(t, outcome);
+  }
+
+  /** What is done with a frame's result, whether it came at once or from the worker. */
+  function finishFrame(t: number, result: LandmarkerResultLike | null) {
     const took = now() - t;
     averageDetectMs = smoothDetectTime(averageDetectMs, took);
     longestDetectMs = Math.max(longestDetectMs, took);
@@ -426,6 +452,7 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
   function stopSource() {
     generation++;
     running = false;
+    inFlight = false;
     releaseResources();
   }
 

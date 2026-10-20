@@ -50,6 +50,14 @@ class Fixture {
   outputsSet: Array<{ matrices: boolean }> = [];
   streamError: Error | null = null;
   loadError: Error | null = null;
+  /** When set, detection answers later, like a worker does: it resolves when the test calls it. */
+  later = false;
+  pending: Array<(result: unknown) => void> = [];
+  rejectors: Array<(failure: Error) => void> = [];
+  landmarkerFails = false;
+  rejectPending(failure: Error) {
+    this.rejectors.shift()?.(failure);
+  }
   playError: Error | null = null;
   clock = 1000;
   nextFrame: (() => void) | null = null;
@@ -79,6 +87,11 @@ class Fixture {
           detectForVideo: () => {
             if (this.detectError) throw this.detectError;
             this.clock += this.detectCostMs;
+            if (this.later)
+              return new Promise((resolve, reject) => {
+                this.pending.push(resolve);
+                this.rejectors.push(reject);
+              }) as never;
             return this.result;
           },
           setOutputs: (outputs: { matrices: boolean }) => {
@@ -901,5 +914,86 @@ describe("createMediaPipeGazeSource camera and outputs", () => {
     expect(fx.outputsSet.at(-1)).toEqual({ matrices: true });
     source.setMode("eyes");
     expect(fx.outputsSet.at(-1)).toEqual({ matrices: false });
+  });
+});
+
+describe("createMediaPipeGazeSource with a landmarker that answers later", () => {
+  const settle = async () => {
+    for (let index = 0; index < 5; index++) await Promise.resolve();
+  };
+
+  it("emits the sample when the answer arrives, not before", async () => {
+    fx.later = true;
+    await started();
+
+    fx.frame(33);
+    expect(samples).toHaveLength(0);
+    fx.pending.shift()!(fx.result);
+    await settle();
+
+    expect(samples).toHaveLength(1);
+  });
+
+  it("does not send a second frame while one is still being worked on", async () => {
+    fx.later = true;
+    const source = await started();
+
+    fx.frame(33);
+    fx.frame(33);
+    fx.frame(33);
+
+    expect(fx.pending).toHaveLength(1);
+    expect(source.getDiagnostics().throttled).toBeGreaterThanOrEqual(2);
+  });
+
+  it("takes the next frame once the answer came", async () => {
+    fx.later = true;
+    await started();
+    fx.frame(33);
+    fx.pending.shift()!(fx.result);
+    await settle();
+
+    fx.frame(33);
+
+    expect(fx.pending).toHaveLength(1);
+  });
+
+  it("counts a failed answer as a frame without a face and goes on", async () => {
+    fx.later = true;
+    const errors: unknown[] = [];
+    const source = await started({ onDetectError: (error) => errors.push(error) });
+    fx.landmarkerFails = true;
+
+    fx.frame(33);
+    fx.rejectPending(new Error("lost the worker"));
+    await settle();
+
+    expect(errors).toHaveLength(1);
+    expect(source.getDiagnostics().frames).toBe(1);
+    expect(source.getDiagnostics().withFace).toBe(0);
+  });
+
+  it("forgets an answer that arrives after it was stopped", async () => {
+    fx.later = true;
+    const source = await started();
+    fx.frame(33);
+
+    source.stop();
+    fx.pending.shift()!(fx.result);
+    await settle();
+
+    expect(samples).toHaveLength(0);
+  });
+
+  it("measures the time to the answer", async () => {
+    fx.later = true;
+    const source = await started();
+
+    fx.frame(33);
+    fx.clock += 25;
+    fx.pending.shift()!(fx.result);
+    await settle();
+
+    expect(source.getDiagnostics().detectMs.max).toBe(25);
   });
 });

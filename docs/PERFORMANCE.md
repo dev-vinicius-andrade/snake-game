@@ -23,3 +23,15 @@ heavy (many segments); **jitter, stalls or starved** mean snapshots arrive uneve
 `stats().hitches` lists the last frames over 50 ms and how long ago each one was. A frame stall that comes with a snapshot gap of the same length is the page freezing, not the network: both stopped together.
 
 Note that a hidden or background tab draws about 1 frame a second.
+
+## Face control (camera) cost
+
+Camera control (MediaPipe Face Landmarker) is the heaviest thing the page can run, so it is kept cheap:
+
+- It runs on a **worker thread** when the browser can (module workers and `createImageBitmap`), so finding the face does not hold up drawing the game. If the worker cannot start, it runs on the page as before. To compare, run `localStorage.setItem('snake.faceWorker', 'off')` and reload; `'on'` or removing it goes back.
+- It **looks less often when it is costly**: detection may take about a quarter of the time, so a detection that takes 10 ms runs every 40 ms and one that takes 25 ms every 100 ms (never faster than 30 a second, never slower than 10). One frame is with the worker at a time; frames that arrive meanwhile are left out.
+- The head mode asks the camera for **320x240**, the eyes mode for 640x480 (the eyes are small in the frame).
+- The head's transformation matrix is only computed in head mode.
+- Nothing is detected while the page is hidden.
+- The meter shows `face avg/max ms N Hz`: how long each detection takes and how many run a second.
+
