@@ -1,7 +1,8 @@
-import type { BossSnapshot, ZoneSnapshot, FloatingDamage, FoodSnapshot, GamePoint, GameSnapshot, RoomDimensions, ShotSnapshot, SnakeSnapshot } from "@/types/game";
+import type { BossSnapshot, MazeSnapshot, ZoneSnapshot, FloatingDamage, FoodSnapshot, GamePoint, GameSnapshot, RoomDimensions, ShotSnapshot, SnakeSnapshot } from "@/types/game";
 import { GLYPH_HEIGHT, GLYPH_WIDTH, damageColor as damageNumberColor, damageLabel, damagePosition, glyphFor, isVisible } from "./damageNumbers";
 import { armPixels, hpBarPixels } from "./boss";
 import { wantedSnake } from "./bounty";
+import { mazeLayoutOf, mazePrizeCenter, visibleBlocks, wallBlocks } from "./maze";
 import { isMineNear, type MineBlast, type MineMark, type MineView } from "./mines";
 import { discPoints, discRows, ringPoints, splashParticles, type StrikeRing, type StrikeFlash, type StrikeSplash, type StrikeView } from "./strikes";
 import { DAMAGE_COLOR, contrastColor, headColor, lightenColor, segmentColor, shadeColor } from "./segmentColor";
@@ -19,6 +20,8 @@ export interface PixelContext {
 export const DEFAULT_PIXEL_SIZE = 5;
 /** Side of a snake segment in world units. Mirrors the server `SnakeConfiguration.HeadSize`. */
 export const DEFAULT_HEAD_SIZE = 15;
+
+import type { WorldClip } from "./maze";
 
 export interface RenderOptions {
   pixelSize?: number;
@@ -391,6 +394,33 @@ function drawMineBlast(painter: Painter, blast: MineBlast, pixelSize: number) {
   }
 }
 
+/** Two stones of a wall, laid like a checkerboard, the light along the top of a wall that has floor above and the shade along the bottom. */
+export const MAZE_WALL_COLORS = ["#4c5070", "#454968"];
+export const MAZE_WALL_LIGHT_COLOR = "#8e93b8";
+export const MAZE_WALL_SHADE_COLOR = "#2a2c42";
+export const MAZE_PRIZE_GLOW_COLOR = "#ffe27a";
+const MAZE_GLOW_BLINK_MS = 300;
+
+/**
+ * The walls of a maze, as blocks of stone of one head size, in the world units of the server. The walls are not in the snapshot: they
+ * are built from its seed, and only the blocks the camera shows are drawn. The prize at the far end blinks a ring of light.
+ */
+function drawMaze(painter: Painter, maze: MazeSnapshot, clip: WorldClip, world: RoomDimensions, pixelSize: number, timeMs: number) {
+  const layout = mazeLayoutOf(maze);
+  const blockPixels = Math.max(1, Math.round(maze.unit / pixelSize));
+  for (const block of wallBlocks(maze, layout, visibleBlocks(maze, layout, clip, world))) {
+    painter.block(MAZE_WALL_COLORS[(block.column + block.row) % 2], block.position, blockPixels);
+    if (block.lit) painter.row(MAZE_WALL_LIGHT_COLOR, block.position, blockPixels);
+    if (block.shaded) painter.row(MAZE_WALL_SHADE_COLOR, { x: block.position.x, y: block.position.y + (blockPixels - 1) * pixelSize }, blockPixels);
+  }
+  if (Math.floor(timeMs / MAZE_GLOW_BLINK_MS) % 2 === 0) {
+    const radius = (maze.corridor * maze.unit) / 2;
+    ringPoints(mazePrizeCenter(maze), radius, pixelSize).forEach((point, index) => {
+      if (index % 2 === 0) painter.block(MAZE_PRIZE_GLOW_COLOR, point, 1);
+    });
+  }
+}
+
 export const BOUNTY_CROWN_COLOR = "#ffd23f";
 export const BOUNTY_GEM_COLOR = "#ff3b3b";
 const BOUNTY_BAND_COLOR = "#b8860b";
@@ -491,6 +521,12 @@ export function drawFrame(ctx: PixelContext, snapshot: GameSnapshot, options: Re
   ctx.fillRect(0, 0, options.view?.width ?? room.width, options.view?.height ?? room.height);
   if (options.view) drawGrid(ctx, options.view, origin, pixelSize);
 
+  if (snapshot.maze) {
+    const clip = options.view
+      ? { left: origin.x, top: origin.y, right: origin.x + options.view.width * pixelSize, bottom: origin.y + options.view.height * pixelSize }
+      : { left: 0, top: 0, right: snapshot.room.width, bottom: snapshot.room.height };
+    drawMaze(painter, snapshot.maze, clip, snapshot.room, pixelSize, options.timeMs ?? 0);
+  }
   if (options.strikes) drawStrikeWarning(painter, options.strikes, pixelSize, options.timeMs ?? 0);
   snapshot.foods.forEach((food) => drawFood(painter, food, options.timeMs ?? 0));
   if (snapshot.zone) drawZone(painter, snapshot.zone, pixelSize);

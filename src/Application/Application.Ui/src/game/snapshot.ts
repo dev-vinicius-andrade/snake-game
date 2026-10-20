@@ -6,6 +6,7 @@ import type {
   BountySnapshot,
   GameSnapshot,
   LeaderboardEntry,
+  MazeSnapshot,
   MineSnapshot,
   RoomDimensions,
   ShotSnapshot,
@@ -14,6 +15,7 @@ import type {
   StrikeSnapshot,
   ZoneSnapshot,
 } from "@/types/game";
+import { MAX_CELLS, MAX_CORRIDOR, MIN_CELLS, MIN_CORRIDOR } from "./maze";
 
 type Dictionary = Record<string, unknown>;
 
@@ -174,6 +176,27 @@ function parseBounty(bounty: unknown): BountySnapshot | null {
   };
 }
 
+/**
+ * The maze: the corner (`x`, `y`), the cells (`c` across, `r` down), the blocks across a corridor (`k`), the twistiness (`v`), the seed
+ * (`s`), the size of a block (`u`) and the milliseconds left (`t`). Null when it cannot be built: the numbers must be ones the generator accepts.
+ */
+function parseMaze(maze: unknown): MazeSnapshot | null {
+  if (!isDictionary(maze) || !isFinite(maze.x) || !isFinite(maze.y) || !isFinite(maze.s) || !isFinite(maze.u) || maze.u <= 0) return null;
+  const whole = (value: unknown, min: number, max: number): value is number => isFinite(value) && Number.isInteger(value) && value >= min && value <= max;
+  if (!whole(maze.c, MIN_CELLS, MAX_CELLS) || !whole(maze.r, MIN_CELLS, MAX_CELLS)) return null;
+  if (!whole(maze.k, MIN_CORRIDOR, MAX_CORRIDOR) || !whole(maze.v, 0, 100) || !whole(maze.s, 0, 4294967295)) return null;
+  return {
+    position: { x: maze.x, y: maze.y },
+    columns: maze.c,
+    rows: maze.r,
+    corridor: maze.k,
+    twistiness: maze.v,
+    seed: maze.s,
+    unit: maze.u,
+    msLeft: isFinite(maze.t) ? Math.max(0, maze.t) : 0,
+  };
+}
+
 /** The milliseconds left of an event that is only a countdown (a fruit shower, a sugar rush); 0 when there is none. */
 const msLeftOf = (value: unknown): number => (isFinite(value) && value > 0 ? value : 0);
 
@@ -201,6 +224,7 @@ export function parseSnapshot(raw: unknown): GameSnapshot | null {
     bounty: parseBounty(raw.bounty),
     showerMsLeft: msLeftOf(raw.shower),
     rushMsLeft: msLeftOf(raw.rush),
+    maze: parseMaze(raw.maze),
   };
 }
 

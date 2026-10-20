@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { BossSnapshot, FloatingDamage, FoodSnapshot, GameSnapshot, ShotSnapshot, SnakeSnapshot, ZoneSnapshot } from "@/types/game";
+import type { BossSnapshot, FloatingDamage, FoodSnapshot, GameSnapshot, MazeSnapshot, ShotSnapshot, SnakeSnapshot, ZoneSnapshot } from "@/types/game";
+import { mazeLayoutOf } from "./maze";
 import {
   BOSS_BAR_GOOD_COLOR,
   ZONE_DANGER_COLOR,
@@ -31,6 +32,10 @@ import {
   MINE_SPIKE_COLOR,
   BOUNTY_CROWN_COLOR,
   BOUNTY_GEM_COLOR,
+  MAZE_PRIZE_GLOW_COLOR,
+  MAZE_WALL_COLORS,
+  MAZE_WALL_LIGHT_COLOR,
+  MAZE_WALL_SHADE_COLOR,
   drawFrame,
   logicalSize,
   type PixelContext,
@@ -593,6 +598,62 @@ describe("drawFrame", () => {
       drawFrame(ctx, snapshot());
 
       expect(styled(BOSS_BODY_COLOR)).toHaveLength(0);
+    });
+  });
+
+  describe("maze", () => {
+    const maze: MazeSnapshot = { position: { x: 300, y: 200 }, columns: 6, rows: 5, corridor: 3, twistiness: 50, seed: 12345, unit: 15, msLeft: 60000 };
+    const layout = mazeLayoutOf(maze);
+    const wallCount = layout.toAscii().join("").split("#").length - 1;
+    const walls = () => ctx.calls.filter((call) => MAZE_WALL_COLORS.includes(call.style));
+
+    it("draws nothing for a room without a maze", () => {
+      drawFrame(ctx, snapshot(), { timeMs: 0 });
+
+      expect(walls()).toEqual([]);
+      expect(ctx.calls.filter((call) => call.style === MAZE_WALL_LIGHT_COLOR || call.style === MAZE_WALL_SHADE_COLOR)).toEqual([]);
+    });
+
+    it("draws one block of stone for every wall block, a block being a head size (3 pixels)", () => {
+      drawFrame(ctx, snapshot({ maze }), { timeMs: 0 });
+
+      expect(walls()).toHaveLength(wallCount);
+      walls().forEach((call) => expect([call.w, call.h]).toEqual([3, 3]));
+    });
+
+    it("puts the first block at the corner of the maze, in pixels (300 / 5, 200 / 5)", () => {
+      drawFrame(ctx, snapshot({ maze }), { timeMs: 0 });
+
+      expect(walls()).toContainEqual(expect.objectContaining({ x: 60, y: 40 }));
+    });
+
+    it("lights the top of a wall that has floor above it and shades the bottom of one with floor below", () => {
+      drawFrame(ctx, snapshot({ maze }), { timeMs: 0 });
+
+      const lit = ctx.calls.filter((call) => call.style === MAZE_WALL_LIGHT_COLOR);
+      const shaded = ctx.calls.filter((call) => call.style === MAZE_WALL_SHADE_COLOR);
+      expect(lit.length).toBeGreaterThan(0);
+      expect(shaded.length).toBeGreaterThan(0);
+      lit.forEach((call) => expect([call.w, call.h]).toEqual([3, 1]));
+      // The top row of the maze is lit from above: a row of light along y = 40.
+      expect(lit).toContainEqual(expect.objectContaining({ x: 60, y: 40 }));
+    });
+
+    it("draws only what the camera shows when there is a view", () => {
+      drawFrame(ctx, snapshot({ maze }), { timeMs: 0, origin: { x: 295, y: 195 }, view: { width: 10, height: 10 } });
+
+      expect(walls().length).toBeGreaterThan(0);
+      expect(walls().length).toBeLessThan(wallCount / 4);
+    });
+
+    it("lets the prize glow gold, over the floor", () => {
+      const colors = new Set([0, 200, 400, 600].flatMap((timeMs) => {
+        ctx.calls = [];
+        drawFrame(ctx, snapshot({ maze }), { timeMs });
+        return ctx.calls.map((call) => call.style);
+      }));
+
+      expect(colors.has(MAZE_PRIZE_GLOW_COLOR)).toBe(true);
     });
   });
 

@@ -218,6 +218,38 @@ describe("parseSnapshot", () => {
     expect(parseSnapshot(raw)!.bounty).toEqual({ guid: "g", msLeft: 0, rewardMass: 0 });
   });
 
+  it("has no maze when the server sends none", () => {
+    expect(parseSnapshot(fixture)!.maze).toBeNull();
+  });
+
+  it("reads the maze: the corner, the cells, the corridor, the twistiness, the seed, the block and the time left", () => {
+    const raw = clone(fixture) as any;
+    raw.maze = { x: 300, y: 200, c: 12, r: 8, k: 4, v: 60, s: 4000000000, u: 15, t: 90500 };
+
+    expect(parseSnapshot(raw)!.maze).toEqual({
+      position: { x: 300, y: 200 },
+      columns: 12,
+      rows: 8,
+      corridor: 4,
+      twistiness: 60,
+      seed: 4000000000,
+      unit: 15,
+      msLeft: 90500,
+    });
+  });
+
+  it("drops a maze the generator could not build, and a missing time is none left", () => {
+    const raw = clone(fixture) as any;
+    const good = { x: 300, y: 200, c: 12, r: 8, k: 4, v: 60, s: 7, u: 15, t: 100 };
+    for (const bad of ["nope", { ...good, c: 2 }, { ...good, r: 31 }, { ...good, k: 2 }, { ...good, v: 101 }, { ...good, s: -1 }, { ...good, u: 0 }, { ...good, x: "a" }, { ...good, c: 4.5 }]) {
+      raw.maze = bad;
+      expect(parseSnapshot(raw)!.maze).toBeNull();
+    }
+
+    raw.maze = { ...good, t: undefined };
+    expect(parseSnapshot(raw)!.maze!.msLeft).toBe(0);
+  });
+
   it("reads the time left of a fruit shower and of a sugar rush, both at once", () => {
     const raw = clone(fixture) as any;
     raw.shower = 12000;

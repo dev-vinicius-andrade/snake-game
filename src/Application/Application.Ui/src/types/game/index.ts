@@ -123,6 +123,26 @@ export interface BountySnapshot {
   rewardMass: number;
 }
 
+/**
+ * A maze standing in the room. The walls are not sent: they are built from the seed and the numbers here (see `game/maze.ts`), the
+ * same way the server builds them. The prize is one of the foods.
+ */
+export interface MazeSnapshot {
+  /** The top left corner of the maze, in world units. */
+  position: GamePoint;
+  columns: number;
+  rows: number;
+  /** Blocks across a corridor. */
+  corridor: number;
+  /** 0 to 100, how twisty the corridors are. */
+  twistiness: number;
+  seed: number;
+  /** World units a block measures on a side (one head size). */
+  unit: number;
+  /** Milliseconds left when the snapshot was sent. */
+  msLeft: number;
+}
+
 /** `lost` is not a shot: the own snake lost mass to lightning, a meteor or the zone, at its head. */
 export type DamageKind = "hit" | "broke" | "kill" | "lost";
 
@@ -171,6 +191,8 @@ export interface GameSnapshot {
   showerMsLeft?: number;
   /** Milliseconds left of a sugar rush, when boosting costs no mass. Left out or 0: none. */
   rushMsLeft?: number;
+  /** The maze standing in the room. Left out or null: none. */
+  maze?: MazeSnapshot | null;
 }
 
 export interface LeaderboardEntry {

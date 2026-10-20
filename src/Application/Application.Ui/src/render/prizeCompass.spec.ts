@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FoodSnapshot, GameSnapshot, SnakeSnapshot } from "@/types/game";
+import { mazePrizeCenter } from "./maze";
 import { prizeCompass } from "./prizeCompass";
 
 const room = { guid: null, width: 1920, height: 1080 };
@@ -56,6 +57,17 @@ describe("prizeCompass", () => {
     const compass = prizeCompass(frame([snake(0, 0)], [food(800, 0), food(100, 0)]), "me")!;
 
     expect(compass.distance).toBeCloseTo(100, 6);
+  });
+
+  it("points at the prize of the maze while one stands, even when another prize is nearer", () => {
+    const maze = { position: { x: 300, y: 200 }, columns: 6, rows: 5, corridor: 3, twistiness: 50, seed: 12345, unit: 15, msLeft: 5000 };
+    const prize = mazePrizeCenter(maze);
+    const near = food(110, 100);
+
+    const compass = prizeCompass({ ...frame([snake(100, 100)], [near, food(Math.round(prize.x), Math.round(prize.y))]), maze }, "me")!;
+
+    expect(compass.angle).toBeCloseTo(Math.atan2(prize.y - 100, prize.x - 100), 6);
+    expect(compass.distance).toBeCloseTo(Math.hypot(prize.x - 100, prize.y - 100), 6);
   });
 
   it("is null without a living own snake", () => {
