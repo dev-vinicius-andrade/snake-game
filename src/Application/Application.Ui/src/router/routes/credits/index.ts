@@ -1,11 +1,11 @@
 import type { RouteRecordRaw } from "vue-router";
 export default [
   {
-    path: "/",
+    path: "/credits",
     component: () => import("@layouts/Blank.vue"),
     children: [
       {
-        path: "credits",
+        path: "",
         name: "credits",
         component: () => import("@/views/credits/index.vue"),
       },
