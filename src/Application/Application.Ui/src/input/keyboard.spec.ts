@@ -97,6 +97,26 @@ describe("reduceKey directions", () => {
   });
 });
 
+describe("reduceKey abilities", () => {
+  it.each(["KeyE", "KeyQ"])("uses a cooldown perk when %s goes down", (code) => {
+    const result = reduceKey(initialKeyboardState, { code, pressed: true });
+
+    expect(result.intents).toEqual([{ type: "ability" }]);
+    expect(result.handled).toBe(true);
+  });
+
+  it("does not use it again while the key auto repeats", () => {
+    const result = reduceKey(initialKeyboardState, { code: "KeyE", pressed: true, repeat: true });
+
+    expect(result.intents).toEqual([]);
+    expect(result.handled).toBe(true);
+  });
+
+  it("says nothing when the key goes up", () => {
+    expect(reduceKey(initialKeyboardState, { code: "KeyE", pressed: false }).intents).toEqual([]);
+  });
+});
+
 describe("reduceKey shoot release", () => {
   it("tells when the space key that shot is let go", () => {
     const down = reduceKey(initialKeyboardState, { code: "Space", pressed: true });
@@ -157,7 +177,7 @@ describe("reduceKey shoot and boost", () => {
 
 describe("reduceKey misc", () => {
   it("ignores keys that mean nothing", () => {
-    const result = reduceKey(initialKeyboardState, { code: "KeyQ", pressed: true });
+    const result = reduceKey(initialKeyboardState, { code: "KeyZ", pressed: true });
 
     expect(result.handled).toBe(false);
     expect(result.intents).toEqual([]);

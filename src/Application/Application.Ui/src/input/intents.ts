@@ -7,4 +7,6 @@ export type ControlIntent =
   | { type: "shoot" }
   /** The shoot control that sent `shoot` was let go. With auto fire, shooting goes on until then. */
   | { type: "shootRelease" }
-  | { type: "boost"; active: boolean };
+  | { type: "boost"; active: boolean }
+  /** Use the cooldown perks that are ready (shield burst, dash, heal pulse, vacuum burst). */
+  | { type: "ability" };

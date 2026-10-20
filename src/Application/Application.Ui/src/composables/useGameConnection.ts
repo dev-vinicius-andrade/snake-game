@@ -67,6 +67,7 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
   let handlers: Record<string, Handler> = {};
   let lastDirection: ControlDirection | null = null;
   let lastBoost = false;
+  let lastAutoAbilities = false;
   let lastSteer: number | null = null;
   let lastSteerAt = Number.NEGATIVE_INFINITY;
   let pendingSteer: number | null = null;
@@ -134,6 +135,7 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
     connectionId.value = null;
     lastDirection = null;
     lastBoost = false;
+    lastAutoAbilities = false;
     cancelPendingSteer();
     lastSteer = null;
     lastSteerAt = Number.NEGATIVE_INFINITY;
@@ -197,6 +199,7 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
       connectionId.value = newConnectionId ?? current.connectionId;
       lastDirection = null;
       lastBoost = false;
+      lastAutoAbilities = false;
       status.value = "connected";
       send("JoinRoom", joinRequest(knownPlayerGuid));
     });
@@ -288,6 +291,18 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
     send("Boost", { active });
   }
 
+  /** Uses the cooldown perks that are ready. */
+  function useAbility() {
+    if (canSend()) send("UseAbility", {});
+  }
+
+  /** Asks the server to use the ready cooldown perks by itself when they would help (for controls with no key for them). */
+  function setAutoAbilities(active: boolean) {
+    if (!canSend() || active === lastAutoAbilities) return;
+    lastAutoAbilities = active;
+    send("SetAutoAbilities", { active });
+  }
+
   async function leave() {
     if (!client) return;
     await client.invoke("LeaveRoom", {}).catch(() => undefined);
@@ -320,6 +335,8 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
     steer,
     shoot,
     boost,
+    useAbility,
+    setAutoAbilities,
     leave,
     dispose,
   };

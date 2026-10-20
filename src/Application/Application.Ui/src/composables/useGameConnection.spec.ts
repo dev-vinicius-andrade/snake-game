@@ -290,6 +290,25 @@ describe("useGameConnection controls", () => {
     expect(client.invocationsOf("Boost").map((call) => call.args[0])).toEqual([{ active: true }, { active: false }]);
   });
 
+  it("sends the use of a cooldown perk every time", async () => {
+    const { client, connection } = await connected();
+
+    connection.useAbility();
+    connection.useAbility();
+
+    expect(client.invocationsOf("UseAbility").map((call) => call.args[0])).toEqual([{}, {}]);
+  });
+
+  it("sends the automatic use of cooldown perks only when it changes", async () => {
+    const { client, connection } = await connected();
+
+    connection.setAutoAbilities(true);
+    connection.setAutoAbilities(true);
+    connection.setAutoAbilities(false);
+
+    expect(client.invocationsOf("SetAutoAbilities").map((call) => call.args[0])).toEqual([{ active: true }, { active: false }]);
+  });
+
   it("does nothing before connecting", () => {
     const { client, connection } = setup();
 

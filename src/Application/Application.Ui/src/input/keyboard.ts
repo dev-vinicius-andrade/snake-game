@@ -38,6 +38,7 @@ const DIRECTION_KEYS: ReadonlyMap<string, ControlDirection> = new Map([
 ]);
 const SHOOT_KEYS: ReadonlySet<string> = new Set(["Space"]);
 const BOOST_KEYS: ReadonlySet<string> = new Set(["ShiftLeft", "ShiftRight"]);
+const ABILITY_KEYS: ReadonlySet<string> = new Set(["KeyE", "KeyQ"]);
 
 export const directionForKey = (code: string): ControlDirection | null => DIRECTION_KEYS.get(code) ?? null;
 
@@ -75,7 +76,14 @@ function reduceShoot(state: KeyboardState, pressed: boolean, repeat: boolean): K
   return { state: { ...state, shooting: false }, intents: [{ type: "shootRelease" }], handled: true };
 }
 
+/** A cooldown perk is used once per press: holding the key does not use it again. */
+function reduceAbilityKey(state: KeyboardState, { pressed, repeat }: KeyInput): KeyResult {
+  const intents: ControlIntent[] = pressed && repeat !== true ? [{ type: "ability" }] : [];
+  return { state, intents, handled: true };
+}
+
 export function reduceKey(state: KeyboardState, input: KeyInput): KeyResult {
+  if (ABILITY_KEYS.has(input.code)) return reduceAbilityKey(state, input);
   if (DIRECTION_KEYS.has(input.code)) return reduceDirectionKey(state, input);
   if (SHOOT_KEYS.has(input.code)) return reduceShoot(state, input.pressed, input.repeat === true);
   if (BOOST_KEYS.has(input.code)) return reduceBoostKey(state, input);

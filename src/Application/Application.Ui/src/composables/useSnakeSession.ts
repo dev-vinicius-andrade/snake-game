@@ -13,12 +13,14 @@ export interface SnakeSessionDeps {
   joiner: Pick<ReturnType<typeof useManagerJoin>, "join" | "cancel">;
   game: Pick<
     ReturnType<typeof useGameConnection>,
-    "death" | "roomClosed" | "connect" | "changeDirection" | "steer" | "shoot" | "boost" | "leave"
+    "death" | "roomClosed" | "connect" | "changeDirection" | "steer" | "shoot" | "boost" | "useAbility" | "setAutoAbilities" | "leave"
   >;
   /** Where key events come from. Defaults to `window`. */
   keyboardTarget?: KeyEventTarget;
   /** True while the snake has the auto fire perk: holding the shoot control then keeps shooting. */
   autoFire?: () => boolean;
+  /** True while the player steers with the eyes or the face, which have no key for cooldown perks: the server then uses them by itself. */
+  autoAbilities?: () => boolean;
   /** Clock for input arbitration, in milliseconds. Defaults to `Date.now`. */
   now?: () => number;
 }
@@ -32,7 +34,14 @@ type IntentHandlers = { [K in ControlIntent["type"]]: (intent: Extract<ControlIn
 /** How often a held shoot control shoots with auto fire. The server's cooldown decides how many shots actually go. */
 const AUTO_FIRE_MS = 90;
 
-export function useSnakeSession({ joiner, game, keyboardTarget, autoFire = () => false, now = Date.now }: SnakeSessionDeps) {
+export function useSnakeSession({
+  joiner,
+  game,
+  keyboardTarget,
+  autoFire = () => false,
+  autoAbilities = () => false,
+  now = Date.now,
+}: SnakeSessionDeps) {
   const arbiter = new InputArbiter();
   const phase = shallowRef<SessionPhase>("idle");
   const error = shallowRef<string | null>(null);
@@ -62,6 +71,7 @@ export function useSnakeSession({ joiner, game, keyboardTarget, autoFire = () =>
       boosting = intent.active;
       game.boost(intent.active);
     },
+    ability: () => game.useAbility(),
   };
 
   function handleIntent(intent: ControlIntent) {
@@ -137,6 +147,7 @@ export function useSnakeSession({ joiner, game, keyboardTarget, autoFire = () =>
       phase.value = "playing";
       keyboard.attach();
       gamepad.attach();
+      if (autoAbilities()) game.setAutoAbilities(true);
     } catch (failure) {
       if (stopped) return;
       phase.value = "error";
@@ -154,8 +165,13 @@ export function useSnakeSession({ joiner, game, keyboardTarget, autoFire = () =>
     await game.leave();
   }
 
+  /** Tells the server whether to use the ready cooldown perks by itself. Only while playing; a new life asks again when it starts. */
+  function setAutoAbilities(active: boolean) {
+    if (phase.value === "playing") game.setAutoAbilities(active);
+  }
+
   /** False while a recent keyboard turn should hold pointer and gaze steering back. */
   const allowsGazeSteer = (at: number) => arbiter.allowsGazeSteer(at);
 
-  return { phase, error, start, stop, handleIntent, allowsGazeSteer };
+  return { phase, error, start, stop, handleIntent, allowsGazeSteer, setAutoAbilities };
 }

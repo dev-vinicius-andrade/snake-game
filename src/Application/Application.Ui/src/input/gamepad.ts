@@ -37,6 +37,7 @@ const DPAD: ReadonlyMap<number, ControlDirection> = new Map([
 ]);
 const SHOOT_BUTTONS: readonly number[] = [0, 5, 7];
 const BOOST_BUTTONS: readonly number[] = [1, 4, 6];
+const ABILITY_BUTTONS: readonly number[] = [2, 3];
 
 const pressedButtons = (reading: GamepadReading): Set<number> =>
   new Set(reading.buttons.flatMap((button, index) => (button.pressed ? [index] : [])));
@@ -53,7 +54,7 @@ function steerIntent(reading: GamepadReading, last: number | null): { intents: C
   return moved ? { intents: [{ type: "steer", angle }], angle } : { intents: [], angle: last };
 }
 
-/** Left stick steers, d-pad turns, A or a trigger or bumper shoots, B or the other trigger boosts. */
+/** Left stick steers, d-pad turns, A or a trigger or bumper shoots, B or the other trigger boosts, X or Y uses a cooldown perk. */
 export function reduceGamepad(state: GamepadState, reading: GamepadReading): GamepadResult {
   const held = pressedButtons(reading);
   const steer = steerIntent(reading, state.steerAngle);
@@ -66,8 +67,9 @@ export function reduceGamepad(state: GamepadState, reading: GamepadReading): Gam
   const release: ControlIntent[] = state.shooting && !shooting ? [{ type: "shootRelease" }] : [];
   const boosting = BOOST_BUTTONS.some((button) => held.has(button));
   const boost: ControlIntent[] = boosting !== state.boosting ? [{ type: "boost", active: boosting }] : [];
+  const ability: ControlIntent[] = risen(held, state.held, ABILITY_BUTTONS).length > 0 ? [{ type: "ability" }] : [];
   return {
     state: { held, steerAngle: steer.angle, boosting, shooting },
-    intents: [...steer.intents, ...directions, ...shots, ...release, ...boost],
+    intents: [...steer.intents, ...directions, ...shots, ...release, ...boost, ...ability],
   };
 }

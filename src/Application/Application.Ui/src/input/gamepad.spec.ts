@@ -71,6 +71,16 @@ describe("reduceGamepad", () => {
     expect(up.intents).toEqual([{ type: "shootRelease" }]);
   });
 
+  it.each([2, 3])("uses a cooldown perk when button %s is pressed, once per press", (button) => {
+    const first = reduceGamepad(initialGamepadState, reading({ pressed: [button] }));
+    const held = reduceGamepad(first.state, reading({ pressed: [button] }));
+    const again = reduceGamepad(reduceGamepad(held.state, reading()).state, reading({ pressed: [button] }));
+
+    expect(first.intents).toEqual([{ type: "ability" }]);
+    expect(held.intents).toEqual([]);
+    expect(again.intents).toEqual([{ type: "ability" }]);
+  });
+
   it("keeps shooting while one of two shoot buttons is let go", () => {
     const both = reduceGamepad(initialGamepadState, reading({ pressed: [0, 7] }));
     const one = reduceGamepad(both.state, reading({ pressed: [7] }));

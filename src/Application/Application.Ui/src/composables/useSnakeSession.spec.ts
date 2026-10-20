@@ -24,7 +24,9 @@ class FakeTarget implements KeyEventTarget {
   }
 }
 
-function setup(options: { join?: () => Promise<JoinAssignment>; connect?: () => Promise<void>; autoFire?: () => boolean } = {}) {
+function setup(
+  options: { join?: () => Promise<JoinAssignment>; connect?: () => Promise<void>; autoFire?: () => boolean; autoAbilities?: () => boolean } = {}
+) {
   const joiner = {
     join: vi.fn(options.join ?? (async () => assignment)),
     cancel: vi.fn(async () => undefined),
@@ -38,12 +40,14 @@ function setup(options: { join?: () => Promise<JoinAssignment>; connect?: () => 
     changeDirection: vi.fn(),
     shoot: vi.fn(),
     boost: vi.fn(),
+    useAbility: vi.fn(),
+    setAutoAbilities: vi.fn(),
     steer: vi.fn(),
     leave: vi.fn(async () => undefined),
   };
   const keyboardTarget = new FakeTarget();
   const clock = { now: 0 };
-  const session = useSnakeSession({ joiner, game, keyboardTarget, now: () => clock.now, autoFire: options.autoFire });
+  const session = useSnakeSession({ joiner, game, keyboardTarget, now: () => clock.now, autoFire: options.autoFire, autoAbilities: options.autoAbilities });
   return { joiner, game, death, roomClosed, keyboardTarget, session, clock };
 }
 
@@ -149,6 +153,46 @@ describe("useSnakeSession input", () => {
     expect(game.changeDirection).toHaveBeenCalledWith("left");
     expect(game.shoot).toHaveBeenCalledTimes(1);
     expect(game.boost).toHaveBeenCalledWith(true);
+  });
+
+  it("uses the cooldown perks on an ability intent, only while playing", async () => {
+    const { game, session } = setup();
+    session.handleIntent({ type: "ability" });
+    await session.start("ana");
+
+    session.handleIntent({ type: "ability" });
+
+    expect(game.useAbility).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the cooldown perks from the E key", async () => {
+    const { game, keyboardTarget, session } = setup();
+    await session.start("ana");
+
+    keyboardTarget.key("keydown", "KeyE");
+
+    expect(game.useAbility).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for automatic abilities on joining when the eyes steer, and not otherwise", async () => {
+    const eyes = setup({ autoAbilities: () => true });
+    await eyes.session.start("ana");
+    const hands = setup();
+    await hands.session.start("bo");
+
+    expect(eyes.game.setAutoAbilities).toHaveBeenCalledWith(true);
+    expect(hands.game.setAutoAbilities).not.toHaveBeenCalled();
+  });
+
+  it("passes a change of the automatic abilities on to the game, only while playing", async () => {
+    const { game, session } = setup();
+    session.setAutoAbilities(true);
+    expect(game.setAutoAbilities).not.toHaveBeenCalled();
+    await session.start("ana");
+
+    session.setAutoAbilities(true);
+
+    expect(game.setAutoAbilities).toHaveBeenCalledWith(true);
   });
 
   it("drives the game from the keyboard once playing", async () => {
