@@ -93,6 +93,9 @@ public sealed class WorldEventRules
     /// <summary>At most this many strikes in a storm, so a room never has more than this many marked at once.</summary>
     public const int MaxStrikesPerStorm = 40;
 
+    /// <summary>At most this many mines lie on the map of a room at once, so snapshots stay small.</summary>
+    public const int MaxActiveMines = 40;
+
     /// <summary>A strike aimed at a snake lands within this share of its radius from the head: near enough to be felt, not always a hit.</summary>
     private const double AimSpread = 0.6;
 
@@ -140,7 +143,52 @@ public sealed class WorldEventRules
         Validate("Meteors", options.Meteors);
         ValidateTurret(options.Turret ?? throw new ArgumentException("World event options are missing.", nameof(options)));
         ValidateZone(options.Zone ?? throw new ArgumentException("World event options are missing.", nameof(options)));
+        ValidateFruitShower(options.FruitShower ?? throw new ArgumentException("World event options are missing.", nameof(options)));
+        ValidateBounty(options.Bounty ?? throw new ArgumentException("World event options are missing.", nameof(options)));
+        ValidateMines(options.Mines ?? throw new ArgumentException("World event options are missing.", nameof(options)));
+        ValidateSugarRush(options.SugarRush ?? throw new ArgumentException("World event options are missing.", nameof(options)));
         return options;
+    }
+
+    private static void ValidateSchedule(string name, IScheduledEvent settings, IEnumerable<string> rooms)
+    {
+        if (settings.MinIntervalSeconds < 1) throw OutOfRange(name, settings.MinIntervalSeconds, "the shortest interval must be at least 1 second");
+        if (settings.MaxIntervalSeconds < settings.MinIntervalSeconds)
+            throw OutOfRange(name, settings.MaxIntervalSeconds, "the longest interval must not be shorter than the shortest");
+        if (settings.MinPlayers < 1) throw OutOfRange(name, settings.MinPlayers, "at least 1 player is needed");
+        if (rooms.Any(string.IsNullOrWhiteSpace)) throw new ArgumentException($"{name} has a blank room.", name);
+    }
+
+    private static void ValidateFruitShower(FruitShowerOptions shower)
+    {
+        ValidateSchedule("Fruit shower", shower, shower.Rooms.Concat(shower.ExcludedRooms));
+        if (shower.DurationSeconds is < 1 or > 60) throw OutOfRange("Fruit shower", shower.DurationSeconds, "it must last 1 to 60 seconds");
+        if (shower.FruitsPerSecond is < 1 or > 30) throw OutOfRange("Fruit shower", shower.FruitsPerSecond, "it must drop 1 to 30 fruits a second");
+    }
+
+    private static void ValidateBounty(BountyOptions bounty)
+    {
+        ValidateSchedule("Bounty", bounty, bounty.Rooms.Concat(bounty.ExcludedRooms));
+        if (bounty.DurationSeconds is < 5 or > 3600) throw OutOfRange("Bounty", bounty.DurationSeconds, "it must last 5 to 3600 seconds");
+        if (bounty.RewardMass is < 0 or > 10000) throw OutOfRange("Bounty", bounty.RewardMass, "the reward must be 0 to 10000 mass");
+        if (bounty.FoodsCredit is < 0 or > 1000) throw OutOfRange("Bounty", bounty.FoodsCredit, "the foods credit must be 0 to 1000");
+    }
+
+    private static void ValidateMines(MineFieldOptions mines)
+    {
+        ValidateSchedule("Mines", mines, mines.Rooms.Concat(mines.ExcludedRooms));
+        if (mines.MinMines is < 1 or > MaxActiveMines) throw OutOfRange("Mines", mines.MinMines, $"the fewest mines must be 1 to {MaxActiveMines}");
+        if (mines.MaxMines < mines.MinMines || mines.MaxMines > MaxActiveMines)
+            throw OutOfRange("Mines", mines.MaxMines, $"the most mines must be from the fewest up to {MaxActiveMines}");
+        if (mines.Radius is < 1 or > 1000) throw OutOfRange("Mines", mines.Radius, "the blast radius must be 1 to 1000");
+        if (mines.TriggerRadius is < 1 or > 200) throw OutOfRange("Mines", mines.TriggerRadius, "the trigger radius must be 1 to 200");
+        if (mines.ArmMilliseconds is < 0 or > 60000) throw OutOfRange("Mines", mines.ArmMilliseconds, "arming must take 0 to 60000 milliseconds");
+    }
+
+    private static void ValidateSugarRush(SugarRushOptions rush)
+    {
+        ValidateSchedule("Sugar rush", rush, rush.Rooms.Concat(rush.ExcludedRooms));
+        if (rush.DurationSeconds is < 1 or > 600) throw OutOfRange("Sugar rush", rush.DurationSeconds, "it must last 1 to 600 seconds");
     }
 
     private static void ValidateZone(ZoneOptions zone)

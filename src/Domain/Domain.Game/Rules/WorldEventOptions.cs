@@ -25,6 +25,14 @@ public sealed record WorldEventOptions
 
     public ZoneOptions Zone { get; init; } = new();
 
+    public FruitShowerOptions FruitShower { get; init; } = new();
+
+    public BountyOptions Bounty { get; init; } = new();
+
+    public MineFieldOptions Mines { get; init; } = new();
+
+    public SugarRushOptions SugarRush { get; init; } = new();
+
     /// <summary>The settings of one kind of event.</summary>
     public IStormSettings Of(WorldEventKind kind) => kind == WorldEventKind.Lightning ? Lightning : Meteors;
 
