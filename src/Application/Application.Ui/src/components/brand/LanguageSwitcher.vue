@@ -2,11 +2,14 @@
 import { getText } from "@/helpers";
 import { useLocale } from "@/composables/useLocale";
 
+/** Inline: sits where it is put (inside the top bar). Not inline: fixed in the top right corner of the page. */
+defineProps<{ inline?: boolean }>();
+
 const { locale, locales, setLocale } = useLocale();
 </script>
 
 <template>
-  <div class="language" role="group" :aria-label="getText({ key: 'footer.language' })">
+  <div class="language" :class="{ inline }" role="group" :aria-label="getText({ key: 'footer.language' })">
     <button
       v-for="option in locales"
       :key="option"
@@ -30,6 +33,9 @@ const { locale, locales, setLocale } = useLocale();
   z-index: 20;
   display: inline-flex;
   gap: 4px;
+}
+.language.inline {
+  position: static;
 }
 .language-option {
   min-width: 40px;

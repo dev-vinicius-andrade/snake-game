@@ -5,7 +5,7 @@ import GameplayEditor from "@/components/admin/GameplayEditor.vue";
 import RoomGameplayDialog from "@/components/admin/RoomGameplayDialog.vue";
 import RoomPerksDialog from "@/components/admin/RoomPerksDialog.vue";
 import ForbiddenPage from "@/components/ForbiddenPage.vue";
-import { openProfile } from "@/composables/useProfileModal";
+import TopBar from "@/components/brand/TopBar.vue";
 import { adminAccess } from "@/composables/adminAccess";
 import { useAccount } from "@/composables/useAccount";
 import { useAdminGameplay } from "@/composables/useAdminGameplay";
@@ -46,6 +46,12 @@ async function openPerks(entry: AdminRoom) {
   perksOf.value = entry;
 }
 
+/** Leaves the admin page: the admin tools close, and so does the account the player was signed in with. */
+async function leave() {
+  admin.signOut();
+  await accounts.logout();
+}
+
 async function confirmDelete() {
   const target = confirming.value;
   confirming.value = null;
@@ -76,7 +82,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <VContainer>
+  <VContainer class="pt-12">
+    <TopBar :sign-out="signedIn" @sign-out="leave" />
     <VRow justify="center">
       <VCol cols="12" md="10">
         <VCard :title="getText({ key: 'admin.title' })">
@@ -140,9 +147,6 @@ onMounted(async () => {
 
           <VCardActions v-if="signedIn">
             <VBtn @click="admin.refresh">{{ getText({ key: "admin.refresh" }) }}</VBtn>
-            <VBtn data-test="admin-profile" @click="openProfile()">{{ getText({ key: "profile.link" }) }}</VBtn>
-            <VSpacer />
-            <VBtn @click="admin.signOut">{{ getText({ key: "admin.signOut" }) }}</VBtn>
           </VCardActions>
         </VCard>
       </VCol>
