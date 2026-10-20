@@ -19,7 +19,7 @@ public static class SnapshotBuilder
         return new SnapshotEvent
         {
             Room = new SnapshotRoom { Guid = gameState.Room.Guid, Width = gameState.Room.Width, Height = gameState.Room.Height },
-            Snakes = gameState.Players.Values.Where(player => player.Path.Count > 0).Select(ToSnake).ToList(),
+            Snakes = gameState.Players.Values.Where(player => player.Path.Count > 0).Select(player => ToSnake(player, at)).ToList(),
             Foods = gameState.Foods.Values.Select(ToFood).ToList(),
             Shots = gameState.Obstacles.Values.Select(ToShot).ToList(),
             Strikes = ToStrikes(gameState, now ?? DateTimeOffset.UtcNow),
@@ -111,7 +111,21 @@ public static class SnapshotBuilder
         }).ToList();
     }
 
-    private static SnapshotSnake ToSnake(IPlayer player) => new()
+    private static int MillisecondsUntil(DateTimeOffset moment, DateTimeOffset now)
+        => (int)Math.Max(0, Math.Round((moment - now).TotalMilliseconds));
+
+    private static List<SnapshotAbility>? ToAbilities(IPlayer player, DateTimeOffset now)
+    {
+        if (player.Abilities is not { Count: > 0 } abilities) return null;
+        return abilities.Select(pair => new SnapshotAbility
+        {
+            Id = pair.Key,
+            Ready = MillisecondsUntil(pair.Value.ReadyAt, now),
+            Active = MillisecondsUntil(pair.Value.ActiveUntil, now),
+        }).ToList();
+    }
+
+    private static SnapshotSnake ToSnake(IPlayer player, DateTimeOffset now) => new()
     {
         Guid = player.Guid,
         Id = player.Id,
@@ -125,6 +139,9 @@ public static class SnapshotBuilder
         Direction = DirectionName(player.CurrentDirection),
         Perks = player.Perks.Count == 0 ? null : player.Perks.ToList(),
         PerkTiers = player.PerkTiers.Any(tier => tier > 1) ? player.PerkTiers.ToList() : null,
+        Lives = player.LivesLeft,
+        Protected = player.ProtectedUntil is { } until ? MillisecondsUntil(until, now) : 0,
+        Abilities = ToAbilities(player, now),
         Path = player.Path.SelectMany(point => new[] { Tenth(point.X), Tenth(point.Y) }).ToList(),
         Health = HealthPercents(player.SegmentHealth),
     };

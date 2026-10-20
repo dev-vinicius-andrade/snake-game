@@ -27,6 +27,20 @@ public sealed class SetBoostCommand(string connectionId, bool active) : PlayerCo
         => Task.FromResult(context.GameStateService.SetBoostByPlayerId(connectionId, active));
 }
 
+public sealed class UseAbilityCommand(string connectionId) : PlayerCommand<bool>
+{
+    protected override Task<bool> RunAsync(CommandContext context, CancellationToken cancellationToken)
+        => Task.FromResult(context.GameStateService.UseAbilityByPlayerId(connectionId));
+}
+
+public sealed class SetAutoAbilitiesCommand(string connectionId, bool active) : PlayerCommand<bool>, ICoalescableCommand
+{
+    public string CoalesceKey => $"autoabilities:{connectionId}";
+
+    protected override Task<bool> RunAsync(CommandContext context, CancellationToken cancellationToken)
+        => Task.FromResult(context.GameStateService.SetAutoAbilitiesByPlayerId(connectionId, active));
+}
+
 public sealed class ShootCommand(string connectionId) : PlayerCommand<bool>
 {
     protected override async Task<bool> RunAsync(CommandContext context, CancellationToken cancellationToken)

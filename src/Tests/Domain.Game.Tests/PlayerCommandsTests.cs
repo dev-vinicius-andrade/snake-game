@@ -81,6 +81,30 @@ public sealed class PlayerCommandsTests
     }
 
     [Fact]
+    public async Task UseAbility_AsksTheServiceToUseTheAbilitiesOfTheConnection()
+    {
+        _service.UseAbilityByPlayerId(ConnectionId).Returns(true);
+        var command = new UseAbilityCommand(ConnectionId);
+
+        await command.ExecuteAsync(_context, CancellationToken.None);
+
+        Assert.True(await command.Completion);
+        _service.Received(1).UseAbilityByPlayerId(ConnectionId);
+    }
+
+    [Fact]
+    public async Task SetAutoAbilities_PassesTheFlag_AndOnlyTheLastOneCounts()
+    {
+        _service.SetAutoAbilitiesByPlayerId(ConnectionId, true).Returns(true);
+        var command = new SetAutoAbilitiesCommand(ConnectionId, true);
+
+        await command.ExecuteAsync(_context, CancellationToken.None);
+
+        Assert.True(await command.Completion);
+        Assert.Equal("autoabilities:" + ConnectionId, ((ICoalescableCommand)command).CoalesceKey);
+    }
+
+    [Fact]
     public async Task Leave_KnownPlayer_DisconnectsAndReturnsPlayer()
     {
         var player = AddPlayer();

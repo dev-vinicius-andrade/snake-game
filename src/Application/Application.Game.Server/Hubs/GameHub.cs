@@ -155,6 +155,22 @@ namespace Application.Game.Server.Hubs
             return Task.CompletedTask;
         }
 
+        public Task UseAbility(UseAbilityRequest request)
+        {
+            var (_, _, room) = GetConnectionData();
+            if (room is not null)
+                _roomInputQueue.Enqueue(room.Guid, new UseAbilityCommand(Context.ConnectionId));
+            return Task.CompletedTask;
+        }
+
+        public Task SetAutoAbilities(AutoAbilitiesRequest request)
+        {
+            var (_, _, room) = GetConnectionData();
+            if (room is not null)
+                _roomInputQueue.Enqueue(room.Guid, new SetAutoAbilitiesCommand(Context.ConnectionId, request.Active));
+            return Task.CompletedTask;
+        }
+
         public Task Ping() => Task.CompletedTask;
 
         public Task Shoot(ShootRequest request)

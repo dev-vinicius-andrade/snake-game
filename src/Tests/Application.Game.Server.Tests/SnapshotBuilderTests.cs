@@ -157,6 +157,50 @@ public sealed class SnapshotBuilderTests
     }
 
     [Fact]
+    public void Build_LivesLeftAndProtectionAreSent_WhenTheSnakeHasThem()
+    {
+        var player = AddPlayer("ana", (1, 2), (3, 4));
+        player.LivesLeft.Returns(2);
+        player.ProtectedUntil.Returns(DateTimeOffset.UtcNow.AddSeconds(3));
+
+        var snake = Json().GetProperty("snakes")[0];
+
+        Assert.Equal(2, snake.GetProperty("lives").GetInt32());
+        Assert.InRange(snake.GetProperty("prot").GetInt32(), 1, 3000);
+    }
+
+    [Fact]
+    public void Build_LivesProtectionAndAbilitiesAreLeftOutWhileThereAreNone()
+    {
+        AddPlayer("ana", (1, 2), (3, 4));
+
+        var snake = Json().GetProperty("snakes")[0];
+
+        foreach (var name in new[] { "lives", "prot", "ab" }) Assert.False(snake.TryGetProperty(name, out _), name);
+    }
+
+    [Fact]
+    public void Build_CooldownPerksComeWithTheMillisecondsToReadyAndToTheEnd()
+    {
+        var player = AddPlayer("ana", (1, 2), (3, 4));
+        var now = DateTimeOffset.UtcNow;
+        player.Abilities.Returns(new Dictionary<string, AbilityTimer>
+        {
+            ["shield"] = new(now.AddSeconds(30), now.AddSeconds(3)),
+            ["dash"] = new(now.AddSeconds(-1), default),
+        });
+
+        var abilities = Json().GetProperty("snakes")[0].GetProperty("ab").EnumerateArray().ToList();
+
+        var shield = abilities.Single(item => item.GetProperty("id").GetString() == "shield");
+        Assert.InRange(shield.GetProperty("r").GetInt32(), 29000, 30000);
+        Assert.InRange(shield.GetProperty("a").GetInt32(), 2000, 3000);
+        var dash = abilities.Single(item => item.GetProperty("id").GetString() == "dash");
+        Assert.False(dash.TryGetProperty("r", out _));
+        Assert.False(dash.TryGetProperty("a", out _));
+    }
+
+    [Fact]
     public void Build_HealthIsWholePercentsAndOnlySentWhenSomethingIsHurt()
     {
         var player = AddPlayer("ana", (1, 2), (3, 4), (5, 6));

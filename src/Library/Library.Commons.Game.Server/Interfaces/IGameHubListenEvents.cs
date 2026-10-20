@@ -10,6 +10,8 @@ public interface IGameHubListenEvents
     Task LeaveRoom(LeaveRoomRequest request);
     Task Shoot(ShootRequest request);
     Task Boost(BoostRequest request);
+    Task UseAbility(UseAbilityRequest request);
+    Task SetAutoAbilities(AutoAbilitiesRequest request);
     Task Steer(SteerRequest request);
     /// <summary>Does nothing; the time it takes to answer is the ping.</summary>
     Task Ping();

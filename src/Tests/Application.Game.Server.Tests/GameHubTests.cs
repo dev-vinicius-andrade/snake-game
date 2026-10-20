@@ -283,6 +283,35 @@ public sealed class GameHubTests
     }
 
     [Fact]
+    public async Task UseAbility_PlayerInRoom_QueuesTheCommand()
+    {
+        PlayerIsInRoom();
+
+        await _hub.UseAbility(new UseAbilityRequest());
+
+        Assert.IsType<UseAbilityCommand>(Assert.Single(_enqueued).Command);
+    }
+
+    [Fact]
+    public async Task SetAutoAbilities_PlayerInRoom_QueuesTheCommand()
+    {
+        PlayerIsInRoom();
+
+        await _hub.SetAutoAbilities(new AutoAbilitiesRequest(true));
+
+        Assert.IsType<SetAutoAbilitiesCommand>(Assert.Single(_enqueued).Command);
+    }
+
+    [Fact]
+    public async Task Abilities_WithoutAPlayer_QueueNothing()
+    {
+        await _hub.UseAbility(new UseAbilityRequest());
+        await _hub.SetAutoAbilities(new AutoAbilitiesRequest(true));
+
+        Assert.Empty(_enqueued);
+    }
+
+    [Fact]
     public async Task Controls_WithoutAPlayer_QueueNothing()
     {
         await _hub.ChangeDirection(new ChangeDirectionRequest());

@@ -253,6 +253,18 @@ public record SnapshotSnake
     [JsonPropertyName("pt")]
     public List<int>? PerkTiers { get; set; }
 
+    /// <summary>Extra lives the snake can still be saved with. Left out while it has none.</summary>
+    [JsonPropertyName("lives"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int Lives { get; set; }
+
+    /// <summary>Milliseconds left of the protection after a life saved the snake. Left out while it has none.</summary>
+    [JsonPropertyName("prot"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int Protected { get; set; }
+
+    /// <summary>The cooldown perks of the snake. Left out while it has none.</summary>
+    [JsonPropertyName("ab")]
+    public List<SnapshotAbility>? Abilities { get; set; }
+
     /// <summary>x0, y0, x1, y1, ... of the body segments, tail first and the head last, to a tenth of a unit.</summary>
     [JsonPropertyName("path")]
     public List<double> Path { get; set; } = new();
@@ -260,6 +272,19 @@ public record SnapshotSnake
     /// <summary>HP per segment in whole percents, aligned with the path. Left out while nothing is hurt.</summary>
     [JsonPropertyName("health")]
     public List<int>? Health { get; set; }
+}
+
+/// <summary>A cooldown perk: its perk id, the milliseconds until it can be used again (0 when ready) and until its effect ends (0 when off).</summary>
+public record SnapshotAbility
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("r"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int Ready { get; set; }
+
+    [JsonPropertyName("a"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int Active { get; set; }
 }
 
 public record SnapshotFood
