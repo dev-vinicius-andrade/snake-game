@@ -13,6 +13,11 @@ as before: JSON files (or memory only), see `docs/ACCOUNTS.md`. Nothing else is 
 On the home cluster: put `DATABASE_CONNECTION=...` in `deploy/homelab/.env`; `deploy.sh` keeps it in the Secret `snake-secrets` (key
 `database-connection`) and the manager reads it from there. The Secret checksum restarts the manager when it changes.
 
+**Which database user.** The manager should run as a user that can read and write rows but not change tables (a "write" user), and the
+migrations should be applied by a user that owns them (an "admin" user). So on the home cluster `Database__MigrateOnStart` is `false` in
+`deploy/homelab/values/manager.yaml`: apply the migrations with `dotnet ef database update` (below) before deploying a build that has a new one.
+A manager that starts on an older schema fails on its first query, not at start.
+
 If the migration fails, or the database cannot be reached, the manager does not start: running on a database of another shape is worse than
 not running. A store never answers "no such account" for a database it could not reach: it throws.
 

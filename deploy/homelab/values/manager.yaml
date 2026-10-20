@@ -22,6 +22,8 @@ env:
   GameplayConfiguration__StorePath: "/data/gameplay.json"
   AccountsConfiguration__StorePath: "/data/accounts.json"
   AccountsConfiguration__StatsPath: "/data/stats.json"
+  # The database user the manager runs as cannot change tables, so the migrations are applied by hand (docs/DATABASE.md), not at start.
+  Database__MigrateOnStart: "false"
   ASPNETCORE_URLS: "http://+:8080"
   ASPNETCORE_ENVIRONMENT: "Production"
   Serilog__MinimumLevel: "Information"
