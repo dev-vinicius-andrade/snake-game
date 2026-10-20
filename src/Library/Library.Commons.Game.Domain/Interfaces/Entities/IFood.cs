@@ -16,5 +16,7 @@ public interface IFood:ITrackableId
     string? PrizeId { get; }
     /// <summary>The id of a perk the snake that eats it gets, for a prize that gives one.</summary>
     string? GrantsPerk { get; }
+    /// <summary>What else it gives the snake that eats it: a random perk, lives, a tier surge, mass. Null: nothing.</summary>
+    Library.Commons.Game.Domain.Entities.PerkReward? Reward { get; }
     
 }

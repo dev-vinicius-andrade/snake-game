@@ -48,6 +48,16 @@ public class GameStateService : IGameStateService
     private readonly HeadingRules _headingRules;
     private readonly PerkRules _perkRules;
     private readonly TimeProvider _clock;
+    private readonly Random _random = Random.Shared;
+
+    /// <summary>A shot closer to the head than this sets off a shield burst of a snake that uses its abilities by itself.</summary>
+    private const double ShieldTriggerDistance = 120;
+
+    /// <summary>Food in reach for a vacuum burst to be worth using by itself.</summary>
+    private const int VacuumTriggerFoods = 3;
+
+    /// <summary>Health under which a heal pulse is used by itself.</summary>
+    private const double HealPulseTriggerHealth = 0.5;
     /// <summary>What a player's perks did when last worked out, kept for a moment: scripts are not asked 60 times a second.</summary>
     private readonly ConcurrentDictionary<Guid, (DateTimeOffset At, PerkEffects Effects)> _scriptedEffects = new();
     private static readonly TimeSpan ScriptedEffectsLifetime = TimeSpan.FromMilliseconds(250);
@@ -182,9 +192,84 @@ public class GameStateService : IGameStateService
         return UpdatePlayer(player);
     }
 
+    public bool SetAutoAbilitiesByPlayerId(string playerConnectionId, bool active)
+    {
+        var player = _playerService.Get(playerConnectionId);
+        if (player is null) return false;
+        player.AutoAbilities = active;
+        return true;
+    }
+
+    public bool UseAbilityByPlayerId(string playerConnectionId)
+    {
+        var player = _playerService.Get(playerConnectionId);
+        if (player is not { IsAlive: true } || FindGameState(player) is not { } gameState) return false;
+        var used = UseReadyAbilities(gameState, player, _ => true);
+        if (used) UpdatePlayer(player);
+        return used;
+    }
+
+    private IGameState? FindGameState(IPlayer player) => _gameState.Values.FirstOrDefault(state => state.Players.ContainsKey(player.Guid));
+
+    /// <summary>
+    /// Uses the cooldown abilities that are ready and that <paramref name="wanted"/> says yes to. The abilities of one perk are used
+    /// together and recharge together. True when any was used.
+    /// </summary>
+    private bool UseReadyAbilities(IGameState gameState, IPlayer player, Func<AbilitySpec, bool> wanted)
+    {
+        var now = _clock.GetUtcNow();
+        var used = false;
+        var specs = _perkRules.AbilitiesFor(player.FoodsEaten, gameState.Room, GrantedOf(player), SurgesOf(player));
+        foreach (var perk in specs.GroupBy(spec => spec.PerkId))
+        {
+            if (player.Abilities.TryGetValue(perk.Key, out var timer) && timer.ReadyAt > now) continue;
+            if (!perk.Any(wanted)) continue;
+            var first = perk.First();
+            player.Abilities[perk.Key] = new AbilityTimer(now.AddMilliseconds(first.CooldownMilliseconds), now.AddMilliseconds(first.DurationMilliseconds));
+            foreach (var spec in perk.Where(spec => spec.Effect == PerkEffect.HealPulse)) HealByPulse(player, spec.Amount);
+            used = true;
+        }
+        return used;
+    }
+
+    private void HealByPulse(IPlayer player, double hitPoints)
+    {
+        var maxHp = _damageCalculator.MaxSegmentHp(Math.Max(player.Path.Count, 1));
+        player.SegmentHealth = _bodyHealthRules.Heal(player.SegmentHealth.ToArray(), maxHp, hitPoints).ToList();
+    }
+
+    /// <summary>For a snake that uses its abilities by itself: each ready one goes off when it would help.</summary>
+    private void AutoUseAbilities(IGameState gameState, IPlayer player)
+    {
+        var now = _clock.GetUtcNow();
+        if (!player.IsAlive || !player.Abilities.Values.Any(timer => timer.ReadyAt <= now)) return;
+        UseReadyAbilities(gameState, player, spec => WouldHelp(gameState, player, spec));
+    }
+
+    private bool WouldHelp(IGameState gameState, IPlayer player, AbilitySpec spec)
+    {
+        var head = player.CurrentPosition;
+        switch (spec.Effect)
+        {
+            case PerkEffect.ShieldBurst:
+                return gameState.Obstacles.Values.Any(shot => !IsOwnShot(shot, player)
+                    && Math.Sqrt(Math.Pow(shot.CurrentPosition.X - head.X, 2) + Math.Pow(shot.CurrentPosition.Y - head.Y, 2)) < ShieldTriggerDistance);
+            case PerkEffect.Dash:
+                return player.IsBoosting;
+            case PerkEffect.HealPulse:
+                return player.SegmentHealth.Any(health => health < HealPulseTriggerHealth);
+            case PerkEffect.VacuumBurst:
+                return gameState.Foods.Values.Count(food => food.Kind != FoodKind.Prize
+                    && Math.Sqrt(Math.Pow(food.Position.X - head.X, 2) + Math.Pow(food.Position.Y - head.Y, 2)) <= spec.Amount) >= VacuumTriggerFoods;
+            default:
+                return false;
+        }
+    }
+
     public async Task MovePlayer(IGameState gameState, IPlayer player)
     {
         TurnTowardsTarget(player);
+        if (player.AutoAbilities && player.Abilities.Count > 0) AutoUseAbilities(gameState, player);
         var perks = EffectsOf(gameState, player);
         var sugarRush = gameState.SugarRushEndsAt is { } rushEnds && _clock.GetUtcNow() < rushEnds;
         var boost = _boostRules.Step(player.IsBoosting, player.BoostTicks, player.Score, perks.BoostSpeedBonus, perks.BoostLengthFactor, sugarRush);
@@ -193,7 +278,7 @@ public class GameStateService : IGameStateService
         if (boost.Active) StatsOf(player)?.Boosted(_tickRateService.TickRate);
         player.ShotCooldownTicks = _shotCooldownRules.Tick(player.ShotCooldownTicks);
         var tickRateMilliseconds = _tickRateService.TickRate.TotalMilliseconds;
-        var speedFactor = _snakeConfiguration.Value.Speed * boost.SpeedMultiplier;
+        var speedFactor = _snakeConfiguration.Value.Speed * boost.SpeedMultiplier * (1 + perks.AbilitySpeedBonus);
         var movementPerTickX = player.Direction.Axis.X * speedFactor / (1000 / tickRateMilliseconds);
         var movementPerTickY = player.Direction.Axis.Y * speedFactor / (1000 / tickRateMilliseconds);
         var newCurrentPosition = _pointAxisServices.CreateWith(player.CurrentPosition);
@@ -336,6 +421,7 @@ public class GameStateService : IGameStateService
         player.FoodsEaten += food.FoodsCredit;
         StatsOf(player)?.Ate(food.Kind);
         GrantPerk(player, food);
+        ApplyReward(gameState, player, food.Reward);
         RefreshPerks(gameState, player);
         HealBody(player, food.Value);
         ApplyEatingRewards(gameState, player, food);
@@ -345,10 +431,60 @@ public class GameStateService : IGameStateService
     /// <summary>Works out again which perks a snake has, at which tiers, for the foods it has eaten and what it was given.</summary>
     private void RefreshPerks(IGameState gameState, IPlayer player)
     {
+        var surges = SurgesOf(player);
         player.Perks = _perkRules.UnlockedIds(player.FoodsEaten, gameState.Room, GrantedOf(player)).ToList();
-        player.PerkTiers = _perkRules.TiersFor(player.FoodsEaten, gameState.Room, GrantedOf(player)).ToList();
+        player.PerkTiers = _perkRules.TiersFor(player.FoodsEaten, gameState.Room, GrantedOf(player), surges).ToList();
         _scriptedEffects.TryRemove(player.Guid, out _);
-        player.AutoFire = EffectsOf(gameState, player).AutoFire;
+        var effects = BaseEffectsOf(gameState, player);
+        player.AutoFire = effects.AutoFire;
+        player.LivesLeft = Math.Max(0, effects.ExtraLives + player.BonusLives - player.LivesUsed);
+        SyncAbilities(gameState, player);
+    }
+
+    /// <summary>Gives the snake a timer for each cooldown perk it has (ready, the first time) and drops the timers of perks it no longer has.</summary>
+    private void SyncAbilities(IGameState gameState, IPlayer player)
+    {
+        var owned = _perkRules.AbilitiesFor(player.FoodsEaten, gameState.Room, GrantedOf(player), SurgesOf(player)).Select(spec => spec.PerkId).ToHashSet();
+        foreach (var gone in player.Abilities.Keys.Where(id => !owned.Contains(id)).ToArray()) player.Abilities.Remove(gone);
+        foreach (var id in owned.Where(id => !player.Abilities.ContainsKey(id))) player.Abilities[id] = default;
+    }
+
+    private static IReadOnlyDictionary<string, int>? SurgesOf(IPlayer player)
+        => player.TierSurges.Count == 0 ? null : new Dictionary<string, int>(player.TierSurges);
+
+    /// <summary>
+    /// Gives what a reward gives, apart from the perk it names: mass, lives, a mend, a random perk the snake lacks and a tier surge. Works
+    /// out the perks again only when the caller does; the caller always does right after.
+    /// </summary>
+    private void ApplyReward(IGameState gameState, IPlayer player, PerkReward? reward)
+    {
+        if (reward is null || reward.IsEmpty || reward.Problem() is not null) return;
+        if (reward.BonusMass > 0) player.Score += reward.BonusMass;
+        if (reward.ExtraLives > 0) player.BonusLives = Math.Min(PerkReward.MaxLives, player.BonusLives + reward.ExtraLives);
+        if (reward.Mend) player.SegmentHealth = player.SegmentHealth.Select(_ => 1.0).ToList();
+        if (reward.GrantsRandomPerk) GrantRandomPerk(gameState, player);
+        if (reward.HasTierSurge) SurgeTier(gameState, player, reward);
+    }
+
+    private void GrantRandomPerk(IGameState gameState, IPlayer player)
+    {
+        var candidates = _perkRules.UnownedPerkIds(player.FoodsEaten, gameState.Room, GrantedOf(player));
+        if (candidates.Count == 0) return;
+        player.GrantedPerks.Add(candidates[_random.Next(candidates.Count)]);
+    }
+
+    /// <summary>Lifts a perk the snake has by the reward's tiers: the named perk, or a random one that can still go up. Nothing when none can.</summary>
+    private void SurgeTier(IGameState gameState, IPlayer player, PerkReward reward)
+    {
+        var candidates = _perkRules.SurgeCandidates(player.FoodsEaten, gameState.Room, GrantedOf(player), SurgesOf(player));
+        if (candidates.Count == 0) return;
+        var perkId = string.IsNullOrWhiteSpace(reward.TierSurgePerk) ? candidates[_random.Next(candidates.Count)] : reward.TierSurgePerk;
+        if (!candidates.Contains(perkId)) return;
+        var least = Math.Max(1, reward.TierSurgeMin);
+        var most = Math.Max(least, reward.TierSurgeMax);
+        var lifted = _random.Next(least, most + 1);
+        var already = player.TierSurges.TryGetValue(perkId, out var kept) ? kept : 0;
+        player.TierSurges[perkId] = Math.Min(already + lifted, _perkRules.TierCountOf(perkId) - 1);
     }
 
     /// <summary>Foods that something the snake did counts for, toward its perks. They can lift a perk to a higher tier.</summary>
@@ -403,7 +539,7 @@ public class GameStateService : IGameStateService
 
     private void FireVolley(IGameState gameState, IRoom room, IPlayer player, PerkEffects perks)
     {
-        foreach (var direction in VolleyDirections(player, 1 + perks.ExtraShots))
+        foreach (var direction in VolleyDirections(player, 1 + perks.ExtraShots, perks.SpreadFactor))
             FireShot(gameState, room, player, direction, perks);
     }
 
@@ -468,11 +604,11 @@ public class GameStateService : IGameStateService
     }
 
     /// <summary>The way each shot of a volley goes: one straight along the snake, more fanned out around it.</summary>
-    private IEnumerable<IMovementDirection> VolleyDirections(IPlayer player, int shots)
+    private IEnumerable<IMovementDirection> VolleyDirections(IPlayer player, int shots, double spreadFactor = 1)
     {
         if (shots == 1) return [player.Direction];
         var aim = _headingRules.AngleOf(player.Direction.Axis.X, player.Direction.Axis.Y);
-        return _perkRules.ShotOffsets(shots).Select(offset => DirectionAt(player, aim + offset)).ToArray();
+        return _perkRules.ShotOffsets(shots, spreadFactor).Select(offset => DirectionAt(player, aim + offset)).ToArray();
     }
 
     private IMovementDirection DirectionAt(IPlayer player, double angle) => DirectionAt(player.CurrentPosition, angle);
@@ -506,8 +642,7 @@ public class GameStateService : IGameStateService
         var collisions = _snakeCollisionRules.FindCollisions(bodies, _snakeConfiguration.Value.HeadSize);
         foreach (var player in livingPlayers.Where(player => collisions.ContainsKey(player.Guid) && !EffectsOf(gameState, player).Invulnerable))
         {
-            KillPlayer(gameState, player);
-            RegisterKill(gameState, collisions[player.Guid], player);
+            if (KillPlayer(gameState, player)) RegisterKill(gameState, collisions[player.Guid], player);
         }
         return Task.CompletedTask;
     }
@@ -531,9 +666,9 @@ public class GameStateService : IGameStateService
     private void KillByShot(IGameState gameState, IPlayer player, ShotImpact impact)
     {
         var head = player.CurrentPosition;
-        gameState.Hits.Enqueue(new DamageDealt(impact.Shot.CreatedyBy.Guid, player.Guid, head.X, head.Y, 0, DamageKind.Kill));
         if (GetPlayer(gameState, impact.Shot.CreatedyBy) is { } shooter) StatsOf(shooter)?.ShotHit(0);
-        KillPlayer(gameState, player);
+        if (!KillPlayer(gameState, player)) return;
+        gameState.Hits.Enqueue(new DamageDealt(impact.Shot.CreatedyBy.Guid, player.Guid, head.X, head.Y, 0, DamageKind.Kill));
         RegisterKill(gameState, impact.Shot.CreatedyBy.Guid, player);
     }
 
@@ -633,6 +768,7 @@ public class GameStateService : IGameStateService
     {
         if (!string.IsNullOrWhiteSpace(boss.GrantsPerk) && !killer.GrantedPerks.Contains(boss.GrantsPerk)) killer.GrantedPerks.Add(boss.GrantsPerk);
         killer.FoodsEaten += Math.Max(0, boss.FoodsCredit);
+        ApplyReward(gameState, killer, boss.Reward);
         RefreshPerks(gameState, killer);
         UpdatePlayer(killer);
     }
@@ -650,11 +786,11 @@ public class GameStateService : IGameStateService
             if (EffectsOf(gameState, player).Invulnerable) continue;
             if (player.Score <= 0)
             {
-                KillPlayer(gameState, player);
-                died.Add(player);
+                if (KillPlayer(gameState, player)) died.Add(player);
                 continue;
             }
-            var lost = Math.Min(player.Score, mass);
+            var lost = Math.Min(player.Score, Resisted(gameState, player, PerkRules.Zone, mass));
+            if (lost <= 0) continue;
             player.Score -= lost;
             AddPellet(gameState, new PelletDrop(new Point(player.CurrentPosition.X, player.CurrentPosition.Y), lost), player.BackgroundColor);
             TellLoss(gameState, player, lost);
@@ -676,14 +812,16 @@ public class GameStateService : IGameStateService
             {
                 var mass = player.Score;
                 CountStrike(player, kind, mass);
-                KillPlayer(gameState, player);
+                if (!KillPlayer(gameState, player)) continue;
                 died.Add(player);
                 TellLoss(gameState, player, mass);
             }
             else if (hit.BrokenSegments.Count > 0)
             {
                 var before = player.Score;
-                BreakSegments(gameState, player, hit.BrokenSegments);
+                var broken = Spared(hit.BrokenSegments, EffectsOf(gameState, player).ResistanceTo(kind == WorldStrikeKind.Meteor ? PerkRules.Meteors : PerkRules.Lightning));
+                if (broken.Count == 0) continue;
+                BreakSegments(gameState, player, broken);
                 TellLoss(gameState, player, before - player.Score);
                 CountStrike(player, kind, before - player.Score);
             }
@@ -716,11 +854,26 @@ public class GameStateService : IGameStateService
         {
             if (EffectsOf(gameState, player).Invulnerable) continue;
             var hit = WorldEventRules.Resolve(ToPoints(player.Path), new Point(mine.X, mine.Y), mine.Radius, headSize, InitialLength);
-            if (hit.BrokenSegments.Count == 0) continue;
+            var broken = Spared(hit.BrokenSegments, EffectsOf(gameState, player).ResistanceTo(PerkRules.Mines));
+            if (broken.Count == 0) continue;
             var before = player.Score;
-            BreakSegments(gameState, player, hit.BrokenSegments);
+            BreakSegments(gameState, player, broken);
             TellLoss(gameState, player, before - player.Score);
         }
+    }
+
+    /// <summary>The mass an event would take from a snake, less the share its perks spare it. Never nothing while there is something to take.</summary>
+    private long Resisted(IGameState gameState, IPlayer player, string kind, long mass)
+    {
+        var resistance = EffectsOf(gameState, player).ResistanceTo(kind);
+        return resistance <= 0 ? mass : Math.Max(1, (long)Math.Round(mass * (1 - resistance), MidpointRounding.AwayFromZero));
+    }
+
+    /// <summary>The segments that still break once the snake's resistance spares its share of them; the nearest to the impact break first.</summary>
+    private static IReadOnlyList<int> Spared(IReadOnlyList<int> broken, double resistance)
+    {
+        if (resistance <= 0 || broken.Count == 0) return broken;
+        return broken.Take((int)Math.Round(broken.Count * (1 - resistance), MidpointRounding.AwayFromZero)).ToArray();
     }
 
     /// <summary>Killing the snake that is wanted pays the killer in mass and in foods, once, and takes the mark off.</summary>
@@ -729,7 +882,9 @@ public class GameStateService : IGameStateService
         if (gameState.Bounty is not { } bounty || bounty.Target != victim.Guid) return;
         gameState.Bounty = null;
         killer.Score += bounty.RewardMass;
-        CreditFoods(gameState, killer, bounty.FoodsCredit);
+        ApplyReward(gameState, killer, bounty.Reward);
+        killer.FoodsEaten += Math.Max(0, bounty.FoodsCredit);
+        RefreshPerks(gameState, killer);
         UpdatePlayer(killer);
     }
 
@@ -812,12 +967,36 @@ public class GameStateService : IGameStateService
     /// scripts the answer is kept for a quarter of a second.
     /// </summary>
     private PerkEffects EffectsOf(IGameState gameState, IPlayer player)
+        => WithTemporaryEffects(gameState, player, BaseEffectsOf(gameState, player));
+
+    private PerkEffects BaseEffectsOf(IGameState gameState, IPlayer player)
     {
-        if (!_perkRules.HasScripts(player.FoodsEaten, gameState.Room, GrantedOf(player))) return _perkRules.EffectsFor(player.FoodsEaten, gameState.Room, GrantedOf(player));
+        var surges = SurgesOf(player);
+        if (!_perkRules.HasScripts(player.FoodsEaten, gameState.Room, GrantedOf(player))) return _perkRules.EffectsFor(player.FoodsEaten, gameState.Room, GrantedOf(player), surges);
         var now = _clock.GetUtcNow();
         if (_scriptedEffects.TryGetValue(player.Guid, out var kept) && now - kept.At < ScriptedEffectsLifetime) return kept.Effects;
-        var effects = _perkRules.EffectsFor(player.FoodsEaten, gameState.Room, ContextOf(gameState, player), GrantedOf(player));
+        var effects = _perkRules.EffectsFor(player.FoodsEaten, gameState.Room, ContextOf(gameState, player), GrantedOf(player), surges);
         _scriptedEffects[player.Guid] = (now, effects);
+        return effects;
+    }
+
+    /// <summary>What lasts for a moment on top of the perks: the protection after an extra life, and the cooldown abilities that are on.</summary>
+    private PerkEffects WithTemporaryEffects(IGameState gameState, IPlayer player, PerkEffects effects)
+    {
+        var now = _clock.GetUtcNow();
+        if (player.ProtectedUntil > now) effects = effects with { Invulnerable = true };
+        if (!player.Abilities.Values.Any(timer => timer.ActiveUntil > now)) return effects;
+        foreach (var spec in _perkRules.AbilitiesFor(player.FoodsEaten, gameState.Room, GrantedOf(player), SurgesOf(player)))
+        {
+            if (!player.Abilities.TryGetValue(spec.PerkId, out var timer) || timer.ActiveUntil <= now) continue;
+            effects = spec.Effect switch
+            {
+                PerkEffect.ShieldBurst => effects with { Invulnerable = true },
+                PerkEffect.Dash => effects with { AbilitySpeedBonus = effects.AbilitySpeedBonus + spec.Amount },
+                PerkEffect.VacuumBurst => effects with { MagnetRadius = effects.MagnetRadius + spec.Amount },
+                _ => effects
+            };
+        }
         return effects;
     }
 
@@ -862,6 +1041,7 @@ public class GameStateService : IGameStateService
         StatsOf(killer)?.Killed();
         CreditFoods(gameState, killer, _perkRules.KillFoodsCredit);
         PayBounty(gameState, killer, victim);
+        killer.Score += (long)Math.Round(victim.Score * EffectsOf(gameState, killer).PlunderShare, MidpointRounding.AwayFromZero);
         _scriptedEffects.TryRemove(killer.Guid, out _);
         if (!_perkRules.HasScripts(killer.FoodsEaten, gameState.Room, GrantedOf(killer))) return;
         var rewards = _perkRules.RewardsForKilling(
@@ -897,15 +1077,39 @@ public class GameStateService : IGameStateService
     private static Point[] ToPoints(IEnumerable<IPointAxis> path)
         => path.Select(ToPoint).ToArray();
 
-    private void KillPlayer(IGameState gameState, IPlayer player)
+    /// <summary>Kills the snake, unless a life saves it. True when it died.</summary>
+    private bool KillPlayer(IGameState gameState, IPlayer player)
     {
-        if (!player.IsAlive) return;
+        if (!player.IsAlive) return false;
+        if (TrySaveWithLife(gameState, player)) return false;
         player.IsAlive = false;
         ForgetLife(player);
         StatsOf(player)?.Died();
         FinishStats(player);
         DropPellets(gameState, player);
         UpdatePlayer(player);
+        return true;
+    }
+
+    /// <summary>
+    /// Spends an extra life, if the snake has one: it keeps a share of its mass (the rest falls as food where it was), is healed, and
+    /// cannot be hurt for a few seconds. The client is told with a <see cref="DamageKind.Saved"/> notice.
+    /// </summary>
+    private bool TrySaveWithLife(IGameState gameState, IPlayer player)
+    {
+        var lives = BaseEffectsOf(gameState, player).ExtraLives + player.BonusLives - player.LivesUsed;
+        if (lives <= 0) return false;
+        player.LivesUsed++;
+        player.LivesLeft = lives - 1;
+        var kept = (long)Math.Floor(player.Score * _perkRules.ExtraLifeKeepShare);
+        foreach (var drop in _deathDropRules.Plan(player.Score - kept, ToPoints(player.Path))) AddPellet(gameState, drop, player.BackgroundColor);
+        player.Score = kept;
+        player.SegmentHealth = player.SegmentHealth.Select(_ => 1.0).ToList();
+        player.ProtectedUntil = _clock.GetUtcNow().AddSeconds(_perkRules.ExtraLifeProtectSeconds);
+        var head = player.CurrentPosition;
+        gameState.Hits.Enqueue(new DamageDealt(Guid.Empty, player.Guid, head.X, head.Y, player.LivesLeft, DamageKind.Saved));
+        UpdatePlayer(player);
+        return true;
     }
 
     public void AttachAccount(IPlayer player, Guid accountId)

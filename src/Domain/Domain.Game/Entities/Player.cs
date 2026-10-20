@@ -38,6 +38,7 @@ internal record Player(Guid Guid, string Name) : IPlayer
     public IDictionary<string, AbilityTimer> Abilities { get; set; } = new Dictionary<string, AbilityTimer>();
     [JsonIgnore]
     public bool AutoAbilities { get; set; }
+    public int LivesLeft { get; set; }
     public bool AutoFire { get; set; }
     [JsonIgnore]
     public int BurstRemaining { get; set; }

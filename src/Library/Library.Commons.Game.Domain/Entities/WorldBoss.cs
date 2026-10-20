@@ -37,6 +37,9 @@ public sealed class WorldBoss
     /// <summary>The perk the snake that brings it down gets, if any.</summary>
     public string? GrantsPerk { get; init; }
 
+    /// <summary>What else the snake that brings it down gets: a random perk, lives, a tier surge, mass.</summary>
+    public PerkReward? Reward { get; init; }
+
     /// <summary>The snake that shot it last: the one that brings it down.</summary>
     public Guid? LastHitBy { get; set; }
 }

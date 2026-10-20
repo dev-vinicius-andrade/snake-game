@@ -11,7 +11,8 @@ public sealed record WorldMine(Guid Id, double X, double Y, double Radius, doubl
 /// <param name="EndsAt">When the mark is taken off if nobody killed it.</param>
 /// <param name="RewardMass">Mass the killer gets.</param>
 /// <param name="FoodsCredit">Foods the kill counts for toward the perks of the killer.</param>
-public sealed record WorldBounty(Guid Target, DateTimeOffset EndsAt, long RewardMass, int FoodsCredit);
+/// <param name="Reward">What else the killer gets: a random perk, lives, a tier surge, mass.</param>
+public sealed record WorldBounty(Guid Target, DateTimeOffset EndsAt, long RewardMass, int FoodsCredit, PerkReward? Reward = null);
 
 /// <summary>The walls of a maze as a grid of square blocks, each a wall or open floor. Everything outside the grid is open.</summary>
 public interface IMazeWalls

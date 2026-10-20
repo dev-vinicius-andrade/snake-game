@@ -38,6 +38,8 @@ public readonly record struct PerkEffects
     public double MeteorResistance { get; init; }
     public double MineResistance { get; init; }
     public double ZoneResistance { get; init; }
+    /// <summary>Added to the speed factor while a dash is on. Set by the game from the abilities in use, never by the perks themselves.</summary>
+    public double AbilitySpeedBonus { get; init; }
 
     public PerkEffects() { }
 
@@ -164,9 +166,9 @@ public sealed class PerkRules
     }
 
     /// <summary>What the perks do for this snake, with what the scripts of its perks add in this room.</summary>
-    public PerkEffects EffectsFor(int foodsEaten, IRoom? room, ScriptContext context, IReadOnlyCollection<string>? granted = null)
+    public PerkEffects EffectsFor(int foodsEaten, IRoom? room, ScriptContext context, IReadOnlyCollection<string>? granted = null, IReadOnlyDictionary<string, int>? surges = null)
     {
-        var effects = EffectsFor(foodsEaten, room, granted);
+        var effects = EffectsFor(foodsEaten, room, granted, surges);
         foreach (var (perk, script) in ScriptedPerks(foodsEaten, room, granted))
             if (script.Modify(context.Snake, context.Room, context.SnakeStates?.Of(perk.Id)) is { } added)
                 effects = Merge(effects, added);

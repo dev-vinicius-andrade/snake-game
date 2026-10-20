@@ -30,6 +30,10 @@ public interface IGameStateService
     void RemoveGameState(ITrackableId roomId);
     bool ChangeDirectionByPlayerId(string playerConnectionId, Direction? direction = null);
     bool SetBoostByPlayerId(string playerConnectionId, bool active);
+    /// <summary>Uses every cooldown ability of the snake that is ready (shield burst, dash, heal pulse, vacuum burst). False when none was.</summary>
+    bool UseAbilityByPlayerId(string playerConnectionId);
+    /// <summary>Makes the snake use its ready cooldown abilities by itself when they would help, for controls that have no key for them.</summary>
+    bool SetAutoAbilitiesByPlayerId(string playerConnectionId, bool active);
     bool SteerByPlayerId(string playerConnectionId, double angle);
     Task MovePlayer(IGameState gameState, IPlayer player);
     bool CanGenerateFood(IGameState gameState);

@@ -53,6 +53,8 @@ public interface IPlayer : IId, ITrackableId
     /// <summary>True when the player asked for cooldown perks to be used by themselves (for the eye controls, which have no spare gesture).</summary>
     [JsonIgnore]
     bool AutoAbilities { get; set; }
+    /// <summary>Times the snake can still be saved from dying (perks and rewards, minus the ones used). For the HUD.</summary>
+    int LivesLeft { get; set; }
     /// <summary>True when a perk lets the snake keep shooting while the shoot control is held.</summary>
     bool AutoFire { get; set; }
     /// <summary>Shots of a burst still to fire.</summary>

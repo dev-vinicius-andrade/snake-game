@@ -12,4 +12,5 @@ internal record Food(Guid Guid) :IFood
     public int FoodsCredit { get; init; } = 1;
     public string? PrizeId { get; init; }
     public string? GrantsPerk { get; init; }
+    public Library.Commons.Game.Domain.Entities.PerkReward? Reward { get; init; }
 }

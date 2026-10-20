@@ -18,5 +18,10 @@ public enum DamageKind
     /// Not a shot: the snake lost mass to lightning, a meteor or the zone. <c>Damage</c> is the mass lost and the position is the head.
     /// Sent only to the snake that lost it.
     /// </summary>
-    Lost
+    Lost,
+    /// <summary>
+    /// An extra life saved the snake from dying. <c>Damage</c> is the lives it has left and the position is the head. Sent to the snake that
+    /// was saved, and to whoever would have killed it.
+    /// </summary>
+    Saved
 }
