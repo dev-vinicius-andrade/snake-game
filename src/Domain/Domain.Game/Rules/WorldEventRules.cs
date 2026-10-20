@@ -1,4 +1,4 @@
-using Library.Commons.Game.Domain.Entities;
+﻿using Library.Commons.Game.Domain.Entities;
 
 namespace Domain.Game.Rules;
 
@@ -147,6 +147,7 @@ public sealed class WorldEventRules
         ValidateBounty(options.Bounty ?? throw new ArgumentException("World event options are missing.", nameof(options)));
         ValidateMines(options.Mines ?? throw new ArgumentException("World event options are missing.", nameof(options)));
         ValidateSugarRush(options.SugarRush ?? throw new ArgumentException("World event options are missing.", nameof(options)));
+        ValidateMaze(options.Maze ?? throw new ArgumentException("World event options are missing.", nameof(options)));
         return options;
     }
 
@@ -183,6 +184,25 @@ public sealed class WorldEventRules
         if (mines.Radius is < 1 or > 1000) throw OutOfRange("Mines", mines.Radius, "the blast radius must be 1 to 1000");
         if (mines.TriggerRadius is < 1 or > 200) throw OutOfRange("Mines", mines.TriggerRadius, "the trigger radius must be 1 to 200");
         if (mines.ArmMilliseconds is < 0 or > 60000) throw OutOfRange("Mines", mines.ArmMilliseconds, "arming must take 0 to 60000 milliseconds");
+    }
+
+    private static void ValidateMaze(MazeOptions maze)
+    {
+        ValidateSchedule("Maze", maze, maze.Rooms.Concat(maze.ExcludedRooms));
+        if (maze.DurationSeconds is < 10 or > 3600) throw OutOfRange("Maze", maze.DurationSeconds, "it must stand 10 to 3600 seconds");
+        if (maze.Columns is < MazeGenerator.MinCells or > MazeGenerator.MaxCells)
+            throw OutOfRange("Maze", maze.Columns, $"it must be {MazeGenerator.MinCells} to {MazeGenerator.MaxCells} cells across");
+        if (maze.Rows is < MazeGenerator.MinCells or > MazeGenerator.MaxCells)
+            throw OutOfRange("Maze", maze.Rows, $"it must be {MazeGenerator.MinCells} to {MazeGenerator.MaxCells} cells down");
+        if (maze.CorridorHeads is < MazeGenerator.MinCorridor or > MazeGenerator.MaxCorridor)
+            throw OutOfRange("Maze", maze.CorridorHeads, $"a corridor must be {MazeGenerator.MinCorridor} to {MazeGenerator.MaxCorridor} head sizes wide, so a long snake can turn");
+        if (maze.Twistiness is < 0 or > 100) throw OutOfRange("Maze", maze.Twistiness, "the twistiness must be 0 to 100");
+        if (maze.WallMassLoss is < 0 or > 1000) throw OutOfRange("Maze", maze.WallMassLoss, "a wall must cost 0 to 1000 mass");
+        if (maze.FoodPercent is < 0 or > 100) throw OutOfRange("Maze", maze.FoodPercent, "the share of cells with a fruit must be 0 to 100");
+        if (maze.PrizeMass is < 1 or > 10000) throw OutOfRange("Maze", maze.PrizeMass, "the prize must be worth 1 to 10000 mass");
+        if (maze.PrizeFoodsCredit is < 0 or > 1000) throw OutOfRange("Maze", maze.PrizeFoodsCredit, "the foods credit must be 0 to 1000");
+        if (maze.PrizeColor is not { Length: 7 } color || color[0] != '#' || !color.Skip(1).All(Uri.IsHexDigit))
+            throw new ArgumentException("Maze: the prize colour must be six hex digits such as #ffd23f.", nameof(maze));
     }
 
     private static void ValidateSugarRush(SugarRushOptions rush)

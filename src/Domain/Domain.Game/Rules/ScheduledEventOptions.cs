@@ -139,3 +139,65 @@ public sealed record SugarRushOptions : IScheduledEvent
 
     public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
 }
+
+/// <summary>
+/// Maze: for a few minutes a maze stands in a part of the room, with a big prize at its far end. Snakes race through it. Touching a wall
+/// costs mass and never kills; walls stop shots and cannot be broken. Sizes are in head sizes (<c>SnakeConfiguration.HeadSize</c>).
+/// </summary>
+public sealed record MazeOptions : IScheduledEvent
+{
+    /// <summary>The prize it puts at the end: its id, which no kind of prize in the prize list may use.</summary>
+    public const string PrizeId = "maze";
+
+    public bool Enabled { get; init; } = true;
+
+    /// <summary>The shortest wait, in seconds, from one maze (or the room waking up) to the next.</summary>
+    public int MinIntervalSeconds { get; init; } = 420;
+
+    /// <summary>The longest wait, in seconds, to the next maze.</summary>
+    public int MaxIntervalSeconds { get; init; } = 900;
+
+    /// <summary>Seconds the maze stands when nobody takes the prize.</summary>
+    public int DurationSeconds { get; init; } = 240;
+
+    /// <summary>Cells across. The maze is made smaller when the room cannot hold it.</summary>
+    public int Columns { get; init; } = 12;
+
+    /// <summary>Cells down. The maze is made smaller when the room cannot hold it.</summary>
+    public int Rows { get; init; } = 8;
+
+    /// <summary>Head sizes across a corridor; a wall is one head size thick. At least <see cref="MazeGenerator.MinCorridor"/>, so a long snake can turn.</summary>
+    public int CorridorHeads { get; init; } = 4;
+
+    /// <summary>0 to 100: 0 makes long straight halls, 100 turns at every chance. There are always dead ends and a few loops.</summary>
+    public int Twistiness { get; init; } = 60;
+
+    /// <summary>Mass a snake loses when its head runs into a wall (at most once every half second). It never dies of it.</summary>
+    public long WallMassLoss { get; init; } = 2;
+
+    /// <summary>Share, in percent, of the cells that get a fruit when the maze rises (the entrance and the prize cell never do). 0: none.</summary>
+    public int FoodPercent { get; init; } = 25;
+
+    /// <summary>Players needed in the room before a maze rises.</summary>
+    public int MinPlayers { get; init; } = 2;
+
+    /// <summary>Mass the snake that takes the prize gains.</summary>
+    public long PrizeMass { get; init; } = 200;
+
+    /// <summary>How many foods taking the prize counts for toward perks.</summary>
+    public int PrizeFoodsCredit { get; init; } = 20;
+
+    /// <summary>The id of a perk the snake that takes the prize gets. Empty: none.</summary>
+    public string? PrizeGrantsPerk { get; init; }
+
+    /// <summary>How the prize looks: six hex digits such as #ffd23f.</summary>
+    public string PrizeColor { get; init; } = "#ffd23f";
+
+    /// <summary>The rooms it is for. Empty: every room.</summary>
+    public List<string> Rooms { get; init; } = [];
+
+    /// <summary>Rooms it is not for. Wins over <see cref="Rooms"/>.</summary>
+    public List<string> ExcludedRooms { get; init; } = [];
+
+    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
+}

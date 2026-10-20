@@ -1,4 +1,4 @@
-using Library.Commons.Game.Domain.Interfaces.Entities;
+﻿using Library.Commons.Game.Domain.Interfaces.Entities;
 
 namespace Domain.Game.Rules;
 
@@ -56,6 +56,8 @@ public sealed class PrizeRules
     private static void EnsureValid(PrizeDefinition definition)
     {
         if (string.IsNullOrWhiteSpace(definition.Id)) throw new ArgumentException("A prize needs an id.", nameof(definition));
+        if (definition.Id == MazeOptions.PrizeId)
+            throw new ArgumentException($"The prize id '{MazeOptions.PrizeId}' is the maze's own.", nameof(definition));
         EnsurePositive(definition.SpawnIntervalSeconds, nameof(definition.SpawnIntervalSeconds));
         EnsurePositive(definition.LifetimeSeconds, nameof(definition.LifetimeSeconds));
         EnsurePositive(definition.Value, nameof(definition.Value));

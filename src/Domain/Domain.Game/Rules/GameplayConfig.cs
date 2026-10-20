@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Domain.Game.Rules;
@@ -60,6 +60,9 @@ public sealed record GameplayConfig
         var turretPerk = WorldEvents.Turret.GrantsPerk;
         if (!string.IsNullOrWhiteSpace(turretPerk) && !known.Contains(turretPerk))
             throw new ArgumentException($"The turret gives the perk '{turretPerk}', which does not exist.");
+        var mazePerk = WorldEvents.Maze.PrizeGrantsPerk;
+        if (!string.IsNullOrWhiteSpace(mazePerk) && !known.Contains(mazePerk))
+            throw new ArgumentException($"The maze prize gives the perk '{mazePerk}', which does not exist.");
     }
 }
 

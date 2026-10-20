@@ -1,4 +1,4 @@
-using Library.Commons.Game.Domain.Interfaces.Entities;
+﻿using Library.Commons.Game.Domain.Interfaces.Entities;
 
 namespace Domain.Game.Rules;
 
@@ -32,6 +32,8 @@ public sealed record WorldEventOptions
     public MineFieldOptions Mines { get; init; } = new();
 
     public SugarRushOptions SugarRush { get; init; } = new();
+
+    public MazeOptions Maze { get; init; } = new();
 
     /// <summary>The settings of one kind of event.</summary>
     public IStormSettings Of(WorldEventKind kind) => kind == WorldEventKind.Lightning ? Lightning : Meteors;
