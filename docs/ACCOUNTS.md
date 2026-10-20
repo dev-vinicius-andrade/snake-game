@@ -25,6 +25,8 @@ they do today: a nickname, no tag, no achievements.
 
 ## Storage
 
+> With a Postgres connection string the accounts and stats live in the database instead of these files: see `docs/DATABASE.md`.
+
 `IAccountStore` (`Accounts/AccountContracts.cs`). `FileAccountStore`: a JSON file, loaded into memory, written atomically (temp file, then rename).
 Postgres later is a second implementation of the same interface with a unique index on `(lower(username), tag)`.
 

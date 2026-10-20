@@ -262,6 +262,9 @@ steam_key=${OAUTH_STEAM_API_KEY:-$(secret_value "$NS" snake-secrets oauth-steam-
 [ -z "$steam_key" ] || OAUTH_ARGS+=("--from-literal=oauth-steam-secret=$steam_key")
 # The secret that keys the hash of social account ids: made once and kept. Losing it makes every social account look new.
 LOGIN_PEPPER=$(secret_value "$NS" snake-secrets login-pepper); LOGIN_PEPPER=${LOGIN_PEPPER:-$(random_secret)}
+# The Postgres connection string of the manager (docs/DATABASE.md): from .env, else what the Secret already has. None: no database.
+DATABASE_CONNECTION=${DATABASE_CONNECTION:-$(secret_value "$NS" snake-secrets database-connection)}
+[ -z "$DATABASE_CONNECTION" ] || OAUTH_ARGS+=("--from-literal=database-connection=$DATABASE_CONNECTION")
 kube create secret generic snake-secrets \
   --from-literal=api-key="$API_KEY" \
   --from-literal=login-pepper="$LOGIN_PEPPER" \

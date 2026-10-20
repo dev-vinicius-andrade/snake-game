@@ -69,6 +69,11 @@ secretEnv:
     secretName: snake-secrets
     key: oauth-steam-secret
     optional: true
+  # The Postgres database of accounts and stats (docs/DATABASE.md). Without the key the manager keeps them in its files.
+  ConnectionStrings__Database:
+    secretName: snake-secrets
+    key: database-connection
+    optional: true
   # Keys the hash of a social account's id. Made once by deploy.sh and kept: if it changed, every social account would look new.
   AccountsConfiguration__LoginPepper:
     secretName: snake-secrets
