@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useConfirmClick } from "@/composables/useConfirmClick";
 import { getText } from "@/helpers";
 import type { GameConnectionStatus, LeaderboardEntry } from "@/types/game";
 
@@ -18,7 +19,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: "toggle-mouse-aim"): void;
   (event: "toggle-details"): void;
+  (event: "leave"): void;
 }>();
+
+/** Leaving ends the snake, so it takes two clicks. */
+const leaving = useConfirmClick();
 
 const connectionNotice = computed(() => {
   if (props.status === "reconnecting") return getText({ key: "game.reconnecting" });
@@ -52,15 +57,19 @@ const controls = computed(() => [
     <slot name="below-player" />
   </div>
 
-  <section class="hud-panel hud-ranking">
-    <div class="hud-title">{{ getText({ key: "game.leaderboard" }) }}</div>
-    <ol class="hud-list">
-      <li v-for="entry in leaderboard" :key="entry.nickname" class="hud-row">
-        <span>{{ entry.nickname }}</span>
-        <span>{{ entry.currentScore }}</span>
-      </li>
-    </ol>
-  </section>
+  <!-- Top right: the ranking, and under it whatever the screen adds (an unlocked achievement), so they never overlap. -->
+  <div class="hud-right">
+    <section class="hud-panel hud-ranking">
+      <div class="hud-title">{{ getText({ key: "game.leaderboard" }) }}</div>
+      <ol class="hud-list">
+        <li v-for="entry in leaderboard" :key="entry.nickname" class="hud-row">
+          <span>{{ entry.nickname }}</span>
+          <span>{{ entry.currentScore }}</span>
+        </li>
+      </ol>
+    </section>
+    <slot name="below-ranking" />
+  </div>
 
   <button
     type="button"
@@ -71,6 +80,16 @@ const controls = computed(() => [
     @click="emit('toggle-details')"
   >
     ?
+  </button>
+
+  <button
+    type="button"
+    class="hud-leave"
+    :class="{ 'is-armed': leaving.armed.value }"
+    data-test="leave"
+    @click="leaving.click(() => emit('leave'))"
+  >
+    {{ getText({ key: leaving.armed.value ? "game.leaveConfirm" : "game.leave" }) }}
   </button>
 
   <section v-if="details" class="hud-panel hud-controls">
@@ -106,10 +125,47 @@ const controls = computed(() => [
 .hud-left .hud-panel {
   position: static;
 }
-.hud-ranking {
+.hud-right {
+  position: fixed;
+  z-index: 10;
   top: 8px;
   right: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.hud-right .hud-panel {
+  position: static;
+}
+.hud-ranking {
   min-width: 160px;
+}
+.hud-leave {
+  position: fixed;
+  z-index: 11;
+  bottom: 8px;
+  left: 48px;
+  height: 32px;
+  padding: 0 12px;
+  color: #ffffff;
+  font-family: monospace;
+  font-size: 12px;
+  background: rgba(11, 13, 23, 0.78);
+  border: 2px solid var(--snake-line);
+  cursor: pointer;
+  opacity: 0.7;
+}
+.hud-leave:hover,
+.hud-leave:focus-visible {
+  opacity: 1;
+  border-color: #ff5a5a;
+}
+.hud-leave.is-armed {
+  opacity: 1;
+  color: #ffffff;
+  background: #b3262e;
+  border-color: #ff5a5a;
 }
 .hud-details-toggle {
   position: fixed;

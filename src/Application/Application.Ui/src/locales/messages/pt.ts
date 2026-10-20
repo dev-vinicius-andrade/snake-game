@@ -391,6 +391,8 @@ export const messages = {
     leaderboard: "Melhores jogadores",
     joining: "Procurando um jogo...",
     joinFailed: "Não foi possível entrar em um jogo",
+    leave: "Sair",
+    leaveConfirm: "Sair da sala? Clique de novo",
     reconnecting: "Reconectando...",
     disconnected: "Desconectado",
     died: "Você morreu",

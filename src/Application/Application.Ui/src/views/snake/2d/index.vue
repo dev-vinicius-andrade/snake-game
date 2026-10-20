@@ -156,13 +156,16 @@ onBeforeUnmount(() => {
       :details="showDetails"
       @toggle-mouse-aim="toggleMouseAim"
       @toggle-details="showDetails = !showDetails"
+      @leave="leave"
     >
       <template #below-player>
         <InviteBadge v-if="inviteCode" :code="inviteCode" />
       </template>
+      <template #below-ranking>
+        <AchievementToast :id="toasts.current.value" />
+      </template>
     </GameHud>
     <PerkList :perks="ownSnake?.perks ?? []" :tiers="ownSnake?.perkTiers" :catalog="perkCatalog.perks.value" />
-    <AchievementToast :id="toasts.current.value" />
     <PrizeHint :compass="compass" />
     <StrikeHint :warning="strikes" />
     <BossHint :compass="boss" />

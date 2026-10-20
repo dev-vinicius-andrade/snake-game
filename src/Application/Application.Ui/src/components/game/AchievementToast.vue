@@ -32,11 +32,8 @@ const text = computed(() => (props.id ? achievementText(ACHIEVEMENT_TEXTS, local
 </template>
 
 <style scoped>
+/* It sits in the HUD's right column, under the ranking, so it never covers it. */
 .achievement-toast {
-  position: fixed;
-  z-index: 20;
-  top: 16px;
-  right: 16px;
   display: flex;
   align-items: center;
   gap: 12px;

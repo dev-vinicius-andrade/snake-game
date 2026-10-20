@@ -391,6 +391,8 @@ export const messages = {
     leaderboard: "Top players",
     joining: "Finding a game...",
     joinFailed: "Could not join a game",
+    leave: "Leave",
+    leaveConfirm: "Leave the room? Click again",
     reconnecting: "Reconnecting...",
     disconnected: "Disconnected",
     died: "You died",
