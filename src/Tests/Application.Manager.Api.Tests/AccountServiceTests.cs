@@ -516,4 +516,81 @@ public sealed class AccountServiceTests
 
         public bool Update(Account account) => _inner.Update(account);
     }
+
+    [Fact]
+    public void Register_WithoutADisplayName_ShowsTheUsernameAndNeverTheTag()
+    {
+        var registered = Registered(Service(), "Vini", 9291);
+
+        Assert.Equal("Vini", registered.Account.PublicName);
+        Assert.Equal("Vini#09291", registered.Account.Display);
+    }
+
+    [Fact]
+    public void Register_WithADisplayName_KeepsItCleanedAsThePublicName()
+    {
+        var result = Service().Register("Vini", 9291, null, Ip, "  Cool   Snake ");
+
+        Assert.True(result.Succeeded, result.Error);
+        Assert.Equal("Cool Snake", result.Value.Account.PublicName);
+        Assert.Equal("Vini#09291", result.Value.Account.Display);
+    }
+
+    [Theory]
+    [InlineData("Cool#12345")]
+    [InlineData("x")]
+    [InlineData("admin")]
+    public void Register_WithADisplayNameThatIsNotAllowed_IsRefusedAndNothingIsMade(string displayName)
+    {
+        var service = Service();
+
+        var result = service.Register("Vini", 9291, null, Ip, displayName);
+
+        Assert.Equal(AccountErrors.InvalidDisplayName, result.Error);
+        Assert.Null(_store.Find("Vini", 9291));
+    }
+
+    [Fact]
+    public void ChangeDisplayName_ChangesWhatOtherPlayersSee_AndTheAccountKeepsItNextTime()
+    {
+        var service = Service();
+        var registered = Registered(service, "Vini", 9291);
+
+        var result = service.ChangeDisplayName(registered.Token, "Rattler");
+
+        Assert.True(result.Succeeded, result.Error);
+        Assert.Equal("Rattler", service.Authenticate(registered.Token)!.PublicName);
+        Assert.Equal("Vini#09291", service.Authenticate(registered.Token)!.Display);
+    }
+
+    [Fact]
+    public void ChangeDisplayName_ABlankNameGoesBackToTheUsername()
+    {
+        var service = Service();
+        var registered = Registered(service, "Vini", 9291);
+        service.ChangeDisplayName(registered.Token, "Rattler");
+
+        var result = service.ChangeDisplayName(registered.Token, "  ");
+
+        Assert.True(result.Succeeded, result.Error);
+        Assert.Equal("Vini", result.Value.PublicName);
+    }
+
+    [Fact]
+    public void ChangeDisplayName_ANameThatIsNotAllowed_ChangesNothing()
+    {
+        var service = Service();
+        var registered = Registered(service, "Vini", 9291);
+
+        var result = service.ChangeDisplayName(registered.Token, "Vini#09291");
+
+        Assert.Equal(AccountErrors.InvalidDisplayName, result.Error);
+        Assert.Equal("Vini", service.Authenticate(registered.Token)!.PublicName);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("not-a-token")]
+    public void ChangeDisplayName_WithoutAnAccountToken_IsInvalidToken(string? token)
+        => Assert.Equal(AccountErrors.InvalidToken, Service().ChangeDisplayName(token, "Rattler").Error);
 }

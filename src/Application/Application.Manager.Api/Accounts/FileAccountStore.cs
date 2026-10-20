@@ -275,13 +275,13 @@ public sealed class FileAccountStore : IAccountStore
 
     private sealed record StoredDocument(int Version, List<StoredAccount?>? Accounts);
 
-    private sealed record StoredAccount(Guid Id, string Username, int Tag, string PhraseHash, DateTimeOffset CreatedAt, List<StoredDevice?>? Devices)
+    private sealed record StoredAccount(Guid Id, string Username, int Tag, string PhraseHash, DateTimeOffset CreatedAt, List<StoredDevice?>? Devices, string? DisplayName = null)
     {
         public static StoredAccount From(Account account) =>
-            new(account.Id, account.Username, account.Tag, account.PhraseHash, account.CreatedAt, account.Devices.Select(StoredDevice.From).ToList<StoredDevice?>());
+            new(account.Id, account.Username, account.Tag, account.PhraseHash, account.CreatedAt, account.Devices.Select(StoredDevice.From).ToList<StoredDevice?>(), account.DisplayName);
 
         public Account ToAccount() =>
-            new(Id, Username, Tag, PhraseHash, CreatedAt, (Devices ?? throw new InvalidDataException($"Account {Id} has no device list.")).Select(ToDevice).ToList().AsReadOnly());
+            new(Id, Username, Tag, PhraseHash, CreatedAt, (Devices ?? throw new InvalidDataException($"Account {Id} has no device list.")).Select(ToDevice).ToList().AsReadOnly(), DisplayName);
 
         private DeviceToken ToDevice(StoredDevice? device) =>
             device?.ToDevice() ?? throw new InvalidDataException($"Account {Id} has an empty device.");

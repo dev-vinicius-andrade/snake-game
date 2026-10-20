@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace Application.Manager.Api.Accounts;
 
-/// <summary>Who asks to join a game: a signed-in account (<see cref="AccountId"/> set, the nickname is its display name) or a guest.</summary>
+/// <summary>Who asks to join a game: a signed-in account (<see cref="AccountId"/> set, the nickname is its public name, never the tag) or a guest.</summary>
 public sealed record JoinIdentity(Guid? AccountId, string Nickname);
 
 /// <summary>A guest may not pose as an account: no nickname ending in '#' and digits (as the client's isGuestNicknameAllowed).</summary>
@@ -23,7 +23,7 @@ public static class JoinIdentities
 
     /// <summary>
     /// No Authorization header: a guest with its nickname (<see cref="GuestNicknames.InvalidNickname"/> when it looks like an account). A header
-    /// that is not the bearer token of an account: <see cref="AccountErrors.InvalidToken"/>. Otherwise the account, with its display name.
+    /// that is not the bearer token of an account: <see cref="AccountErrors.InvalidToken"/>. Otherwise the account, with its public name (never the tag).
     /// </summary>
     public static AccountResult<JoinIdentity> Resolve(AccountService accounts, string? authorization, string nickname)
     {
@@ -33,7 +33,7 @@ public static class JoinIdentities
         var account = accounts.Authenticate(BearerToken(authorization));
         return account is null
             ? AccountResult<JoinIdentity>.Failure(AccountErrors.InvalidToken)
-            : AccountResult<JoinIdentity>.Success(new JoinIdentity(account.Id, account.Display));
+            : AccountResult<JoinIdentity>.Success(new JoinIdentity(account.Id, account.PublicName));
     }
 
     private static AccountResult<JoinIdentity> Guest(string nickname)

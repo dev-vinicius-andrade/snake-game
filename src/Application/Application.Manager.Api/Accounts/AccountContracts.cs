@@ -10,10 +10,17 @@ public sealed record Account(
     int Tag,
     string PhraseHash,
     DateTimeOffset CreatedAt,
-    IReadOnlyList<DeviceToken> Devices)
+    IReadOnlyList<DeviceToken> Devices,
+    string? DisplayName = null)
 {
-    /// <summary>The name as players see it: Name#09291.</summary>
+    /// <summary>
+    /// The name with its tag, Name#09291: how the owner signs in. It is **private**: it is never shown to other players, because with the
+    /// tag anyone knows exactly which account to go after. Other players see <see cref="PublicName"/>.
+    /// </summary>
     public string Display => $"{Username}#{Tag:D5}";
+
+    /// <summary>The name other players see in the game and on the ranking. Not unique, and says nothing about the tag. Defaults to the username.</summary>
+    public string PublicName => string.IsNullOrWhiteSpace(DisplayName) ? Username : DisplayName;
 }
 
 /// <summary>A browser (or device) that is signed in. Only the hash of its secret is kept.</summary>

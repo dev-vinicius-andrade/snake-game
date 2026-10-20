@@ -73,7 +73,7 @@ public sealed class JoinControllerTests
     }
 
     [Fact]
-    public void Join_AValidToken_PublishesTheAccountWithItsDisplayNameAsTheNickname()
+    public void Join_AValidToken_PublishesTheAccountWithItsPublicNameAndNeverItsTag()
     {
         var (accountId, token) = Register();
 
@@ -81,7 +81,8 @@ public sealed class JoinControllerTests
 
         Assert.IsType<OkResult>(result);
         var payload = Assert.Single(Published());
-        Assert.Equal((accountId, "Vini#09291"), (payload.AccountId, payload.Nickname));
+        Assert.Equal((accountId, "Vini"), (payload.AccountId, payload.Nickname));
+        Assert.DoesNotContain("#", payload.Nickname);
     }
 
     [Fact]
@@ -138,7 +139,7 @@ public sealed class JoinControllerTests
 
         Assert.IsType<OkResult>(result);
         var payload = Assert.Single(Published());
-        Assert.Equal((accountId, "Vini#09291", (Guid?)_room.Id), (payload.AccountId, payload.Nickname, payload.RoomId));
+        Assert.Equal((accountId, "Vini", (Guid?)_room.Id), (payload.AccountId, payload.Nickname, payload.RoomId));
     }
 
     [Fact]

@@ -562,4 +562,28 @@ public sealed class FileAccountStoreTests : IDisposable
         AssertAllIndexed(FileStore(), run);
         Assert.Single(Directory.GetFiles(_folder));
     }
+
+    [Fact]
+    public void ADisplayName_SurvivesAReload_AndAnOlderFileWithoutOneLoadsAsNone()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"accounts-{Guid.NewGuid():N}.json");
+        try
+        {
+            var first = new FileAccountStore(path);
+            var account = new Account(Guid.NewGuid(), "Vini", 9291, "hash", DateTimeOffset.UnixEpoch, [new DeviceToken("t", DateTimeOffset.UnixEpoch)], "Rattler");
+            Assert.True(first.TryAdd(account));
+
+            Assert.Equal("Rattler", new FileAccountStore(path).Find(account.Id)!.DisplayName);
+
+            var document = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!;
+            document["accounts"]![0]!.AsObject().Remove("displayName");
+            File.WriteAllText(path, document.ToJsonString());
+            Assert.Null(new FileAccountStore(path).Find(account.Id)!.DisplayName);
+            Assert.Equal("Vini", new FileAccountStore(path).Find(account.Id)!.PublicName);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }

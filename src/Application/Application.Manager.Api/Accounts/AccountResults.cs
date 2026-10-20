@@ -6,6 +6,7 @@ namespace Application.Manager.Api.Accounts;
 public static class AccountErrors
 {
     public const string InvalidUsername = UsernameRules.InvalidUsername;
+    public const string InvalidDisplayName = "invalidDisplayName";
     public const string InvalidTag = "invalidTag";
     public const string WeakPhrase = RecoveryPhrase.WeakPhrase;
     public const string NoTagsLeft = "noTagsLeft";

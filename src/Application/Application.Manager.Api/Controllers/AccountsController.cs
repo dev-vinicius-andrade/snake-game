@@ -14,6 +14,14 @@ public sealed class RegisterAccountRequest
     public int? Tag { get; set; }
     /// <summary>The recovery phrase the player chose; left out: a random one.</summary>
     public string? Phrase { get; set; }
+    /// <summary>The name other players see; left out: the username. Never the tag.</summary>
+    public string? DisplayName { get; set; }
+}
+
+public sealed class ChangeDisplayNameRequest
+{
+    /// <summary>The name other players see; blank: back to the username.</summary>
+    public string? DisplayName { get; set; }
 }
 
 public sealed class LoginRequest
@@ -27,7 +35,10 @@ public sealed class RegisteredAccountResponse
 {
     public string Username { get; set; } = null!;
     public int Tag { get; set; }
+    /// <summary>Name#09291: for the owner only, it is how the owner signs in.</summary>
     public string Display { get; set; } = null!;
+    /// <summary>The name other players see.</summary>
+    public string DisplayName { get; set; } = null!;
     public string Token { get; set; } = null!;
     /// <summary>To show the player once.</summary>
     public string RecoveryPhrase { get; set; } = null!;
@@ -37,6 +48,7 @@ public sealed class RegisteredAccountResponse
         Username = registration.Account.Username,
         Tag = registration.Account.Tag,
         Display = registration.Account.Display,
+        DisplayName = registration.Account.PublicName,
         Token = registration.Token,
         RecoveryPhrase = registration.RecoveryPhrase,
     };
@@ -47,6 +59,7 @@ public sealed class SignedInResponse
     public string Username { get; set; } = null!;
     public int Tag { get; set; }
     public string Display { get; set; } = null!;
+    public string DisplayName { get; set; } = null!;
     public string Token { get; set; } = null!;
 
     public static implicit operator SignedInResponse(SignIn signIn) => new()
@@ -54,6 +67,7 @@ public sealed class SignedInResponse
         Username = signIn.Account.Username,
         Tag = signIn.Account.Tag,
         Display = signIn.Account.Display,
+        DisplayName = signIn.Account.PublicName,
         Token = signIn.Token,
     };
 }
@@ -64,6 +78,7 @@ public sealed class AccountResponse
     public string Username { get; set; } = null!;
     public int Tag { get; set; }
     public string Display { get; set; } = null!;
+    public string DisplayName { get; set; } = null!;
     public DateTimeOffset CreatedAt { get; set; }
 
     public static implicit operator AccountResponse(Account account) => new()
@@ -72,6 +87,7 @@ public sealed class AccountResponse
         Username = account.Username,
         Tag = account.Tag,
         Display = account.Display,
+        DisplayName = account.PublicName,
         CreatedAt = account.CreatedAt,
     };
 }
@@ -115,7 +131,7 @@ public sealed class AccountsController(AccountService accounts) : Controller
     [ProducesResponseType(typeof(AccountErrorResponse), StatusCodes.Status429TooManyRequests)]
     public IActionResult Register([FromBody] RegisterAccountRequest request)
     {
-        var result = accounts.Register(request.Username, request.Tag, request.Phrase, ClientIp());
+        var result = accounts.Register(request.Username, request.Tag, request.Phrase, ClientIp(), request.DisplayName);
         return result.Succeeded
             ? StatusCode(StatusCodes.Status201Created, (RegisteredAccountResponse)result.Value)
             : Refusal(result.Error, result.RetryAfterSeconds);
@@ -138,6 +154,16 @@ public sealed class AccountsController(AccountService accounts) : Controller
     {
         var account = accounts.Authenticate(BearerToken());
         return account is null ? Refusal(AccountErrors.InvalidToken) : Ok((AccountResponse)account);
+    }
+
+    [HttpPut("me/display-name")]
+    [ProducesResponseType(typeof(AccountResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AccountErrorResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(AccountErrorResponse), StatusCodes.Status401Unauthorized)]
+    public IActionResult ChangeDisplayName([FromBody] ChangeDisplayNameRequest request)
+    {
+        var result = accounts.ChangeDisplayName(BearerToken(), request.DisplayName);
+        return result.Succeeded ? Ok((AccountResponse)result.Value) : Refusal(result.Error);
     }
 
     [HttpPost("logout")]

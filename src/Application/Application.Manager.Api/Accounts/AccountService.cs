@@ -53,12 +53,12 @@ public sealed class AccountService
     /// A new account with the cleaned <paramref name="username"/>, the wanted tag when free (else a random free one), and the chosen phrase
     /// when strong (a random one when none or a blank one is given). Every valid registration counts towards the per IP throttle.
     /// </summary>
-    public AccountResult<Registration> Register(string? username, int? wantedTag, string? chosenPhrase, string? clientIp)
+    public AccountResult<Registration> Register(string? username, int? wantedTag, string? chosenPhrase, string? clientIp, string? displayName = null)
     {
         var throttleKey = RegistrationKey(clientIp);
         if (_throttles.Registration.RetryAfter(throttleKey) is TimeSpan wait)
             return AccountResult<Registration>.Throttled(wait);
-        var request = ValidateRegistration(username, wantedTag, chosenPhrase);
+        var request = ValidateRegistration(username, wantedTag, chosenPhrase, displayName);
         if (!request.Succeeded)
             return AccountResult<Registration>.Failure(request.Error);
         _throttles.Registration.Failed(throttleKey);
@@ -116,18 +116,50 @@ public sealed class AccountService
         return AccountResult<UsernameAvailability>.Success(new UsernameAvailability(name.Username, IsFree(wanted, _store.TagsOf(name.Username))));
     }
 
-    private AccountResult<NewAccount> ValidateRegistration(string? username, int? wantedTag, string? chosenPhrase)
+    /// <summary>
+    /// Changes the name other players see for the account of <paramref name="token"/>. A blank name goes back to the username. The rules are
+    /// the username's, so the name cannot carry a tag.
+    /// </summary>
+    public AccountResult<Account> ChangeDisplayName(string? token, string? displayName)
+    {
+        var account = Authenticate(token);
+        if (account is null)
+            return AccountResult<Account>.Failure(AccountErrors.InvalidToken);
+        var name = ValidateDisplayName(displayName);
+        if (!name.Succeeded)
+            return AccountResult<Account>.Failure(name.Error);
+        var changed = ChangeAccount(account.Id, current => current with { DisplayName = name.Value.Name });
+        return changed is null ? AccountResult<Account>.Failure(AccountErrors.InvalidToken) : AccountResult<Account>.Success(changed);
+    }
+
+    private sealed record CleanName(string? Name);
+
+    /// <summary>Blank or missing: no display name (the username is shown). Otherwise it must pass the username rules.</summary>
+    private AccountResult<CleanName> ValidateDisplayName(string? displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+            return AccountResult<CleanName>.Success(new CleanName(null));
+        var name = UsernameRules.Validate(displayName, _filter);
+        return name.IsValid
+            ? AccountResult<CleanName>.Success(new CleanName(name.Username))
+            : AccountResult<CleanName>.Failure(AccountErrors.InvalidDisplayName);
+    }
+
+    private AccountResult<NewAccount> ValidateRegistration(string? username, int? wantedTag, string? chosenPhrase, string? displayName)
     {
         var name = UsernameRules.Validate(username, _filter);
         if (!name.IsValid)
             return AccountResult<NewAccount>.Failure(name.Error);
+        var shown = ValidateDisplayName(displayName);
+        if (!shown.Succeeded)
+            return AccountResult<NewAccount>.Failure(shown.Error);
         if (wantedTag is int tag && !Tags.IsValid(tag))
             return AccountResult<NewAccount>.Failure(AccountErrors.InvalidTag);
         if (string.IsNullOrWhiteSpace(chosenPhrase))
-            return AccountResult<NewAccount>.Success(new NewAccount(name.Username, wantedTag, _phrases.Generate()));
+            return AccountResult<NewAccount>.Success(new NewAccount(name.Username, wantedTag, _phrases.Generate(), shown.Value.Name));
         return RecoveryPhrase.Validate(chosenPhrase, name.Username) is string weak
             ? AccountResult<NewAccount>.Failure(weak)
-            : AccountResult<NewAccount>.Success(new NewAccount(name.Username, wantedTag, chosenPhrase));
+            : AccountResult<NewAccount>.Success(new NewAccount(name.Username, wantedTag, chosenPhrase, shown.Value.Name));
     }
 
     private AccountResult<Registration> AddAccount(NewAccount request)
@@ -149,7 +181,7 @@ public sealed class AccountService
         var tag = TagAllocator.Allocate(request.Username, request.WantedTag, _store.TagsOf(request.Username), _nextTag);
         if (tag is not int free)
             return AddAttempt.NoTagsLeft;
-        var account = new Account(Guid.NewGuid(), request.Username, free, phraseHash, device.CreatedAt, [device]);
+        var account = new Account(Guid.NewGuid(), request.Username, free, phraseHash, device.CreatedAt, [device], request.DisplayName);
         return _store.TryAdd(account) ? AddAttempt.Done(account) : AddAttempt.LostRace;
     }
 
@@ -228,7 +260,7 @@ public sealed class AccountService
 
     private static string LookupKey(string? clientIp) => "avail:" + (clientIp ?? UnknownIp);
 
-    private sealed record NewAccount(string Username, int? WantedTag, string Phrase);
+    private sealed record NewAccount(string Username, int? WantedTag, string Phrase, string? DisplayName = null);
 
     private sealed record AddAttempt(Account? Added, bool IsFinal)
     {

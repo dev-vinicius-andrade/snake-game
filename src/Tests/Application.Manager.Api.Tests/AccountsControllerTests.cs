@@ -83,13 +83,13 @@ public sealed class AccountsControllerTests
 
         var (loginStatus, signedIn) = Read(Login("vini", 9291, phrase, OtherIp));
         Assert.Equal(StatusCodes.Status200OK, loginStatus);
-        Assert.Equal(new[] { "username", "tag", "display", "token" }, signedIn.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(new[] { "username", "tag", "display", "displayName", "token" }, signedIn.EnumerateObject().Select(property => property.Name));
         var secondToken = signedIn.GetProperty("token").GetString()!;
         Assert.NotEqual(firstToken, secondToken);
 
         var (meStatus, me) = Read(Controller(authorization: $"Bearer {secondToken}").Me());
         Assert.Equal(StatusCodes.Status200OK, meStatus);
-        Assert.Equal(new[] { "id", "username", "tag", "display", "createdAt" }, me.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(new[] { "id", "username", "tag", "display", "displayName", "createdAt" }, me.EnumerateObject().Select(property => property.Name));
         Assert.Equal("Vini#09291", me.GetProperty("display").GetString());
         Assert.Equal(_time.GetUtcNow(), me.GetProperty("createdAt").GetDateTimeOffset());
 
@@ -104,7 +104,7 @@ public sealed class AccountsControllerTests
     {
         var (_, body) = Read(Controller().Register(new RegisterAccountRequest { Username = "Vini" }));
 
-        Assert.Equal(new[] { "username", "tag", "display", "token", "recoveryPhrase" }, body.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(new[] { "username", "tag", "display", "displayName", "token", "recoveryPhrase" }, body.EnumerateObject().Select(property => property.Name));
     }
 
     [Theory]
@@ -283,5 +283,47 @@ public sealed class AccountsControllerTests
         Assert.Equal("accounts", route?.Template);
         Assert.NotNull(typeof(AccountsController).GetCustomAttribute<AllowAnonymousAttribute>());
         Assert.Equal((method, template), (verb.HttpMethods.Single(), verb.Template ?? string.Empty));
+    }
+
+    [Fact]
+    public void ChangeDisplayName_ChangesTheName_AndMeAnswersWithIt()
+    {
+        var token = Register("Vini", 9291).Token;
+
+        var result = Controller(authorization: $"Bearer {token}").ChangeDisplayName(new ChangeDisplayNameRequest { DisplayName = "Rattler" });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var body = JsonSerializer.SerializeToElement(ok.Value, ok.Value!.GetType(), WebJson);
+        Assert.Equal("Rattler", body.GetProperty("displayName").GetString());
+        Assert.Equal("Vini#09291", body.GetProperty("display").GetString());
+    }
+
+    [Fact]
+    public void ChangeDisplayName_ANameThatIsNotAllowed_Is400()
+    {
+        var token = Register("Vini", 9291).Token;
+
+        var result = Controller(authorization: $"Bearer {token}").ChangeDisplayName(new ChangeDisplayNameRequest { DisplayName = "Rattler#12345" });
+
+        var answer = Assert.IsAssignableFrom<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, answer.StatusCode);
+    }
+
+    [Fact]
+    public void ChangeDisplayName_WithoutAToken_Is401()
+    {
+        var result = Controller().ChangeDisplayName(new ChangeDisplayNameRequest { DisplayName = "Rattler" });
+
+        Assert.Equal(StatusCodes.Status401Unauthorized, Assert.IsAssignableFrom<ObjectResult>(result).StatusCode);
+    }
+
+    [Fact]
+    public void Register_WithADisplayName_AnswersWithItAndKeepsTheTagOutOfIt()
+    {
+        var result = Controller().Register(new RegisterAccountRequest { Username = "Vini", Tag = 9291, DisplayName = "Rattler" });
+
+        var created = Assert.IsAssignableFrom<ObjectResult>(result);
+        var body = JsonSerializer.SerializeToElement(created.Value, created.Value!.GetType(), WebJson);
+        Assert.Equal("Rattler", body.GetProperty("displayName").GetString());
     }
 }
