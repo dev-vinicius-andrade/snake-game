@@ -75,6 +75,6 @@ export class FakeCameraSource extends FakeGazeSource implements CameraGazeSource
   }
 
   getDiagnostics(): GazeDiagnostics {
-    return { frames: 0, withLandmarks: 0, withFace: 0, incomplete: 0, missing: [], skipped: 0, videoWidth: 0, videoHeight: 0, readyState: 0, brightness: null };
+    return { frames: 0, withLandmarks: 0, withFace: 0, incomplete: 0, missing: [], skipped: 0, throttled: 0, detectMs: { avg: 0, max: 0 }, videoWidth: 0, videoHeight: 0, readyState: 0, brightness: null };
   }
 }

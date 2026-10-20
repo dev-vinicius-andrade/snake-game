@@ -35,6 +35,9 @@ export interface FramePerfStats {
   snapshotJitterMs: number;
   /** Gaps between snapshots over 100 ms. */
   stalls: number;
+  /** How long the camera's face detection takes, and how many a second run. Zero while the camera is off. */
+  detectMs: Spread;
+  detectHz: number;
   /** Stretches where the main thread was blocked for over 50 ms (the browser's long tasks): how many, the worst and the sum. */
   longTasks: number;
   longTaskMaxMs: number;
@@ -102,6 +105,7 @@ export class FramePerf {
   private steps: Sample<GamePoint>[] = [];
   private samples: number[] = [];
   private tasks: Sample<number>[] = [];
+  private detects: Sample<number>[] = [];
   private heaps: Sample<number>[] = [];
   private hitchList: Array<{ at: number; frameMs: number }> = [];
   private lastFrameAt: number | null = null;
@@ -126,6 +130,11 @@ export class FramePerf {
     }
     this.lastFrameAt = nowMs;
     this.forget(nowMs);
+  }
+
+  /** A face detection for the camera took `durationMs`, ending at `nowMs`. */
+  detect(nowMs: number, durationMs: number) {
+    this.detects.push({ at: nowMs, value: durationMs });
   }
 
   /** The main thread was blocked for `durationMs`, until `endMs` (what the browser calls a long task). */
@@ -172,6 +181,8 @@ export class FramePerf {
       snapshotMs: spread(snapshotGaps),
       snapshotJitterMs: deviation(snapshotGaps),
       stalls: snapshotGaps.filter((gap) => gap > STALL_MS).length,
+      detectMs: spread(this.detects.map((sample) => sample.value)),
+      detectHz: this.rate(this.detects),
       longTasks: this.tasks.length,
       longTaskMaxMs: maximum(this.tasks.map((sample) => sample.value)),
       longTaskTotalMs: this.tasks.reduce((sum, sample) => sum + sample.value, 0),
@@ -193,7 +204,7 @@ export class FramePerf {
     return (
       `${Math.round(stats.fps)} fps | frame ${one(stats.frameMs.avg)}/${one(stats.frameMs.max)} ms | draw ${one(stats.drawMs.avg)}/${one(stats.drawMs.max)} ms | ` +
       `drop ${stats.dropped} long ${stats.longFrames} | snap ${one(stats.snapshotMs.avg)} +-${one(stats.snapshotJitterMs)} ms stalls ${stats.stalls} pts ${stats.points}/${stats.maxPoints} | ` +
-      `blocked ${stats.longTasks}x max ${one(stats.longTaskMaxMs)} ms | gc ${stats.gcs} mem ${stats.heapMB} MB +${one(stats.allocMBps)}/s | starved ${Math.round(stats.starvedShare * 100)}% | cam jerk ${one(stats.cameraJerk)} rev ${stats.cameraReversals} | work ${one(stats.samplesPerFrame)}/frame`
+      `face ${one(stats.detectMs.avg)}/${one(stats.detectMs.max)} ms ${Math.round(stats.detectHz)} Hz | blocked ${stats.longTasks}x max ${one(stats.longTaskMaxMs)} ms | gc ${stats.gcs} mem ${stats.heapMB} MB +${one(stats.allocMBps)}/s | starved ${Math.round(stats.starvedShare * 100)}% | cam jerk ${one(stats.cameraJerk)} rev ${stats.cameraReversals} | work ${one(stats.samplesPerFrame)}/frame`
     );
   }
 
@@ -204,12 +215,20 @@ export class FramePerf {
     this.steps = [];
     this.samples = [];
     this.tasks = [];
+    this.detects = [];
     this.heaps = [];
     this.hitchList = [];
     this.lastFrameAt = null;
     this.lastSnapshotAt = null;
     this.lastCamera = null;
     this.worst = 0;
+  }
+
+  /** Events a second over the time they span; zero for fewer than two. */
+  private rate(samples: Sample<number>[]): number {
+    if (samples.length < 2) return 0;
+    const span = samples[samples.length - 1].at - samples[0].at;
+    return span > 0 ? ((samples.length - 1) * 1000) / span : 0;
   }
 
   private memory(): { gcs: number; allocMBps: number; heapMB: number } {
@@ -258,6 +277,7 @@ export class FramePerf {
     this.steps = this.steps.filter((sample) => sample.at >= limit);
     this.samples = this.samples.filter((at) => at >= limit);
     this.tasks = this.tasks.filter((sample) => sample.at >= limit);
+    this.detects = this.detects.filter((sample) => sample.at >= limit);
     this.heaps = this.heaps.filter((sample) => sample.at >= limit);
     this.hitchList = this.hitchList.filter((hitch) => hitch.at >= nowMs - this.windowMs * 6);
   }

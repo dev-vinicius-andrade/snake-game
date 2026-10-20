@@ -43,6 +43,11 @@ class Fixture {
     { kind: "audioinput", deviceId: "mic", label: "Mic" },
   ];
   detectError: Error | null = null;
+  /** How long a detection takes on the fake clock. */
+  detectCostMs = 0;
+  hidden = false;
+  requestedModes: Array<string | undefined> = [];
+  outputsSet: Array<{ matrices: boolean }> = [];
   streamError: Error | null = null;
   loadError: Error | null = null;
   playError: Error | null = null;
@@ -56,8 +61,9 @@ class Fixture {
   options() {
     return {
       navigatorLike: { mediaDevices: { getUserMedia: () => undefined } },
-      getStream: async (cameraId: string | null = null): Promise<CameraStreamLike> => {
+      getStream: async (cameraId: string | null = null, mode?: string): Promise<CameraStreamLike> => {
         this.streamRequests++;
+        this.requestedModes.push(mode);
         this.requestedCameras.push(cameraId);
         const failure = this.failFor(cameraId);
         if (failure) throw failure;
@@ -72,7 +78,11 @@ class Fixture {
         return {
           detectForVideo: () => {
             if (this.detectError) throw this.detectError;
+            this.clock += this.detectCostMs;
             return this.result;
+          },
+          setOutputs: (outputs: { matrices: boolean }) => {
+            this.outputsSet.push(outputs);
           },
           close: () => this.landmarkerClosed++,
         };
@@ -93,6 +103,7 @@ class Fixture {
         this.nextFrame = null;
       },
       now: () => this.clock,
+      isHidden: () => this.hidden,
     };
   }
 
@@ -432,11 +443,9 @@ describe("createMediaPipeGazeSource diagnostics", () => {
     fx.result = { faceBlendshapes: [], faceLandmarks: [] };
     const logged: string[] = [];
     await started({ log: (summary: string) => logged.push(summary), measureBrightness: () => 0.5 });
-    for (let i = 0; i < 200; i++) fx.frame(1);
+    for (let i = 0; i < 200; i++) fx.frame(33);
 
-    fx.frame(2100);
-
-    expect(logged[0]).toContain("no face found");
+    expect(logged.at(-1)).toContain("no face found");
   });
 
   it("does not hint while a face is found", async () => {
@@ -786,5 +795,111 @@ describe("createMediaPipeGazeSource head mode", () => {
     fx.frame();
 
     expect(source.getDiagnostics().missing).toEqual(["jawOpen"]);
+  });
+});
+
+describe("createMediaPipeGazeSource cost", () => {
+  it("looks at every frame while detection is cheap", async () => {
+    await started();
+
+    for (let index = 0; index < 6; index++) fx.frame(33);
+
+    expect(samples).toHaveLength(6);
+    expect(fx.video.currentTime).toBeGreaterThan(0);
+  });
+
+  it("looks less often when detection is slow, so the game keeps its time", async () => {
+    const source = await started();
+    fx.detectCostMs = 40;
+
+    for (let index = 0; index < 8; index++) fx.frame(33);
+
+    expect(samples.length).toBeLessThan(8);
+    expect(samples.length).toBeGreaterThan(2);
+    expect(source.getDiagnostics().throttled).toBeGreaterThan(0);
+  });
+
+  it("goes back to every frame when detection gets cheap again", async () => {
+    await started();
+    fx.detectCostMs = 40;
+    for (let index = 0; index < 6; index++) fx.frame(33);
+    fx.detectCostMs = 0;
+    for (let index = 0; index < 30; index++) fx.frame(33);
+    const before = samples.length;
+
+    for (let index = 0; index < 6; index++) fx.frame(33);
+
+    expect(samples.length - before).toBe(6);
+  });
+
+  it("reports how long detection takes", async () => {
+    const source = await started();
+    fx.detectCostMs = 12;
+
+    fx.frame(33);
+
+    expect(source.getDiagnostics().detectMs).toEqual({ avg: 12, max: 12 });
+  });
+
+  it("tells the listener each detection time, with when it ended", async () => {
+    const timings: Array<[number, number]> = [];
+    await started({ onDetectTiming: (at, ms) => timings.push([at, ms]) });
+    fx.detectCostMs = 9;
+
+    fx.frame(33);
+
+    expect(timings).toEqual([[1033 + 9, 9]]);
+  });
+
+  it("does not run detection while the page is hidden", async () => {
+    const source = await started();
+    fx.hidden = true;
+
+    fx.frame(33);
+    fx.frame(33);
+
+    expect(samples).toEqual([]);
+    expect(source.getDiagnostics().skipped).toBe(2);
+  });
+
+  it("runs again when the page is back", async () => {
+    await started();
+    fx.hidden = true;
+    fx.frame(33);
+    fx.hidden = false;
+
+    fx.frame(33);
+
+    expect(samples).toHaveLength(1);
+  });
+});
+
+describe("createMediaPipeGazeSource camera and outputs", () => {
+  it("asks for the camera with the mode it starts in", async () => {
+    await started();
+    await started({ mode: "head" });
+
+    expect(fx.requestedModes).toEqual(["eyes", "head"]);
+  });
+
+  it("does not compute the head's transformation matrix for the eyes", async () => {
+    await started({ mode: "eyes" });
+
+    expect(fx.outputsSet.at(-1)).toEqual({ matrices: false });
+  });
+
+  it("computes it for the head", async () => {
+    await started({ mode: "head" });
+
+    expect(fx.outputsSet.at(-1)).toEqual({ matrices: true });
+  });
+
+  it("switches it with the mode while running", async () => {
+    const source = await started({ mode: "eyes" });
+
+    source.setMode("head");
+    expect(fx.outputsSet.at(-1)).toEqual({ matrices: true });
+    source.setMode("eyes");
+    expect(fx.outputsSet.at(-1)).toEqual({ matrices: false });
   });
 });

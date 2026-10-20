@@ -1,6 +1,8 @@
 import { missingEyeBlendshapes, type BlendshapeScore } from "./blendshapes";
 import type { Calibration } from "./calibration";
 import { isLikelyVirtualCamera, toCameraDevices, type CameraDevice, type MediaDeviceInfoLike } from "./cameraDevices";
+import { cameraSize, detectIntervalMs, smoothDetectTime } from "./detectBudget";
+import { reportDetectTiming } from "./detectTimings";
 import { CameraError, classifyCameraError, isCameraSupported, type NavigatorLike } from "./cameraErrors";
 import { EyeFrameProcessor } from "./eyeFrameProcessor";
 import { missingFaceGestureBlendshapes } from "./faceGestures";
@@ -21,6 +23,8 @@ export interface LandmarkerResultLike {
 
 export interface LandmarkerLike {
   detectForVideo(video: VideoLike, timestampMs: number): LandmarkerResultLike;
+  /** Turns on or off the parts of the result that cost something and are not always read (the head's transformation matrix). */
+  setOutputs?(outputs: { matrices: boolean }): void;
   close(): void;
 }
 
@@ -58,8 +62,12 @@ export interface GazeDiagnostics {
   incomplete: number;
   /** The eye blendshapes missing from the latest incomplete face. */
   missing: string[];
-  /** Loop runs without a model call: the video had no data or no new frame. */
+  /** Loop runs without a model call: the video had no data or no new frame, or the page was hidden. */
   skipped: number;
+  /** Frames left out on purpose because detection is slow and the game needs the time. */
+  throttled: number;
+  /** How long a detection takes (running average, and the longest since start), in ms. */
+  detectMs: { avg: number; max: number };
   videoWidth: number;
   videoHeight: number;
   readyState: number;
@@ -89,8 +97,8 @@ export interface MediaPipeGazeSourceOptions {
   /** Mode to start in. */
   mode?: FaceMode;
   navigatorLike?: NavigatorLike | null;
-  /** Opens a camera by device id, or the browser default for null. */
-  getStream?: (cameraId: string | null) => Promise<CameraStreamLike>;
+  /** Opens a camera by device id, or the browser default for null, with the picture size the mode needs. */
+  getStream?: (cameraId: string | null, mode?: FaceMode) => Promise<CameraStreamLike>;
   enumerateDevices?: () => Promise<MediaDeviceInfoLike[]>;
   /** Camera to open first. */
   cameraId?: string | null;
@@ -103,6 +111,10 @@ export interface MediaPipeGazeSourceOptions {
   onDetectError?: (error: unknown) => void;
   /** Receives a one line summary of the diagnostics every two seconds while running. Silent by default; pass `console.info` to debug the camera. */
   log?: (summary: string) => void;
+  /** True while the page is hidden: nothing is detected then. Defaults to `document.hidden`. */
+  isHidden?: () => boolean;
+  /** Told how long each detection took, and when it ended. Defaults to the frame meter's feed. */
+  onDetectTiming?: (atMs: number, durationMs: number) => void;
   /** Average brightness of the video, 0 to 1, or null. Called once per summary. Defaults to a 16 by 12 canvas sample. */
   measureBrightness?: (video: VideoLike) => number | null;
 }
@@ -110,20 +122,22 @@ export interface MediaPipeGazeSourceOptions {
 /** Both a video frame has to be decoded (HAVE_CURRENT_DATA) before the model can look at it. */
 const HAVE_CURRENT_DATA = 2;
 const LOG_EVERY_MS = 2000;
+/** A frame may come a little before the interval is over: cameras do not deliver on the dot. */
+const DUE_SHARE = 0.75;
 /** After this many frames without a face the summary says so. */
 const NO_FACE_HINT_FRAMES = 150;
 
-const defaultGetStream = (cameraId: string | null) =>
-  navigator.mediaDevices.getUserMedia({
-    video: cameraId
-      ? { deviceId: { exact: cameraId }, width: { ideal: 640 }, height: { ideal: 480 } }
-      : { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+const defaultGetStream = (cameraId: string | null, mode: FaceMode = "eyes") => {
+  const size = { width: { ideal: cameraSize(mode).width }, height: { ideal: cameraSize(mode).height } };
+  return navigator.mediaDevices.getUserMedia({
+    video: cameraId ? { deviceId: { exact: cameraId }, ...size } : { ...size, facingMode: "user" },
     audio: false,
   });
+};
 
 const defaultEnumerateDevices = () => navigator.mediaDevices.enumerateDevices();
 
-const emptyCounters = () => ({ frames: 0, withLandmarks: 0, withFace: 0, incomplete: 0, skipped: 0, missing: [] as string[] });
+const emptyCounters = () => ({ frames: 0, withLandmarks: 0, withFace: 0, incomplete: 0, skipped: 0, throttled: 0, missing: [] as string[] });
 
 function createWarnOnce() {
   const warned = new Set<string>();
@@ -197,6 +211,8 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
   const onDetectError = options.onDetectError ?? createWarnOnce();
   const log = options.log ?? (() => undefined);
   const measureBrightness = options.measureBrightness ?? measureVideoBrightness;
+  const isHidden = options.isHidden ?? (() => typeof document !== "undefined" && document.hidden);
+  const reportTiming = options.onDetectTiming ?? reportDetectTiming;
 
   const listeners = new Set<(sample: GazeSample) => void>();
   let running = false;
@@ -213,6 +229,10 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
   let lastLogAt = 0;
   let brightness: number | null = null;
   let counters = emptyCounters();
+  // What detection costs, so it can leave the game the time it needs.
+  let lastDetectAt = Number.NEGATIVE_INFINITY;
+  let averageDetectMs = 0;
+  let longestDetectMs = 0;
 
   const emit = (sample: GazeSample) => listeners.forEach((listener) => listener(sample));
 
@@ -255,13 +275,13 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
   /** The preferred camera, or the default when that one is gone. Other failures are the player's to fix. */
   async function acquireStream(): Promise<CameraStreamLike> {
     try {
-      return await getStream(preferredCameraId);
+      return await getStream(preferredCameraId, mode);
     } catch (failure) {
       const kind = classifyCameraError(failure);
       if (preferredCameraId === null || kind !== "no-camera") throw new CameraError(kind, "The camera could not be opened.", failure);
       preferredCameraId = null;
       try {
-        return await getStream(null);
+        return await getStream(null, mode);
       } catch (second) {
         throw new CameraError(classifyCameraError(second), "The camera could not be opened.", second);
       }
@@ -286,6 +306,7 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
       videoHeight: video?.videoHeight ?? 0,
       readyState: video?.readyState ?? 0,
       brightness,
+      detectMs: { avg: averageDetectMs, max: longestDetectMs },
     };
   }
 
@@ -310,14 +331,27 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
     counters.missing = missing;
   }
 
+  /** Detection costs the game frames, so it is not run again before a multiple of what it costs has passed. */
+  function dueForDetection(t: number): boolean {
+    if (t - lastDetectAt >= detectIntervalMs(averageDetectMs) * DUE_SHARE) return true;
+    counters.throttled++;
+    return false;
+  }
+
   function processFrame(currentVideo: VideoLike, currentLandmarker: LandmarkerLike) {
-    if (currentVideo.readyState < HAVE_CURRENT_DATA || currentVideo.currentTime === lastVideoTime) {
+    if (isHidden() || currentVideo.readyState < HAVE_CURRENT_DATA || currentVideo.currentTime === lastVideoTime) {
       counters.skipped++;
       return;
     }
-    lastVideoTime = currentVideo.currentTime;
     const t = now();
+    if (!dueForDetection(t)) return;
+    lastVideoTime = currentVideo.currentTime;
+    lastDetectAt = t;
     const result = detect(currentVideo, currentLandmarker, t);
+    const took = now() - t;
+    averageDetectMs = smoothDetectTime(averageDetectMs, took);
+    longestDetectMs = Math.max(longestDetectMs, took);
+    reportTiming(t + took, took);
     const categories = result?.faceBlendshapes?.[0]?.categories ?? null;
     count(result, categories);
     emit(
@@ -350,6 +384,7 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
 
     try {
       landmarker = await loadLandmarker();
+      landmarker.setOutputs?.({ matrices: mode === "head" });
     } catch (failure) {
       releaseResources();
       throw new CameraError("model", "The face tracking model could not be loaded.", failure);
@@ -372,6 +407,9 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
     running = true;
     lastVideoTime = -1;
     counters = emptyCounters();
+    lastDetectAt = Number.NEGATIVE_INFINITY;
+    averageDetectMs = 0;
+    longestDetectMs = 0;
     brightness = null;
     lastLogAt = now();
     scheduleFrame();
@@ -408,6 +446,7 @@ export function createMediaPipeGazeSource(options: MediaPipeGazeSourceOptions = 
 
     setMode(next) {
       mode = next;
+      landmarker?.setOutputs?.({ matrices: next === "head" });
     },
 
     getDiagnostics: diagnostics,

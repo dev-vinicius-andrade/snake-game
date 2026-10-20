@@ -14,13 +14,15 @@ export async function loadFaceLandmarker(urls = resolveFaceLandmarkerUrls()): Pr
       runningMode: "VIDEO",
       numFaces: 1,
       outputFaceBlendshapes: true,
-      outputFacialTransformationMatrixes: true,
+      // Only the head mode reads the transformation matrix: the source turns it on when it is needed.
+      outputFacialTransformationMatrixes: false,
     });
 
   const landmarker = await create("GPU").catch(() => create("CPU"));
   // The video handed in by the gaze source is an HTMLVideoElement; `VideoLike` only names what the source uses of it.
   return {
     detectForVideo: (video, timestampMs) => landmarker.detectForVideo(video as unknown as HTMLVideoElement, timestampMs),
+    setOutputs: ({ matrices }) => landmarker.setOptions({ outputFacialTransformationMatrixes: matrices }),
     close: () => landmarker.close(),
   };
 }

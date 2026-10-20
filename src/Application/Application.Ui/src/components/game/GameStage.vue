@@ -2,6 +2,7 @@
 import { useElementSize } from "@vueuse/core";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import PerfOverlay from "@/components/game/PerfOverlay.vue";
+import { onDetectTiming } from "@/input/gaze/detectTimings";
 import { FramePerf } from "@/render/framePerf";
 import { useCanvasRenderer } from "@/composables/useCanvasRenderer";
 import { followCamera, viewLayout, type Camera } from "@/render/camera";
@@ -48,11 +49,13 @@ function togglePerf(event: KeyboardEvent) {
     showPerf.value = !showPerf.value;
   }
 }
+let stopDetectTiming: (() => void) | null = null;
 let longTaskObserver: PerformanceObserver | null = null;
 let heapTimer = 0;
 onMounted(() => {
   (window as unknown as { __snakePerf?: FramePerf }).__snakePerf = perf;
   window.addEventListener("keydown", togglePerf);
+  stopDetectTiming = onDetectTiming((at, ms) => perf.detect(at, ms));
   // What blocked the page, if the browser says: long tasks, and the memory in use (a fall of it is a garbage collection).
   try {
     longTaskObserver = new PerformanceObserver((list) => list.getEntries().forEach((entry) => perf.longTask(entry.startTime + entry.duration, entry.duration)));
@@ -65,6 +68,7 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", togglePerf);
+  stopDetectTiming?.();
   longTaskObserver?.disconnect();
   window.clearInterval(heapTimer);
 });

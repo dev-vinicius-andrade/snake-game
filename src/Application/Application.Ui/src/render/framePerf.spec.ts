@@ -229,6 +229,33 @@ describe("FramePerf snapshot size", () => {
   });
 });
 
+describe("FramePerf face detection", () => {
+  it("reports how long the camera's face detection takes and how often it runs", () => {
+    const perf = new FramePerf();
+    for (let index = 0; index < 20; index++) perf.detect(1000 + index * 50, index === 10 ? 30 : 6);
+
+    const stats = perf.stats(2000);
+
+    expect(stats.detectMs.avg).toBeCloseTo(7.2, 1);
+    expect(stats.detectMs.max).toBe(30);
+    expect(stats.detectHz).toBeCloseTo(20, 0);
+  });
+
+  it("says nothing when the camera is off", () => {
+    const stats = new FramePerf().stats(1000);
+
+    expect(stats.detectMs).toEqual({ avg: 0, max: 0 });
+    expect(stats.detectHz).toBe(0);
+  });
+
+  it("forgets old detections", () => {
+    const perf = new FramePerf({ windowMs: 2000 });
+    perf.detect(1000, 50);
+
+    expect(perf.stats(9000).detectMs.max).toBe(0);
+  });
+});
+
 describe("FramePerf work", () => {
   it("counts how many times the world was worked out for each frame drawn", () => {
     const perf = new FramePerf();
