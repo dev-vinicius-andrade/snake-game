@@ -418,6 +418,7 @@ export const messages = {
       unsaved: "You have unsaved changes",
     },
     title: "Room administration",
+    notAdmin: "You are signed in, but your account is not an admin. Ask an admin for the role, or use an admin key.",
     adminKey: "Admin key",
     signIn: "Sign in",
     signOut: "Sign out",

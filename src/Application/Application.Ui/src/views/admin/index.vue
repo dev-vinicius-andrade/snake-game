@@ -4,12 +4,14 @@ import { computed, onMounted, ref } from "vue";
 import GameplayEditor from "@/components/admin/GameplayEditor.vue";
 import RoomGameplayDialog from "@/components/admin/RoomGameplayDialog.vue";
 import RoomPerksDialog from "@/components/admin/RoomPerksDialog.vue";
+import { useAccount } from "@/composables/useAccount";
 import { useAdminGameplay } from "@/composables/useAdminGameplay";
 import { useAdminRooms, type AdminRoom } from "@/composables/useAdminRooms";
 import { getText } from "@/helpers";
 
 const REFRESH_MS = 5000;
 const admin = useAdminRooms();
+const accounts = useAccount();
 /** One gameplay editor for the Gameplay tab and for the perks of a room, so what is edited in one shows in the other. */
 const gameplay = useAdminGameplay();
 const perksOf = ref<AdminRoom | null>(null);
@@ -51,7 +53,15 @@ async function confirmDelete() {
 useIntervalFn(() => {
   if (tab.value === "rooms") void admin.refresh();
 }, REFRESH_MS);
-onMounted(() => void admin.refresh());
+
+/** Signed in with an account that has the admin role: no key is needed. A key that was used in this tab is tried first. */
+const signedInNotAdmin = computed(() => accounts.status.value === "signedIn" && !accounts.account.value?.roles.includes("admin"));
+
+onMounted(async () => {
+  if (admin.hasKey()) return void admin.refresh();
+  await accounts.loadMe();
+  if (accounts.account.value?.roles.includes("admin")) await admin.signInWithAccount();
+});
 </script>
 
 <template>
@@ -68,6 +78,7 @@ onMounted(() => void admin.refresh());
               variant="outlined"
               @keyup.enter="signIn"
             />
+            <div v-if="signedInNotAdmin" class="text-caption mb-2" data-test="not-admin">{{ getText({ key: "admin.notAdmin" }) }}</div>
             <div v-if="errorText" class="text-error" role="alert">{{ errorText }}</div>
             <VBtn color="primary" :disabled="!keyInput.trim()" @click="signIn">{{ getText({ key: "admin.signIn" }) }}</VBtn>
           </VCardText>

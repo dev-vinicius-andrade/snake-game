@@ -51,6 +51,8 @@ export interface AccountInfo {
   displayName: string;
   /** The social accounts linked to this account, by provider (`github`...). Only names: nothing else is kept. */
   linked: string[];
+  /** What the account can do: `user`, and `admin` when it was granted (docs/ROLES.md). Only the manager's answer to "who am I" says so. */
+  roles: string[];
 }
 
 export interface AccountCall {
@@ -165,10 +167,18 @@ function toError(reply: AccountReply): AccountError {
 }
 
 function toInfo(data: unknown): AccountInfo {
-  const { username, tag, display, displayName, linked } = asRecord(data);
+  const { username, tag, display, displayName, linked, roles } = asRecord(data);
   if (typeof username !== "string" || typeof tag !== "number" || typeof display !== "string") throw new AccountError("unavailable");
   const providers = Array.isArray(linked) ? linked.filter((name): name is string => typeof name === "string" && name !== "") : [];
-  return { username, tag, display, displayName: typeof displayName === "string" && displayName.trim() ? displayName : username, linked: providers };
+  const named = Array.isArray(roles) ? roles.filter((name): name is string => typeof name === "string" && name !== "") : [];
+  return {
+    username,
+    tag,
+    display,
+    displayName: typeof displayName === "string" && displayName.trim() ? displayName : username,
+    linked: providers,
+    roles: named.includes("user") ? named : ["user", ...named],
+  };
 }
 
 export function useAccount(options: UseAccountOptions = {}) {

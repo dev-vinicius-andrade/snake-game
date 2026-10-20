@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ACCOUNT_CREDENTIAL } from "./adminAuth";
 import { ADMIN_KEY_STORAGE_KEY, useAdminRooms, type AdminHttp } from "./useAdminRooms";
 
 const room = { id: "r1", code: "ABC234", name: "Friends", isPrivate: true, players: 2, maxPlayers: 4, createdAt: "2026-01-01T00:00:00Z", server: "http://a" };
@@ -52,6 +53,38 @@ describe("useAdminRooms", () => {
 
     expect(admin.status.value).toBe("signedOut");
     expect(admin.error.value).toBe("invalidKey");
+    expect(storage.getItem(ADMIN_KEY_STORAGE_KEY)).toBeNull();
+  });
+
+  it("signed in but not an admin (403) is refused like a wrong key", async () => {
+    http.get.mockRejectedValue(failure(403));
+    const admin = create();
+
+    await admin.signIn("secret");
+
+    expect(admin.status.value).toBe("signedOut");
+    expect(admin.error.value).toBe("invalidKey");
+  });
+
+  it("signs in as the admin account the player is signed in with, and no key is asked for", async () => {
+    const admin = create();
+
+    await admin.signInWithAccount();
+
+    expect(http.get).toHaveBeenCalledWith("http://manager.test/admin/rooms", ACCOUNT_CREDENTIAL);
+    expect(admin.status.value).toBe("ready");
+    expect(storage.getItem(ADMIN_KEY_STORAGE_KEY)).toBe(ACCOUNT_CREDENTIAL);
+    expect(admin.hasKey()).toBe(true);
+  });
+
+  it("when the account is no longer an admin, the next load signs the page out", async () => {
+    const admin = create();
+    await admin.signInWithAccount();
+    http.get.mockRejectedValue(failure(403));
+
+    await admin.refresh();
+
+    expect(admin.status.value).toBe("signedOut");
     expect(storage.getItem(ADMIN_KEY_STORAGE_KEY)).toBeNull();
   });
 

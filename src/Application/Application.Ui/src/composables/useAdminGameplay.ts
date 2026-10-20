@@ -1,3 +1,4 @@
+import { adminHeaders, isRejected } from "./adminAuth";
 import axios from "axios";
 import { computed, ref, shallowRef } from "vue";
 import { resolveManagerUrl } from "@/config/env";
@@ -195,7 +196,6 @@ export interface ScriptCheck {
 
 export type GameplayStatus = "idle" | "loading" | "ready" | "saved" | "signedOut" | "error";
 
-const ADMIN_KEY_HEADER = "X-Admin-Key";
 
 function withStatus(failure: unknown): Error & { status?: number; serverMessage?: string } {
   const response = axios.isAxiosError(failure) ? failure.response : undefined;
@@ -206,21 +206,21 @@ function withStatus(failure: unknown): Error & { status?: number; serverMessage?
 const axiosHttp: GameplayHttp = {
   async get(url, adminKey) {
     try {
-      return (await axios.get<GameplayPayload>(url, { headers: { [ADMIN_KEY_HEADER]: adminKey } })).data;
+      return (await axios.get<GameplayPayload>(url, { headers: adminHeaders(adminKey) })).data;
     } catch (failure) {
       throw withStatus(failure);
     }
   },
   async put(url, adminKey, body) {
     try {
-      return (await axios.put<GameplayDocument>(url, body, { headers: { [ADMIN_KEY_HEADER]: adminKey } })).data;
+      return (await axios.put<GameplayDocument>(url, body, { headers: adminHeaders(adminKey) })).data;
     } catch (failure) {
       throw withStatus(failure);
     }
   },
   async checkScript(url, adminKey, script) {
     try {
-      const reply = await axios.post<ScriptCheck>(url, script, { headers: { [ADMIN_KEY_HEADER]: adminKey, "Content-Type": "text/plain" } });
+      const reply = await axios.post<ScriptCheck>(url, script, { headers: { ...adminHeaders(adminKey), "Content-Type": "text/plain" } });
       return reply.data;
     } catch (failure) {
       throw withStatus(failure);
@@ -367,7 +367,7 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
 
   function failWith(failure: unknown) {
     const code = (failure as { status?: number }).status;
-    if (code === 401) {
+    if (isRejected(code)) {
       status.value = "signedOut";
       error.value = "invalidKey";
       return;

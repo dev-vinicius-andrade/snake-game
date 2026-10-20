@@ -35,7 +35,7 @@ describe("useAccount register", () => {
     expect(request).toHaveBeenCalledWith({ method: "POST", url: "http://manager.test/accounts", body: { username: "Vini", tag: 9291 } });
     expect(storage.data[ACCOUNT_TOKEN_STORAGE_KEY]).toBe("tok-1");
     expect(account.status.value).toBe("signedIn");
-    expect(account.account.value).toEqual({ username: "Vini", tag: 9291, display: "Vini#09291", displayName: "Vini", linked: [] });
+    expect(account.account.value).toEqual({ username: "Vini", tag: 9291, display: "Vini#09291", displayName: "Vini", linked: [], roles: ["user"] });
     expect(account.error.value).toBeNull();
   });
 
@@ -193,6 +193,16 @@ describe("useAccount linking", () => {
     await account.loadMe();
 
     expect(account.account.value?.linked).toEqual(["github", "discord"]);
+  });
+
+  it("keeps the roles of the account, and always has user among them", async () => {
+    const admin = signedIn(() => ({ status: 200, data: { ...registered, roles: ["user", "admin", 5, ""] } }));
+    await admin.account.loadMe();
+    const plain = signedIn(() => ({ status: 200, data: registered }));
+    await plain.account.loadMe();
+
+    expect(admin.account.account.value?.roles).toEqual(["user", "admin"]);
+    expect(plain.account.account.value?.roles).toEqual(["user"]);
   });
 
   it("has none linked when the manager does not say", async () => {

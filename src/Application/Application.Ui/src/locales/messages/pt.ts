@@ -418,6 +418,7 @@ export const messages = {
       unsaved: "Você tem alterações não salvas",
     },
     title: "Administração de salas",
+    notAdmin: "Você está conectado, mas a sua conta não é admin. Peça o papel a um admin, ou use uma chave de admin.",
     adminKey: "Chave de administrador",
     signIn: "Entrar",
     signOut: "Sair",
