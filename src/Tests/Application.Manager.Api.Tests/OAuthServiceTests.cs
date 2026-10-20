@@ -28,18 +28,22 @@ public sealed class OAuthServiceTests
         public string UserJson { get; set; } = """{ "id": 583231, "login": "octocat", "name": "The Octocat" }""";
         public List<(string Provider, string Code, string RedirectUri, string Verifier, string ClientId)> Exchanges { get; } = [];
         public List<string> UserLookups { get; } = [];
+        public List<string> TokenUrls { get; } = [];
+        public List<string> UserUrls { get; } = [];
         public bool Throws { get; set; }
 
         public Task<string?> ExchangeCodeAsync(OAuthProviderInfo provider, OAuthCredentials credentials, string code, string redirectUri, string codeVerifier, CancellationToken cancellationToken)
         {
             if (Throws) throw new HttpRequestException("provider down");
             Exchanges.Add((provider.Id, code, redirectUri, codeVerifier, credentials.ClientId));
+            TokenUrls.Add(provider.TokenUrl);
             return Task.FromResult(AccessToken);
         }
 
         public Task<JsonElement?> GetUserAsync(OAuthProviderInfo provider, string accessToken, CancellationToken cancellationToken)
         {
             UserLookups.Add(accessToken);
+            UserUrls.Add(provider.UserUrl);
             return Task.FromResult<JsonElement?>(JsonDocument.Parse(UserJson).RootElement);
         }
     }
@@ -278,5 +282,21 @@ public sealed class OAuthServiceTests
         var two = service.Redeem((await service.CompleteAsync("github", "b", second.State, second.State, Ip, CancellationToken.None)).Value).Value;
 
         Assert.Equal(one.Account.Id, two.Account.Id);
+    }
+
+    [Fact]
+    public async Task AProviderCanBePointedAtOtherAddresses_ForATestServerOrGitHubEnterprise()
+    {
+        _options.Providers["github"].AuthorizeUrl = "http://localhost:9999/authorize";
+        _options.Providers["github"].TokenUrl = "http://localhost:9999/token";
+        _options.Providers["github"].UserUrl = "http://localhost:9999/user";
+        var service = Service();
+
+        var started = service.Start("github").Value;
+        await service.CompleteAsync("github", "code", started.State, started.State, Ip, CancellationToken.None);
+
+        Assert.StartsWith("http://localhost:9999/authorize?", started.Url);
+        Assert.Equal("http://localhost:9999/token", _client.TokenUrls.Single());
+        Assert.Equal("http://localhost:9999/user", _client.UserUrls.Single());
     }
 }

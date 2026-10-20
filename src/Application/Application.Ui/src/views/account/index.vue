@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { AccountError, useAccount } from "@/composables/useAccount";
 import { cleanUsername, formatDisplay, parseTag } from "@/game/accountName";
+import { providerIcon } from "@/game/socialLogin";
 import { getText } from "@/helpers";
 
 const MIN_OWN_PHRASE = 12;
@@ -148,7 +149,10 @@ function back() {
 }
 
 watch([regName, regTag], scheduleAvailabilityCheck);
-onMounted(() => void accounts.loadMe());
+onMounted(() => {
+  void accounts.loadMe();
+  void accounts.loadProviders();
+});
 onBeforeUnmount(() => clearTimeout(availabilityTimer));
 </script>
 
@@ -205,6 +209,23 @@ onBeforeUnmount(() => clearTimeout(availabilityTimer));
           <!-- Guest -->
           <template v-else>
             <p class="mb-4">{{ getText({ key: "account.intro" }) }}</p>
+            <!-- The social accounts the game is set up for: a plain link, because the provider's page takes over the whole window. -->
+            <div v-if="accounts.providers.value.length > 0" class="mb-4" data-test="social-login">
+              <VBtn
+                v-for="provider in accounts.providers.value"
+                :key="provider.id"
+                :href="accounts.socialStartUrl(provider.id)"
+                :prepend-icon="providerIcon(provider.id)"
+                block
+                variant="outlined"
+                class="mb-2 social-button"
+                :data-test="`social-${provider.id}`"
+              >
+                {{ getText({ key: "account.continueWith", params: { provider: provider.title } }) }}
+              </VBtn>
+              <div class="text-caption">{{ getText({ key: "account.socialHint" }) }}</div>
+              <div class="text-center text-caption my-2">{{ getText({ key: "account.orWithAPhrase" }) }}</div>
+            </div>
             <VTabs v-model="tab" grow class="mb-4">
               <VTab value="register">{{ getText({ key: "account.tabRegister" }) }}</VTab>
               <VTab value="login">{{ getText({ key: "account.tabLogin" }) }}</VTab>
@@ -292,6 +313,13 @@ onBeforeUnmount(() => clearTimeout(availabilityTimer));
 </template>
 
 <style scoped>
+/* The pixel font is wide: a long label wraps instead of spilling out of the button. */
+.social-button {
+  height: auto !important;
+  min-height: 40px;
+  padding-block: 8px;
+  white-space: normal;
+}
 .secret {
   display: flex;
   align-items: center;

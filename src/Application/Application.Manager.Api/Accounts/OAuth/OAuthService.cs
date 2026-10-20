@@ -128,8 +128,17 @@ public sealed class OAuthService
     {
         if (string.IsNullOrWhiteSpace(_options.PublicApiUrl) || OAuthProviders.Get(providerId) is not { } provider)
             return null;
-        return _options.Providers.TryGetValue(provider.Id, out var credentials) && credentials.IsComplete ? (provider, credentials) : null;
+        return _options.Providers.TryGetValue(provider.Id, out var credentials) && credentials.IsComplete ? (WithOverrides(provider, credentials), credentials) : null;
     }
+
+    private static OAuthProviderInfo WithOverrides(OAuthProviderInfo provider, OAuthCredentials credentials) => provider with
+    {
+        AuthorizeUrl = Other(credentials.AuthorizeUrl) ?? provider.AuthorizeUrl,
+        TokenUrl = Other(credentials.TokenUrl) ?? provider.TokenUrl,
+        UserUrl = Other(credentials.UserUrl) ?? provider.UserUrl,
+    };
+
+    private static string? Other(string address) => string.IsNullOrWhiteSpace(address) ? null : address.Trim();
 
     private bool IsConfigured(OAuthProviderInfo provider) => _options.Providers.TryGetValue(provider.Id, out var credentials) && credentials.IsComplete;
 

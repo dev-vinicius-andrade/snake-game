@@ -10,6 +10,11 @@ export default [
         component: () => import("@/views/account/index.vue"),
       },
       {
+        path: "oauth",
+        name: "account-oauth",
+        component: () => import("@/views/account/oauth.vue"),
+      },
+      {
         path: "profile",
         name: "profile",
         component: () => import("@/views/account/profile.vue"),

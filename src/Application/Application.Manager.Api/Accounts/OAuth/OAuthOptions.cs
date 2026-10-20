@@ -7,6 +7,13 @@ public sealed class OAuthCredentials
 
     public string ClientSecret { get; set; } = string.Empty;
 
+    /// <summary>Other addresses for the provider, for a test server or GitHub Enterprise. Left out, the provider's own are used.</summary>
+    public string AuthorizeUrl { get; set; } = string.Empty;
+
+    public string TokenUrl { get; set; } = string.Empty;
+
+    public string UserUrl { get; set; } = string.Empty;
+
     public bool IsComplete => !string.IsNullOrWhiteSpace(ClientId) && !string.IsNullOrWhiteSpace(ClientSecret);
 }
 

@@ -138,6 +138,51 @@ describe("useAccount changeDisplayName", () => {
   });
 });
 
+describe("useAccount social login", () => {
+  it("asks which providers are set up, and keeps only well formed ones", async () => {
+    const { account, request } = setup(() => ({ status: 200, data: [{ id: "github", title: "GitHub" }, { id: 5 }, { title: "x" }, { id: "discord", title: "Discord" }] }));
+
+    const providers = await account.loadProviders();
+
+    expect(request).toHaveBeenCalledWith({ method: "GET", url: "http://manager.test/accounts/oauth/providers" });
+    expect(providers).toEqual([{ id: "github", title: "GitHub" }, { id: "discord", title: "Discord" }]);
+    expect(account.providers.value).toEqual(providers);
+  });
+
+  it("has no providers when the manager does not answer, so no button is shown", async () => {
+    const { account } = setup(() => ({ status: 500 }));
+
+    expect(await account.loadProviders()).toEqual([]);
+  });
+
+  it("builds the address the browser is sent to, by following it and not from the page's code", () => {
+    const { account } = setup(() => ({ status: 200 }));
+
+    expect(account.socialStartUrl("github")).toBe("http://manager.test/accounts/oauth/github/start");
+    expect(account.socialStartUrl("we ird/id")).toBe("http://manager.test/accounts/oauth/we%20ird%2Fid/start");
+  });
+
+  it("trades the ticket for the token, stores it and signs in", async () => {
+    const { account, request, storage } = setup(() => ({ status: 200, data: { ...registered, displayName: "The Octocat" } }));
+
+    await account.exchangeTicket("ticket-1");
+
+    expect(request).toHaveBeenCalledWith({ method: "POST", url: "http://manager.test/accounts/oauth/exchange", body: { ticket: "ticket-1" } });
+    expect(storage.data[ACCOUNT_TOKEN_STORAGE_KEY]).toBe("tok-1");
+    expect(account.status.value).toBe("signedIn");
+    expect(account.account.value?.displayName).toBe("The Octocat");
+  });
+
+  it("says invalidToken-like trouble as a typed error when the ticket is no good, and signs nobody in", async () => {
+    const { account, storage } = setup(() => ({ status: 401, data: { error: "invalidTicket" } }));
+
+    await expect(account.exchangeTicket("old")).rejects.toBeInstanceOf(AccountError);
+
+    expect(account.status.value).toBe("error");
+    expect(storage.data[ACCOUNT_TOKEN_STORAGE_KEY]).toBeUndefined();
+  });
+});
+
 describe("useAccount login", () => {
   it("posts the credentials and signs in", async () => {
     const { account, request, storage } = setup(() => ({ status: 200, data: { username: "Vini", tag: 9291, display: "Vini#09291", token: "tok-2" } }));

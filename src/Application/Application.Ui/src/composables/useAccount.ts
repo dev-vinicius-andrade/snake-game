@@ -16,6 +16,7 @@ export type AccountErrorCode =
   | "throttled"
   | "invalidCredentials"
   | "invalidToken"
+  | "invalidTicket"
   | "unavailable";
 
 const KNOWN_CODES: readonly AccountErrorCode[] = [
@@ -27,6 +28,7 @@ const KNOWN_CODES: readonly AccountErrorCode[] = [
   "throttled",
   "invalidCredentials",
   "invalidToken",
+  "invalidTicket",
 ];
 
 export class AccountError extends Error {
@@ -91,6 +93,12 @@ export interface LoginInput {
   username: string;
   tag: number;
   phrase: string;
+}
+
+/** A social account the player can sign in with, as the manager offers it. */
+export interface SocialProvider {
+  id: string;
+  title: string;
 }
 
 export interface Availability {
@@ -165,6 +173,7 @@ export function useAccount(options: UseAccountOptions = {}) {
   const status = shallowRef<AccountStatus>("guest");
   const account = shallowRef<AccountInfo | null>(null);
   const error = shallowRef<AccountError | null>(null);
+  const providers = shallowRef<SocialProvider[]>([]);
   // Kept in memory too, so a page without storage still works until it is reloaded.
   let token: string | null = null;
 
@@ -307,6 +316,37 @@ export function useAccount(options: UseAccountOptions = {}) {
     account.value = toInfo(reply.data);
   }
 
+  /** The social accounts the game is set up for. Empty (and no button shown) when the manager does not say. */
+  async function loadProviders(): Promise<SocialProvider[]> {
+    try {
+      const reply = await send({ method: "GET", url: `${base}/accounts/oauth/providers` });
+      const list = reply.status === 200 && Array.isArray(reply.data) ? reply.data : [];
+      providers.value = list.flatMap((entry) => {
+        const { id, title } = asRecord(entry);
+        return typeof id === "string" && typeof title === "string" ? [{ id, title }] : [];
+      });
+    } catch {
+      providers.value = [];
+    }
+    return providers.value;
+  }
+
+  /** Where the browser goes to sign in with a provider. The page follows it as a link: the provider's page is a whole page, not a call. */
+  const socialStartUrl = (provider: string) => `${base}/accounts/oauth/${encodeURIComponent(provider)}/start`;
+
+  /** The browser came back from a provider with a one time ticket: trades it for the device token and signs in. */
+  async function exchangeTicket(ticket: string): Promise<void> {
+    status.value = "loading";
+    error.value = null;
+    try {
+      const reply = await send({ method: "POST", url: `${base}/accounts/oauth/exchange`, body: { ticket } });
+      if (reply.status !== 200) throw toError(reply);
+      signIn(reply.data);
+    } catch (failure) {
+      fail(failure);
+    }
+  }
+
   /** Does not change the state. Debounce is the caller's job. */
   async function checkAvailability(username: string, tag?: number): Promise<Availability> {
     const query = `username=${encodeURIComponent(username)}${tag === undefined ? "" : `&tag=${tag}`}`;
@@ -317,5 +357,19 @@ export function useAccount(options: UseAccountOptions = {}) {
     return { available, username: typeof kept === "string" ? kept : username };
   }
 
-  return { status, account, error, register, login, loadMe, logout, checkAvailability, changeDisplayName };
+  return {
+    status,
+    account,
+    error,
+    providers,
+    register,
+    login,
+    loadMe,
+    logout,
+    checkAvailability,
+    changeDisplayName,
+    loadProviders,
+    socialStartUrl,
+    exchangeTicket,
+  };
 }

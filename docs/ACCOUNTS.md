@@ -99,6 +99,59 @@ an `{ error }` body.
 
 `AccountsConfiguration:StorePath` (env `AccountsConfiguration__StorePath`): the accounts JSON file. Empty or missing: memory only, gone at restart.
 
+## Sign in with a social account (GitHub, Discord, Google)
+
+Players can use a social account instead of a recovery phrase. The game asks the provider only for **who the player is**: an id, a username and a name.
+**Never the email**: no provider is asked for the email scope, and nothing the provider answers with is kept except the id, the username and the name.
+
+- The account is found by the provider and the provider's id (`github` + `583231`), not by a name. The first time makes an account: the username comes from the
+  provider's username (for Google, the given name), cleaned to fit the username rules (letters, digits, space, `_ - .`, 2 to 20 characters, nothing the blocklist
+  stops; emoji and other characters are dropped); the **display name** from the provider's name, cleaned the same way; a name that is left with nothing becomes
+  `Player`. A tag is picked at random. After that the names are the player's own: signing in again never overwrites a display name they changed.
+- Such an account has **no recovery phrase**: the stored phrase hash is the marker `none`, which nothing matches, so no phrase signs in to it. The way back in is
+  the provider.
+- Other players only ever see the **display name** (the username without the tag when none was chosen). The tag stays private, for everyone, whichever way the
+  account was made.
+- Not built yet: linking a provider to an account that has a phrase, signing in with more than one provider to the same account, Apple (needs a signed client
+  secret and a form post callback).
+
+### How the sign in goes
+
+1. The site shows a button for each provider that has keys (`GET /accounts/oauth/providers`) and sends the browser to `GET /accounts/oauth/{provider}/start`.
+2. The manager makes a random `state` and a PKCE verifier, keeps them for 10 minutes, puts the state in an `HttpOnly`, `SameSite=Lax` (and `Secure` over https)
+   cookie, and redirects to the provider with the state and the PKCE challenge (S256).
+3. The provider redirects the browser to `GET /accounts/oauth/{provider}/callback?code&state`. The manager checks that the state is **the one in this browser's
+   cookie** and still waiting (once only, for that provider), trades the code (with the verifier and the client secret) for an access token, asks for the profile,
+   forgets the token, and finds or makes the account.
+4. It redirects to the site (`/account/oauth?ticket=…`, or `?error=<reason>`) with a **one time ticket**, good for 2 minutes. The site trades it at
+   `POST /accounts/oauth/exchange { ticket }` for the same answer as a sign in (`username`, `tag`, `display`, `displayName`, `token`). The device token is never in an address
+   or the history, and the site removes the ticket from the address at once.
+
+Reasons (`error=`): `cancelled` (the player said no at the provider), `invalidState` (not this browser's, expired or used), `providerFailed` (the provider refused, did not
+answer or sent no id), `unknownProvider`, `invalidTicket`, `throttled`, `noTagsLeft`. A new account counts towards the per IP registration throttle; a returning player does not.
+
+### Setting it up
+
+Register the game with each provider you want and set the **callback address** to exactly `https://<PUBLIC_HOST>/api/accounts/oauth/<provider>/callback` (for
+example `https://snake.web.games.andradev.io/api/accounts/oauth/github/callback`):
+
+| Provider | Where | Notes |
+| --- | --- | --- |
+| GitHub | Settings, Developer settings, OAuth Apps | Needs no scope: public profile only. |
+| Discord | discord.com/developers, Applications, OAuth2 | Scope `identify`. Add the callback under Redirects. |
+| Google | Google Cloud console, APIs and services, Credentials, OAuth client ID (Web application) | Scopes `openid profile`. Add the callback under Authorised redirect URIs. |
+
+Then put the keys in `deploy/homelab/.env` (`OAUTH_GITHUB_CLIENT_ID`, `OAUTH_GITHUB_CLIENT_SECRET`, and the same for `DISCORD` and `GOOGLE`) and run `deploy.sh`: it
+keeps them in the Secret `snake-secrets`, and the manager reads them as `OAuth__Providers__<provider>__ClientId` and `…__ClientSecret`. `deploy.sh` also sets
+`OAuth__PublicApiUrl` (`https://<PUBLIC_HOST>/api`) and `OAuth__PublicUiUrl` (`https://<PUBLIC_HOST>`). A provider is offered only when **both** keys and the public
+address are set; with none, no button is shown and nothing else changes.
+
+For a test server or GitHub Enterprise, a provider can be pointed at other addresses with `OAuth__Providers__<provider>__AuthorizeUrl`, `…__TokenUrl` and `…__UserUrl`.
+For local development set `OAuth__PublicApiUrl=http://localhost:60510` and `OAuth__PublicUiUrl=http://localhost:5143`.
+
+Server side: `OAuthService` (`Accounts/OAuth/`), `OAuthController` (`accounts/oauth`), `AccountService.SignInWithExternal`; accounts keep their social logins as
+`externalLogins` (`provider`, `subject`, `linkedAt`) in the accounts file.
+
 ## Later
 
 Stats counters and achievements (see the plan in the conversation): game servers send stat deltas for signed-in players, the manager keeps them next to the account.
