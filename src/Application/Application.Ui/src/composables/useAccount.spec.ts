@@ -183,6 +183,57 @@ describe("useAccount social login", () => {
   });
 });
 
+describe("useAccount changeHandle", () => {
+  const signedIn = (reply: (call: { method: string; url: string; body?: unknown; token?: string }) => { status: number; data?: unknown }) =>
+    setup(reply, { [ACCOUNT_TOKEN_STORAGE_KEY]: "tok-1" });
+
+  it("puts the new name and tag with the token, and shows the handle the manager kept", async () => {
+    const { account, request } = signedIn((call) =>
+      call.method === "PUT" ? { status: 200, data: { ...registered, username: "Rattler", tag: 42, display: "Rattler#00042" } } : { status: 200, data: registered }
+    );
+    await account.loadMe();
+
+    await account.changeHandle("  Rattler ", 42);
+
+    expect(request).toHaveBeenLastCalledWith({ method: "PUT", url: "http://manager.test/accounts/me/handle", body: { username: "Rattler", tag: 42 }, token: "tok-1" });
+    expect(account.account.value?.display).toBe("Rattler#00042");
+    expect(account.status.value).toBe("signedIn");
+  });
+
+  it("leaves the tag out when none is asked for, so the manager picks one", async () => {
+    const { account, request } = signedIn(() => ({ status: 200, data: registered }));
+    await account.loadMe();
+
+    await account.changeHandle("Rattler");
+
+    expect(request.mock.calls.at(-1)?.[0].body).toEqual({ username: "Rattler" });
+  });
+
+  it("says why when the handle is taken or not allowed, and keeps the account as it was", async () => {
+    const taken = signedIn((call) => (call.method === "PUT" ? { status: 409, data: { error: "nameTaken" } } : { status: 200, data: registered }));
+    await taken.account.loadMe();
+    const bad = signedIn((call) => (call.method === "PUT" ? { status: 400, data: { error: "invalidUsername" } } : { status: 200, data: registered }));
+    await bad.account.loadMe();
+
+    await expect(taken.account.changeHandle("Bob", 2)).rejects.toMatchObject({ code: "nameTaken" });
+    await expect(bad.account.changeHandle("Vini#1")).rejects.toMatchObject({ code: "invalidUsername" });
+
+    expect(taken.account.account.value?.display).toBe("Vini#09291");
+    expect(taken.account.status.value).toBe("signedIn");
+  });
+
+  it("is invalidToken without a token, and a refused token signs the player out", async () => {
+    const none = setup(() => ({ status: 200 }));
+    await expect(none.account.changeHandle("Rattler", 1)).rejects.toMatchObject({ code: "invalidToken" });
+    expect(none.request).not.toHaveBeenCalled();
+
+    const refused = signedIn((call) => (call.method === "PUT" ? { status: 401, data: { error: "invalidToken" } } : { status: 200, data: registered }));
+    await refused.account.loadMe();
+    await expect(refused.account.changeHandle("Rattler", 1)).rejects.toMatchObject({ code: "invalidToken" });
+    expect(refused.account.status.value).toBe("guest");
+  });
+});
+
 describe("useAccount linking", () => {
   const signedIn = (reply: (call: { method: string; url: string; body?: unknown; token?: string }) => { status: number; data?: unknown }) =>
     setup(reply, { [ACCOUNT_TOKEN_STORAGE_KEY]: "tok-1" });

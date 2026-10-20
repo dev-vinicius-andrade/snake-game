@@ -175,10 +175,15 @@ public sealed class AccountsController(AccountService accounts, IRoleStore? role
     public IActionResult Me()
     {
         var account = accounts.Authenticate(BearerToken());
-        if (account is null) return Refusal(AccountErrors.InvalidToken);
+        return account is null ? Refusal(AccountErrors.InvalidToken) : Ok(Described(account));
+    }
+
+    /// <summary>The account as it is answered, with what it can do (docs/ROLES.md).</summary>
+    private AccountResponse Described(Account account)
+    {
         var response = (AccountResponse)account;
         response.Roles = Roles.Effective(roles?.RolesOf(account.Id) ?? []);
-        return Ok(response);
+        return response;
     }
 
     /// <summary>Changes the username and tag the owner signs in with (<c>Name#09291</c>), if they are free.</summary>
@@ -191,7 +196,7 @@ public sealed class AccountsController(AccountService accounts, IRoleStore? role
     public IActionResult ChangeHandle([FromBody] ChangeHandleRequest request)
     {
         var result = accounts.ChangeHandle(BearerToken(), request.Username, request.Tag);
-        return result.Succeeded ? Ok((AccountResponse)result.Value) : Refusal(result.Error, result.RetryAfterSeconds);
+        return result.Succeeded ? Ok(Described(result.Value)) : Refusal(result.Error, result.RetryAfterSeconds);
     }
 
     [HttpPut("me/display-name")]
@@ -201,7 +206,7 @@ public sealed class AccountsController(AccountService accounts, IRoleStore? role
     public IActionResult ChangeDisplayName([FromBody] ChangeDisplayNameRequest request)
     {
         var result = accounts.ChangeDisplayName(BearerToken(), request.DisplayName);
-        return result.Succeeded ? Ok((AccountResponse)result.Value) : Refusal(result.Error);
+        return result.Succeeded ? Ok(Described(result.Value)) : Refusal(result.Error);
     }
 
     [HttpPost("logout")]

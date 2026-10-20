@@ -397,4 +397,21 @@ public sealed class AccountsControllerTests
         Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsAssignableFrom<ObjectResult>(bad).StatusCode);
         Assert.Equal(StatusCodes.Status401Unauthorized, Assert.IsAssignableFrom<ObjectResult>(anonymous).StatusCode);
     }
+
+    [Fact]
+    public void ChangeHandle_AndChangeDisplayName_KeepTheRolesInTheAnswer_SoAnAdminStaysAnAdminInThePage()
+    {
+        var registered = _service.Register("Vini", 9291, null, Ip).Value;
+        var roles = new MemoryRoleStore();
+        roles.Grant(registered.Account.Id, Roles.Admin);
+        var http = new DefaultHttpContext();
+        http.Request.Headers.Authorization = $"Bearer {registered.Token}";
+        var controller = new AccountsController(_service, roles) { ControllerContext = new ControllerContext { HttpContext = http } };
+
+        var handle = Read(controller.ChangeHandle(new ChangeHandleRequest { Username = "Rattler", Tag = 5 })).Body.GetProperty("roles").EnumerateArray().Select(role => role.GetString());
+        var display = Read(controller.ChangeDisplayName(new ChangeDisplayNameRequest { DisplayName = "Nick" })).Body.GetProperty("roles").EnumerateArray().Select(role => role.GetString());
+
+        Assert.Equal(new[] { "user", "admin" }, handle);
+        Assert.Equal(new[] { "user", "admin" }, display);
+    }
 }

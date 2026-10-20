@@ -67,8 +67,15 @@ All bodies are JSON, property names in camel case. Errors are `{ "error": "<code
 | `POST /accounts` | `{ username, tag?: number, phrase?: string }` | `201 { username, tag, display, token, recoveryPhrase }` | `400 invalidUsername`, `400 invalidTag`, `400 weakPhrase`, `409 noTagsLeft`, `429 throttled` (+ `retryAfterSeconds`) |
 | `POST /accounts/login` | `{ username, tag, phrase }` | `200 { username, tag, display, token }` | `401 invalidCredentials`, `429 throttled` (+ `retryAfterSeconds`) |
 | `GET /accounts/me` | header `Authorization: Bearer <token>` | `200 { id, username, tag, display, createdAt }` | `401 invalidToken` |
+| `PUT /accounts/me/handle` | bearer; `{ username, tag?: number }` | `200` the account (as `GET /accounts/me`) | `400 invalidUsername`, `400 invalidTag`, `401 invalidToken`, `409 nameTaken`, `409 noTagsLeft`, `429 throttled` |
 | `POST /accounts/logout` | bearer | `204` | `401 invalidToken` |
 | `GET /accounts/availability?username=&tag=` | | `200 { available: boolean, username }` (`username` as it would be kept) | `400 invalidUsername`, `400 invalidTag`, `429 throttled` (+ `retryAfterSeconds`) |
+
+`PUT /accounts/me/handle` changes the username and tag the owner signs in with (`Name#09291`). The new username follows the registration rules.
+A tag that is asked for must be free for that name, else `409 nameTaken`; left out, the account keeps its tag when only the case of the name
+changes, else a free one is picked. The recovery phrase, the devices that are signed in and the linked social accounts do not change, and the
+old handle is free for others at once. Every try counts towards a throttle of its own for the account (the same tuning as the availability
+check), so free names cannot be probed. A social account can change its handle too; it still signs in with the provider.
 
 `recoveryPhrase` is the phrase to show the player **once** (the random one made for them, or the one they chose, echoed back as sent so the
 screen can confirm it). A blank `phrase` is the same as none: a random one is made.

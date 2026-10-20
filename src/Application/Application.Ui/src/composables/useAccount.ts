@@ -11,6 +11,7 @@ export type AccountErrorCode =
   | "invalidUsername"
   | "invalidDisplayName"
   | "invalidTag"
+  | "nameTaken"
   | "weakPhrase"
   | "noTagsLeft"
   | "throttled"
@@ -23,6 +24,7 @@ const KNOWN_CODES: readonly AccountErrorCode[] = [
   "invalidUsername",
   "invalidDisplayName",
   "invalidTag",
+  "nameTaken",
   "weakPhrase",
   "noTagsLeft",
   "throttled",
@@ -332,6 +334,26 @@ export function useAccount(options: UseAccountOptions = {}) {
     account.value = toInfo(reply.data);
   }
 
+  /**
+   * Changes the username and tag the owner signs in with. Without a tag the manager keeps the current one when only the case of the name
+   * changes, else picks a free one. Rejects with `nameTaken` when the handle belongs to another account.
+   */
+  async function changeHandle(username: string, tag?: number): Promise<void> {
+    const stored = readToken();
+    if (!stored) throw new AccountError("invalidToken");
+    const body: { username: string; tag?: number } = { username: username.trim() };
+    if (tag !== undefined) body.tag = tag;
+    const reply = await send({ method: "PUT", url: `${base}/accounts/me/handle`, body, token: stored });
+    if (reply.status === 401) {
+      writeToken(null);
+      account.value = null;
+      status.value = "guest";
+      throw new AccountError("invalidToken");
+    }
+    if (reply.status !== 200) throw toError(reply);
+    account.value = toInfo(reply.data);
+  }
+
   /** The social accounts the game is set up for. Empty (and no button shown) when the manager does not say. */
   async function loadProviders(): Promise<SocialProvider[]> {
     try {
@@ -403,6 +425,7 @@ export function useAccount(options: UseAccountOptions = {}) {
     logout,
     checkAvailability,
     changeDisplayName,
+    changeHandle,
     loadProviders,
     socialStartUrl,
     startLink,
