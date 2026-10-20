@@ -581,6 +581,7 @@ export const messages = {
     },
     touch: { shoot: "SHOOT", boost: "BOOST" },
     details: "Controls and settings",
+    sound: { mute: "Mute sound", unmute: "Turn sound on", volume: "Volume" },
     ping: "Ping",
     perks: "Perks",
     prize: "Prize",

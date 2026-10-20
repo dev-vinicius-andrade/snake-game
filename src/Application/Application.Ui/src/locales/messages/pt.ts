@@ -581,6 +581,7 @@ export const messages = {
     },
     touch: { shoot: "ATIRAR", boost: "ACELERAR" },
     details: "Controles e ajustes",
+    sound: { mute: "Silenciar o som", unmute: "Ligar o som", volume: "Volume" },
     ping: "Ping",
     perks: "Poderes",
     prize: "Prêmio",

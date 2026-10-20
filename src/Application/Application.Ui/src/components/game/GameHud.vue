@@ -15,11 +15,17 @@ const props = defineProps<{
   mouseAim: boolean;
   /** Controls and settings are shown only when asked for, so the screen stays clear. */
   details: boolean;
+  /** Sound is off. */
+  muted: boolean;
+  /** Sound volume, 0 to 1. */
+  volume: number;
 }>();
 
 const emit = defineEmits<{
   (event: "toggle-mouse-aim"): void;
   (event: "toggle-details"): void;
+  (event: "toggle-sound"): void;
+  (event: "set-volume", volume: number): void;
   (event: "leave"): void;
 }>();
 
@@ -86,6 +92,18 @@ const controls = computed(() => [
 
   <button
     type="button"
+    class="hud-sound-toggle"
+    data-test="sound-toggle"
+    :aria-pressed="muted"
+    :aria-label="getText({ key: muted ? 'game.sound.unmute' : 'game.sound.mute' })"
+    :title="getText({ key: muted ? 'game.sound.unmute' : 'game.sound.mute' })"
+    @click="emit('toggle-sound')"
+  >
+    {{ muted ? "♪×" : "♪" }}
+  </button>
+
+  <button
+    type="button"
     class="hud-leave"
     :class="{ 'is-armed': leaving.armed.value }"
     data-test="leave"
@@ -99,6 +117,19 @@ const controls = computed(() => [
     <button type="button" class="hud-toggle" :aria-pressed="mouseAim" @click="emit('toggle-mouse-aim')">
       {{ getText({ key: mouseAim ? "game.mouseAimOn" : "game.mouseAimOff" }) }}
     </button>
+    <label class="hud-volume">
+      {{ getText({ key: "game.sound.volume" }) }}
+      <input
+        type="range"
+        min="0"
+        max="1"
+        step="0.05"
+        data-test="volume"
+        :value="volume"
+        :aria-label="getText({ key: 'game.sound.volume' })"
+        @input="emit('set-volume', Number(($event.target as HTMLInputElement).value))"
+      />
+    </label>
   </section>
 </template>
 
@@ -177,6 +208,42 @@ const controls = computed(() => [
   color: #ffffff;
   background: #b3262e;
   border-color: #ff5a5a;
+}
+.hud-sound-toggle {
+  position: fixed;
+  z-index: 11;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 40px;
+  height: 32px;
+  padding: 0 8px;
+  color: #ffffff;
+  font-family: monospace;
+  font-size: 16px;
+  font-weight: bold;
+  background: rgba(11, 13, 23, 0.78);
+  border: 2px solid var(--snake-line);
+  cursor: pointer;
+  opacity: 0.7;
+}
+.hud-sound-toggle:hover,
+.hud-sound-toggle:focus-visible {
+  opacity: 1;
+  border-color: var(--snake-green);
+}
+.hud-sound-toggle[aria-pressed="true"] {
+  color: var(--snake-amber);
+}
+.hud-volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  pointer-events: auto;
+}
+.hud-volume input {
+  width: 100px;
 }
 .hud-details-toggle {
   position: fixed;

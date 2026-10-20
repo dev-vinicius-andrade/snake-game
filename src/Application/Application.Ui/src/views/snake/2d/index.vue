@@ -21,6 +21,7 @@ import { useEyeControl } from "@/composables/useEyeControl";
 import { useGameConnection } from "@/composables/useGameConnection";
 import { usePerkCatalog } from "@/composables/usePerkCatalog";
 import { useGazeControls } from "@/composables/useGazeControls";
+import { useGameSounds } from "@/composables/useGameSounds";
 import { useManagerJoin } from "@/composables/useManagerJoin";
 import { useSnakeSession } from "@/composables/useSnakeSession";
 import { HEAD_CALIBRATION_KEY, createCalibrationStorage } from "@/input/gaze/calibrationStorage";
@@ -48,6 +49,7 @@ const ownAutoFire = () => !!game.snapshot.value?.snakes.find((snake) => snake.gu
 const session = useSnakeSession({ joiner: useManagerJoin(), game, autoFire: ownAutoFire });
 
 const toasts = useAchievementToasts({ events: game.unlocked });
+const sounds = useGameSounds({ snapshot: game.snapshot, damage: game.damage, death: game.death, selfGuid: () => game.self.value?.guid });
 const perkCatalog = usePerkCatalog();
 const stage = ref<InstanceType<typeof GameStage> | null>(null);
 const ownSnake = computed(() => game.snapshot.value?.snakes.find((snake) => snake.guid === game.self.value?.guid) ?? null);
@@ -163,8 +165,12 @@ onBeforeUnmount(() => {
       :status="game.status.value"
       :mouse-aim="mouseAim"
       :details="showDetails"
+      :muted="sounds.muted.value"
+      :volume="sounds.volume.value"
       @toggle-mouse-aim="toggleMouseAim"
       @toggle-details="showDetails = !showDetails"
+      @toggle-sound="sounds.toggleMute"
+      @set-volume="sounds.setVolume"
       @leave="leave"
     >
       <template #below-player>
