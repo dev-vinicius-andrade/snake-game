@@ -50,6 +50,26 @@ public sealed class EfGameplayConfigStoreTests : IDisposable
             Meteors = new MeteorOptions { MinMeteors = 2, MaxMeteors = 4, RainSeconds = 3, ExcludedRooms = ["quiet"] },
             Turret = new TurretOptions { HitPoints = 77, Arms = 8, GrantsPerk = "scripted", Rooms = ["boss-room"] },
             Zone = new ZoneOptions { FinalRadius = 111, DamageMass = 9, ExcludedRooms = ["quiet"] },
+            FruitShower = new FruitShowerOptions
+            {
+                Enabled = false, MinIntervalSeconds = 11, MaxIntervalSeconds = 22, DurationSeconds = 33, FruitsPerSecond = 4, MinPlayers = 2,
+                Rooms = ["lobby", "AB12"], ExcludedRooms = ["quiet"],
+            },
+            Bounty = new BountyOptions
+            {
+                Enabled = false, MinIntervalSeconds = 12, MaxIntervalSeconds = 24, DurationSeconds = 36, RewardMass = 4321, FoodsCredit = 17, MinPlayers = 5,
+                Rooms = ["arena"], ExcludedRooms = ["quiet", "other"],
+            },
+            Mines = new MineFieldOptions
+            {
+                Enabled = false, MinIntervalSeconds = 13, MaxIntervalSeconds = 26, MinMines = 3, MaxMines = 5, Radius = 77, TriggerRadius = 15,
+                ArmMilliseconds = 1500, MinPlayers = 4, Rooms = ["mine-room"], ExcludedRooms = ["lobby"],
+            },
+            SugarRush = new SugarRushOptions
+            {
+                Enabled = false, MinIntervalSeconds = 14, MaxIntervalSeconds = 28, DurationSeconds = 42, MinPlayers = 6,
+                Rooms = ["sweet", "AB12"], ExcludedRooms = ["sour"],
+            },
         },
     };
 
@@ -92,6 +112,40 @@ public sealed class EfGameplayConfigStoreTests : IDisposable
         var fresh = Store().Current;
         Assert.Equal(Written(Custom().Normalized()), Written(fresh.Config));
         Assert.Equal(saved.Revision, fresh.Revision);
+    }
+
+    [Fact]
+    public void Current_AConfigSavedBeforeTheNewEvents_LoadsWithTheirDefaults_AndTheNextSaveWritesTheirRows()
+    {
+        var saved = Store().Update(Custom());
+        using (var context = _host.Factory.CreateDbContext())
+        {
+            context.FruitShowerEvents.ExecuteDelete();
+            context.BountyEvents.ExecuteDelete();
+            context.MineFieldEvents.ExecuteDelete();
+            context.SugarRushEvents.ExecuteDelete();
+            context.WorldEventRooms.Where(row => row.Event == "fruit_shower" || row.Event == "bounty" || row.Event == "mine_field" || row.Event == "sugar_rush")
+                .ExecuteDelete();
+        }
+
+        var loaded = Store().Current;
+
+        Assert.Equal(saved.Revision, loaded.Revision);
+        var events = loaded.Config.WorldEvents;
+        Assert.Equal(Written(GameplayConfig.Defaults with { WorldEvents = new WorldEventOptions() }), Written(GameplayConfig.Defaults with
+        {
+            WorldEvents = new WorldEventOptions { FruitShower = events.FruitShower, Bounty = events.Bounty, Mines = events.Mines, SugarRush = events.SugarRush },
+        }));
+        Assert.Equal(111, events.Zone.FinalRadius);
+
+        Store().Update(Custom());
+
+        using var after = _host.Factory.CreateDbContext();
+        Assert.Single(after.FruitShowerEvents);
+        Assert.Single(after.BountyEvents);
+        Assert.Single(after.MineFieldEvents);
+        Assert.Single(after.SugarRushEvents);
+        Assert.Equal(Written(Custom().Normalized()), Written(Store().Current.Config));
     }
 
     [Fact]

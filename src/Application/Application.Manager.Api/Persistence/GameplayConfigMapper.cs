@@ -9,6 +9,10 @@ internal static class GameplayConfigMapper
     private const string Lightning = "lightning";
     private const string Meteors = "meteors";
     private const string Zone = "zone";
+    private const string FruitShower = "fruit_shower";
+    private const string Bounty = "bounty";
+    private const string MineField = "mine_field";
+    private const string SugarRush = "sugar_rush";
     private const string Turret = BossRow.Turret;
 
     /// <summary>Empties every gameplay table, children before parents, so what is added next can reuse the same keys.</summary>
@@ -25,6 +29,10 @@ internal static class GameplayConfigMapper
         context.LightningEvents.ExecuteDelete();
         context.MeteorEvents.ExecuteDelete();
         context.ZoneEvents.ExecuteDelete();
+        context.FruitShowerEvents.ExecuteDelete();
+        context.BountyEvents.ExecuteDelete();
+        context.MineFieldEvents.ExecuteDelete();
+        context.SugarRushEvents.ExecuteDelete();
         context.GameplaySettings.ExecuteDelete();
     }
 
@@ -115,6 +123,36 @@ internal static class GameplayConfigMapper
         context.WorldEventRooms.AddRange(EventRooms(Meteors, meteors.Rooms, meteors.ExcludedRooms));
         context.WorldEventRooms.AddRange(EventRooms(Zone, zone.Rooms, zone.ExcludedRooms));
         context.WorldEventRooms.AddRange(EventRooms(Turret, turret.Rooms, turret.ExcludedRooms));
+        AddScheduledEvents(context, events);
+    }
+
+    private static void AddScheduledEvents(SnakeDbContext context, WorldEventOptions events)
+    {
+        var (shower, bounty, mines, rush) = (events.FruitShower, events.Bounty, events.Mines, events.SugarRush);
+        context.FruitShowerEvents.Add(new FruitShowerEventRow
+        {
+            Enabled = shower.Enabled, MinIntervalSeconds = shower.MinIntervalSeconds, MaxIntervalSeconds = shower.MaxIntervalSeconds,
+            DurationSeconds = shower.DurationSeconds, FruitsPerSecond = shower.FruitsPerSecond, MinPlayers = shower.MinPlayers,
+        });
+        context.BountyEvents.Add(new BountyEventRow
+        {
+            Enabled = bounty.Enabled, MinIntervalSeconds = bounty.MinIntervalSeconds, MaxIntervalSeconds = bounty.MaxIntervalSeconds,
+            DurationSeconds = bounty.DurationSeconds, RewardMass = bounty.RewardMass, FoodsCredit = bounty.FoodsCredit, MinPlayers = bounty.MinPlayers,
+        });
+        context.MineFieldEvents.Add(new MineFieldEventRow
+        {
+            Enabled = mines.Enabled, MinIntervalSeconds = mines.MinIntervalSeconds, MaxIntervalSeconds = mines.MaxIntervalSeconds, MinMines = mines.MinMines,
+            MaxMines = mines.MaxMines, Radius = mines.Radius, TriggerRadius = mines.TriggerRadius, ArmMilliseconds = mines.ArmMilliseconds, MinPlayers = mines.MinPlayers,
+        });
+        context.SugarRushEvents.Add(new SugarRushEventRow
+        {
+            Enabled = rush.Enabled, MinIntervalSeconds = rush.MinIntervalSeconds, MaxIntervalSeconds = rush.MaxIntervalSeconds,
+            DurationSeconds = rush.DurationSeconds, MinPlayers = rush.MinPlayers,
+        });
+        context.WorldEventRooms.AddRange(EventRooms(FruitShower, shower.Rooms, shower.ExcludedRooms));
+        context.WorldEventRooms.AddRange(EventRooms(Bounty, bounty.Rooms, bounty.ExcludedRooms));
+        context.WorldEventRooms.AddRange(EventRooms(MineField, mines.Rooms, mines.ExcludedRooms));
+        context.WorldEventRooms.AddRange(EventRooms(SugarRush, rush.Rooms, rush.ExcludedRooms));
     }
 
     /// <summary>The config in the tables and the revision it was saved as, or null when nothing was ever saved.</summary>
@@ -206,6 +244,64 @@ internal static class GameplayConfigMapper
                 DamageIntervalMilliseconds = zone.DamageIntervalMilliseconds, DamageMass = zone.DamageMass, MinPlayers = zone.MinPlayers,
                 Rooms = RoomsOf(rooms, Zone, excluded: false), ExcludedRooms = RoomsOf(rooms, Zone, excluded: true),
             },
+            FruitShower = ReadFruitShower(context, rooms),
+            Bounty = ReadBounty(context, rooms),
+            Mines = ReadMineField(context, rooms),
+            SugarRush = ReadSugarRush(context, rooms),
+        };
+    }
+
+    // The four below may have no row: a config saved before they existed. Then the defaults stand until the next save writes the row.
+
+    private static FruitShowerOptions ReadFruitShower(SnakeDbContext context, List<WorldEventRoomRow> rooms)
+    {
+        var row = context.FruitShowerEvents.AsNoTracking().SingleOrDefault();
+        if (row is null)
+            return new FruitShowerOptions();
+        return new FruitShowerOptions
+        {
+            Enabled = row.Enabled, MinIntervalSeconds = row.MinIntervalSeconds, MaxIntervalSeconds = row.MaxIntervalSeconds, DurationSeconds = row.DurationSeconds,
+            FruitsPerSecond = row.FruitsPerSecond, MinPlayers = row.MinPlayers,
+            Rooms = RoomsOf(rooms, FruitShower, excluded: false), ExcludedRooms = RoomsOf(rooms, FruitShower, excluded: true),
+        };
+    }
+
+    private static BountyOptions ReadBounty(SnakeDbContext context, List<WorldEventRoomRow> rooms)
+    {
+        var row = context.BountyEvents.AsNoTracking().SingleOrDefault();
+        if (row is null)
+            return new BountyOptions();
+        return new BountyOptions
+        {
+            Enabled = row.Enabled, MinIntervalSeconds = row.MinIntervalSeconds, MaxIntervalSeconds = row.MaxIntervalSeconds, DurationSeconds = row.DurationSeconds,
+            RewardMass = row.RewardMass, FoodsCredit = row.FoodsCredit, MinPlayers = row.MinPlayers,
+            Rooms = RoomsOf(rooms, Bounty, excluded: false), ExcludedRooms = RoomsOf(rooms, Bounty, excluded: true),
+        };
+    }
+
+    private static MineFieldOptions ReadMineField(SnakeDbContext context, List<WorldEventRoomRow> rooms)
+    {
+        var row = context.MineFieldEvents.AsNoTracking().SingleOrDefault();
+        if (row is null)
+            return new MineFieldOptions();
+        return new MineFieldOptions
+        {
+            Enabled = row.Enabled, MinIntervalSeconds = row.MinIntervalSeconds, MaxIntervalSeconds = row.MaxIntervalSeconds, MinMines = row.MinMines,
+            MaxMines = row.MaxMines, Radius = row.Radius, TriggerRadius = row.TriggerRadius, ArmMilliseconds = row.ArmMilliseconds, MinPlayers = row.MinPlayers,
+            Rooms = RoomsOf(rooms, MineField, excluded: false), ExcludedRooms = RoomsOf(rooms, MineField, excluded: true),
+        };
+    }
+
+    private static SugarRushOptions ReadSugarRush(SnakeDbContext context, List<WorldEventRoomRow> rooms)
+    {
+        var row = context.SugarRushEvents.AsNoTracking().SingleOrDefault();
+        if (row is null)
+            return new SugarRushOptions();
+        return new SugarRushOptions
+        {
+            Enabled = row.Enabled, MinIntervalSeconds = row.MinIntervalSeconds, MaxIntervalSeconds = row.MaxIntervalSeconds, DurationSeconds = row.DurationSeconds,
+            MinPlayers = row.MinPlayers,
+            Rooms = RoomsOf(rooms, SugarRush, excluded: false), ExcludedRooms = RoomsOf(rooms, SugarRush, excluded: true),
         };
     }
 

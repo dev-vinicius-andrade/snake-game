@@ -253,6 +253,46 @@ namespace Application.Manager.Api.Persistence.Migrations
                     b.ToTable("bosses", (string)null);
                 });
 
+            modelBuilder.Entity("Application.Manager.Api.Persistence.BountyEventRow", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<int>("DurationSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_seconds");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<int>("FoodsCredit")
+                        .HasColumnType("integer")
+                        .HasColumnName("foods_credit");
+
+                    b.Property<int>("MaxIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_interval_seconds");
+
+                    b.Property<int>("MinIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_interval_seconds");
+
+                    b.Property<int>("MinPlayers")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_players");
+
+                    b.Property<long>("RewardMass")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reward_mass");
+
+                    b.HasKey("Id")
+                        .HasName("pk_world_event_bounty");
+
+                    b.ToTable("world_event_bounty", (string)null);
+                });
+
             modelBuilder.Entity("Application.Manager.Api.Persistence.DeviceRow", b =>
                 {
                     b.Property<string>("Hash")
@@ -310,6 +350,42 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .HasDatabaseName("ux_external_logins_account_id_provider");
 
                     b.ToTable("external_logins", (string)null);
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.FruitShowerEventRow", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<int>("DurationSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_seconds");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<int>("FruitsPerSecond")
+                        .HasColumnType("integer")
+                        .HasColumnName("fruits_per_second");
+
+                    b.Property<int>("MaxIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_interval_seconds");
+
+                    b.Property<int>("MinIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_interval_seconds");
+
+                    b.Property<int>("MinPlayers")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_players");
+
+                    b.HasKey("Id")
+                        .HasName("pk_world_event_fruit_shower");
+
+                    b.ToTable("world_event_fruit_shower", (string)null);
                 });
 
             modelBuilder.Entity("Application.Manager.Api.Persistence.GameplaySettingsRow", b =>
@@ -460,6 +536,54 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .HasName("pk_world_event_meteors");
 
                     b.ToTable("world_event_meteors", (string)null);
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.MineFieldEventRow", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<int>("ArmMilliseconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("arm_milliseconds");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<int>("MaxIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_interval_seconds");
+
+                    b.Property<int>("MaxMines")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_mines");
+
+                    b.Property<int>("MinIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_interval_seconds");
+
+                    b.Property<int>("MinMines")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_mines");
+
+                    b.Property<int>("MinPlayers")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_players");
+
+                    b.Property<int>("Radius")
+                        .HasColumnType("integer")
+                        .HasColumnName("radius");
+
+                    b.Property<int>("TriggerRadius")
+                        .HasColumnType("integer")
+                        .HasColumnName("trigger_radius");
+
+                    b.HasKey("Id")
+                        .HasName("pk_world_event_mine_field");
+
+                    b.ToTable("world_event_mine_field", (string)null);
                 });
 
             modelBuilder.Entity("Application.Manager.Api.Persistence.PerkEffectRow", b =>
@@ -738,6 +862,38 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .HasName("pk_stats_heads");
 
                     b.ToTable("stats_heads", (string)null);
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.SugarRushEventRow", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<int>("DurationSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_seconds");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<int>("MaxIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_interval_seconds");
+
+                    b.Property<int>("MinIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_interval_seconds");
+
+                    b.Property<int>("MinPlayers")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_players");
+
+                    b.HasKey("Id")
+                        .HasName("pk_world_event_sugar_rush");
+
+                    b.ToTable("world_event_sugar_rush", (string)null);
                 });
 
             modelBuilder.Entity("Application.Manager.Api.Persistence.UnlockedAchievementRow", b =>

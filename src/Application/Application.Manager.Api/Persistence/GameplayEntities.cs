@@ -199,6 +199,84 @@ public sealed class ZoneEventRow
     public int MinPlayers { get; set; }
 }
 
+/// <summary>Fruit shower. One row (<see cref="Id"/> is 1).</summary>
+public sealed class FruitShowerEventRow
+{
+    public int Id { get; set; } = 1;
+
+    public bool Enabled { get; set; }
+
+    public int MinIntervalSeconds { get; set; }
+
+    public int MaxIntervalSeconds { get; set; }
+
+    public int DurationSeconds { get; set; }
+
+    public int FruitsPerSecond { get; set; }
+
+    public int MinPlayers { get; set; }
+}
+
+/// <summary>Bounty on a random snake. One row (<see cref="Id"/> is 1).</summary>
+public sealed class BountyEventRow
+{
+    public int Id { get; set; } = 1;
+
+    public bool Enabled { get; set; }
+
+    public int MinIntervalSeconds { get; set; }
+
+    public int MaxIntervalSeconds { get; set; }
+
+    public int DurationSeconds { get; set; }
+
+    public long RewardMass { get; set; }
+
+    public int FoodsCredit { get; set; }
+
+    public int MinPlayers { get; set; }
+}
+
+/// <summary>Mine field. One row (<see cref="Id"/> is 1).</summary>
+public sealed class MineFieldEventRow
+{
+    public int Id { get; set; } = 1;
+
+    public bool Enabled { get; set; }
+
+    public int MinIntervalSeconds { get; set; }
+
+    public int MaxIntervalSeconds { get; set; }
+
+    public int MinMines { get; set; }
+
+    public int MaxMines { get; set; }
+
+    public int Radius { get; set; }
+
+    public int TriggerRadius { get; set; }
+
+    public int ArmMilliseconds { get; set; }
+
+    public int MinPlayers { get; set; }
+}
+
+/// <summary>Sugar rush (free boost). One row (<see cref="Id"/> is 1).</summary>
+public sealed class SugarRushEventRow
+{
+    public int Id { get; set; } = 1;
+
+    public bool Enabled { get; set; }
+
+    public int MinIntervalSeconds { get; set; }
+
+    public int MaxIntervalSeconds { get; set; }
+
+    public int DurationSeconds { get; set; }
+
+    public int MinPlayers { get; set; }
+}
+
 /// <summary>A boss. Today the game has one, the turret (<see cref="Id"/> <c>turret</c>); more kinds are more rows.</summary>
 public sealed class BossRow
 {
@@ -236,7 +314,7 @@ public sealed class BossRow
     public int FoodsCredit { get; set; }
 }
 
-/// <summary>A room a world event (<c>lightning</c>, <c>meteors</c>, <c>zone</c>) or a boss (<c>turret</c>) is for, or with <see cref="IsExcluded"/> not for.</summary>
+/// <summary>A room a world event (<c>lightning</c>, <c>meteors</c>, <c>zone</c>, <c>fruit_shower</c>, <c>bounty</c>, <c>mine_field</c>, <c>sugar_rush</c>) or a boss (<c>turret</c>) is for, or with <see cref="IsExcluded"/> not for.</summary>
 public sealed class WorldEventRoomRow
 {
     public string Event { get; set; } = "";

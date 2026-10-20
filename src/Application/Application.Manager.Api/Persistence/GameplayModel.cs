@@ -82,6 +82,10 @@ internal static class GameplayModel
             zone.HasKey(row => row.Id);
             zone.Property(row => row.Id).ValueGeneratedNever();
         });
+        SingleRow<FruitShowerEventRow>(model, "world_event_fruit_shower");
+        SingleRow<BountyEventRow>(model, "world_event_bounty");
+        SingleRow<MineFieldEventRow>(model, "world_event_mine_field");
+        SingleRow<SugarRushEventRow>(model, "world_event_sugar_rush");
         model.Entity<BossRow>(boss =>
         {
             boss.ToTable("bosses");
@@ -98,4 +102,13 @@ internal static class GameplayModel
             room.Property(row => row.Room).HasMaxLength(SnakeDbContext.MaxName * 2).IsRequired();
         });
     }
+
+    /// <summary>A one-row event table keyed by an <c>Id</c> the code sets (always 1).</summary>
+    private static void SingleRow<TRow>(ModelBuilder model, string table) where TRow : class
+        => model.Entity<TRow>(row =>
+        {
+            row.ToTable(table);
+            row.HasKey("Id");
+            row.Property("Id").ValueGeneratedNever();
+        });
 }

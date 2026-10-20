@@ -46,6 +46,14 @@ public sealed class SnakeDbContext(DbContextOptions<SnakeDbContext> options) : D
 
     public DbSet<ZoneEventRow> ZoneEvents => Set<ZoneEventRow>();
 
+    public DbSet<FruitShowerEventRow> FruitShowerEvents => Set<FruitShowerEventRow>();
+
+    public DbSet<BountyEventRow> BountyEvents => Set<BountyEventRow>();
+
+    public DbSet<MineFieldEventRow> MineFieldEvents => Set<MineFieldEventRow>();
+
+    public DbSet<SugarRushEventRow> SugarRushEvents => Set<SugarRushEventRow>();
+
     public DbSet<BossRow> Bosses => Set<BossRow>();
 
     public DbSet<WorldEventRoomRow> WorldEventRooms => Set<WorldEventRoomRow>();
