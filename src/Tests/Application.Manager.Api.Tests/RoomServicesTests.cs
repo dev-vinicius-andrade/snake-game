@@ -304,6 +304,7 @@ public sealed class RoomAdminServiceTests
     [InlineData("bounty")]
     [InlineData("mines")]
     [InlineData("sugarrush")]
+    [InlineData("maze")]
     public async Task TriggerAsync_PassesTheNewEventKindsOnToTheServer(string kind)
     {
         _servers.TriggerEventAsync("http://a:5000", _id, kind, Arg.Any<CancellationToken>()).Returns(ServerCall.Done);

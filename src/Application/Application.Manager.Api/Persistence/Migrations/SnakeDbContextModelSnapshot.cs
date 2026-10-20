@@ -490,6 +490,84 @@ namespace Application.Manager.Api.Persistence.Migrations
                     b.ToTable("world_event_lightning", (string)null);
                 });
 
+            modelBuilder.Entity("Application.Manager.Api.Persistence.MazeEventRow", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Columns")
+                        .HasColumnType("integer")
+                        .HasColumnName("columns");
+
+                    b.Property<int>("CorridorHeads")
+                        .HasColumnType("integer")
+                        .HasColumnName("corridor_heads");
+
+                    b.Property<int>("DurationSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_seconds");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<int>("FoodPercent")
+                        .HasColumnType("integer")
+                        .HasColumnName("food_percent");
+
+                    b.Property<int>("MaxIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_interval_seconds");
+
+                    b.Property<int>("MinIntervalSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_interval_seconds");
+
+                    b.Property<int>("MinPlayers")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_players");
+
+                    b.Property<string>("PrizeColor")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)")
+                        .HasColumnName("prize_color");
+
+                    b.Property<int>("PrizeFoodsCredit")
+                        .HasColumnType("integer")
+                        .HasColumnName("prize_foods_credit");
+
+                    b.Property<string>("PrizeGrantsPerk")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("prize_grants_perk");
+
+                    b.Property<long>("PrizeMass")
+                        .HasColumnType("bigint")
+                        .HasColumnName("prize_mass");
+
+                    b.Property<int>("Rows")
+                        .HasColumnType("integer")
+                        .HasColumnName("rows");
+
+                    b.Property<int>("Twistiness")
+                        .HasColumnType("integer")
+                        .HasColumnName("twistiness");
+
+                    b.Property<long>("WallMassLoss")
+                        .HasColumnType("bigint")
+                        .HasColumnName("wall_mass_loss");
+
+                    b.HasKey("Id")
+                        .HasName("pk_world_event_maze");
+
+                    b.HasIndex("PrizeGrantsPerk")
+                        .HasDatabaseName("ix_world_event_maze_prize_grants_perk");
+
+                    b.ToTable("world_event_maze", (string)null);
+                });
+
             modelBuilder.Entity("Application.Manager.Api.Persistence.MeteorEventRow", b =>
                 {
                     b.Property<int>("Id")
@@ -1053,6 +1131,15 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_external_logins_accounts");
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.MazeEventRow", b =>
+                {
+                    b.HasOne("Application.Manager.Api.Persistence.PerkRow", null)
+                        .WithMany()
+                        .HasForeignKey("PrizeGrantsPerk")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_world_event_maze_perks");
                 });
 
             modelBuilder.Entity("Application.Manager.Api.Persistence.PerkEffectRow", b =>

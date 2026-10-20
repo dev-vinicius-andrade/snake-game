@@ -13,6 +13,7 @@ internal static class GameplayConfigMapper
     private const string Bounty = "bounty";
     private const string MineField = "mine_field";
     private const string SugarRush = "sugar_rush";
+    private const string Maze = "maze";
     private const string Turret = BossRow.Turret;
 
     /// <summary>Empties every gameplay table, children before parents, so what is added next can reuse the same keys.</summary>
@@ -25,6 +26,8 @@ internal static class GameplayConfigMapper
         context.PrizeRooms.ExecuteDelete();
         context.Prizes.ExecuteDelete();
         context.Bosses.ExecuteDelete();
+        // The maze prize may point at a perk, so the maze goes before the perks, like the bosses.
+        context.MazeEvents.ExecuteDelete();
         context.Perks.ExecuteDelete();
         context.LightningEvents.ExecuteDelete();
         context.MeteorEvents.ExecuteDelete();
@@ -153,6 +156,20 @@ internal static class GameplayConfigMapper
         context.WorldEventRooms.AddRange(EventRooms(Bounty, bounty.Rooms, bounty.ExcludedRooms));
         context.WorldEventRooms.AddRange(EventRooms(MineField, mines.Rooms, mines.ExcludedRooms));
         context.WorldEventRooms.AddRange(EventRooms(SugarRush, rush.Rooms, rush.ExcludedRooms));
+        AddMaze(context, events.Maze);
+    }
+
+    private static void AddMaze(SnakeDbContext context, MazeOptions maze)
+    {
+        context.MazeEvents.Add(new MazeEventRow
+        {
+            Enabled = maze.Enabled, MinIntervalSeconds = maze.MinIntervalSeconds, MaxIntervalSeconds = maze.MaxIntervalSeconds,
+            DurationSeconds = maze.DurationSeconds, Columns = maze.Columns, Rows = maze.Rows, CorridorHeads = maze.CorridorHeads,
+            Twistiness = maze.Twistiness, WallMassLoss = maze.WallMassLoss, FoodPercent = maze.FoodPercent, MinPlayers = maze.MinPlayers,
+            PrizeMass = maze.PrizeMass, PrizeFoodsCredit = maze.PrizeFoodsCredit, PrizeGrantsPerk = NullIfBlank(maze.PrizeGrantsPerk),
+            PrizeColor = maze.PrizeColor,
+        });
+        context.WorldEventRooms.AddRange(EventRooms(Maze, maze.Rooms, maze.ExcludedRooms));
     }
 
     /// <summary>The config in the tables and the revision it was saved as, or null when nothing was ever saved.</summary>
@@ -248,6 +265,7 @@ internal static class GameplayConfigMapper
             Bounty = ReadBounty(context, rooms),
             Mines = ReadMineField(context, rooms),
             SugarRush = ReadSugarRush(context, rooms),
+            Maze = ReadMaze(context, rooms),
         };
     }
 
@@ -289,6 +307,21 @@ internal static class GameplayConfigMapper
             Enabled = row.Enabled, MinIntervalSeconds = row.MinIntervalSeconds, MaxIntervalSeconds = row.MaxIntervalSeconds, MinMines = row.MinMines,
             MaxMines = row.MaxMines, Radius = row.Radius, TriggerRadius = row.TriggerRadius, ArmMilliseconds = row.ArmMilliseconds, MinPlayers = row.MinPlayers,
             Rooms = RoomsOf(rooms, MineField, excluded: false), ExcludedRooms = RoomsOf(rooms, MineField, excluded: true),
+        };
+    }
+
+    private static MazeOptions ReadMaze(SnakeDbContext context, List<WorldEventRoomRow> rooms)
+    {
+        var row = context.MazeEvents.AsNoTracking().SingleOrDefault();
+        if (row is null)
+            return new MazeOptions();
+        return new MazeOptions
+        {
+            Enabled = row.Enabled, MinIntervalSeconds = row.MinIntervalSeconds, MaxIntervalSeconds = row.MaxIntervalSeconds, DurationSeconds = row.DurationSeconds,
+            Columns = row.Columns, Rows = row.Rows, CorridorHeads = row.CorridorHeads, Twistiness = row.Twistiness, WallMassLoss = row.WallMassLoss,
+            FoodPercent = row.FoodPercent, MinPlayers = row.MinPlayers, PrizeMass = row.PrizeMass, PrizeFoodsCredit = row.PrizeFoodsCredit,
+            PrizeGrantsPerk = row.PrizeGrantsPerk, PrizeColor = row.PrizeColor,
+            Rooms = RoomsOf(rooms, Maze, excluded: false), ExcludedRooms = RoomsOf(rooms, Maze, excluded: true),
         };
     }
 

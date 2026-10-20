@@ -277,6 +277,43 @@ public sealed class SugarRushEventRow
     public int MinPlayers { get; set; }
 }
 
+/// <summary>Maze. One row (<see cref="Id"/> is 1).</summary>
+public sealed class MazeEventRow
+{
+    public int Id { get; set; } = 1;
+
+    public bool Enabled { get; set; }
+
+    public int MinIntervalSeconds { get; set; }
+
+    public int MaxIntervalSeconds { get; set; }
+
+    public int DurationSeconds { get; set; }
+
+    public int Columns { get; set; }
+
+    public int Rows { get; set; }
+
+    public int CorridorHeads { get; set; }
+
+    public int Twistiness { get; set; }
+
+    public long WallMassLoss { get; set; }
+
+    public int FoodPercent { get; set; }
+
+    public int MinPlayers { get; set; }
+
+    public long PrizeMass { get; set; }
+
+    public int PrizeFoodsCredit { get; set; }
+
+    /// <summary>The perk the snake that takes the prize gets. Must be in <c>perks</c>.</summary>
+    public string? PrizeGrantsPerk { get; set; }
+
+    public string PrizeColor { get; set; } = "#ffd23f";
+}
+
 /// <summary>A boss. Today the game has one, the turret (<see cref="Id"/> <c>turret</c>); more kinds are more rows.</summary>
 public sealed class BossRow
 {
@@ -314,7 +351,7 @@ public sealed class BossRow
     public int FoodsCredit { get; set; }
 }
 
-/// <summary>A room a world event (<c>lightning</c>, <c>meteors</c>, <c>zone</c>, <c>fruit_shower</c>, <c>bounty</c>, <c>mine_field</c>, <c>sugar_rush</c>) or a boss (<c>turret</c>) is for, or with <see cref="IsExcluded"/> not for.</summary>
+/// <summary>A room a world event (<c>lightning</c>, <c>meteors</c>, <c>zone</c>, <c>fruit_shower</c>, <c>bounty</c>, <c>mine_field</c>, <c>sugar_rush</c>, <c>maze</c>) or a boss (<c>turret</c>) is for, or with <see cref="IsExcluded"/> not for.</summary>
 public sealed class WorldEventRoomRow
 {
     public string Event { get; set; } = "";

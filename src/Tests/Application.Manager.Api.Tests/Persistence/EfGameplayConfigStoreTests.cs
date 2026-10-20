@@ -70,6 +70,12 @@ public sealed class EfGameplayConfigStoreTests : IDisposable
                 Enabled = false, MinIntervalSeconds = 14, MaxIntervalSeconds = 28, DurationSeconds = 42, MinPlayers = 6,
                 Rooms = ["sweet", "AB12"], ExcludedRooms = ["sour"],
             },
+            Maze = new MazeOptions
+            {
+                Enabled = false, MinIntervalSeconds = 15, MaxIntervalSeconds = 30, DurationSeconds = 77, Columns = 9, Rows = 7, CorridorHeads = 5,
+                Twistiness = 33, WallMassLoss = 6, FoodPercent = 40, MinPlayers = 3, PrizeMass = 555, PrizeFoodsCredit = 31, PrizeGrantsPerk = "scripted",
+                PrizeColor = "#abcdef", Rooms = ["maze-room", "AB12"], ExcludedRooms = ["lobby"],
+            },
         },
     };
 
@@ -149,6 +155,56 @@ public sealed class EfGameplayConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public void Current_AConfigSavedBeforeTheMaze_LoadsWithTheMazeDefaults_AndTheNextSaveWritesItsRow()
+    {
+        var saved = Store().Update(Custom());
+        using (var context = _host.Factory.CreateDbContext())
+        {
+            context.MazeEvents.ExecuteDelete();
+            context.WorldEventRooms.Where(row => row.Event == "maze").ExecuteDelete();
+        }
+
+        var loaded = Store().Current;
+
+        Assert.Equal(saved.Revision, loaded.Revision);
+        Assert.Equal(JsonSerializer.Serialize(new MazeOptions(), GameplayConfig.Json), JsonSerializer.Serialize(loaded.Config.WorldEvents.Maze, GameplayConfig.Json));
+        Assert.Equal(111, loaded.Config.WorldEvents.Zone.FinalRadius);
+
+        Store().Update(Custom());
+
+        using var after = _host.Factory.CreateDbContext();
+        Assert.Single(after.MazeEvents);
+        Assert.Equal(Written(Custom().Normalized()), Written(Store().Current.Config));
+    }
+
+    [Fact]
+    public void Update_TheMazeComesBackWithEveryFieldAndItsRooms()
+    {
+        Store().Update(Custom());
+
+        var maze = Store().Current.Config.WorldEvents.Maze;
+
+        Assert.Equal((false, 15, 30, 77), (maze.Enabled, maze.MinIntervalSeconds, maze.MaxIntervalSeconds, maze.DurationSeconds));
+        Assert.Equal((9, 7, 5, 33), (maze.Columns, maze.Rows, maze.CorridorHeads, maze.Twistiness));
+        Assert.Equal((6L, 40, 3), (maze.WallMassLoss, maze.FoodPercent, maze.MinPlayers));
+        Assert.Equal((555L, 31, "scripted", "#abcdef"), (maze.PrizeMass, maze.PrizeFoodsCredit, maze.PrizeGrantsPerk, maze.PrizeColor));
+        Assert.Equal(["maze-room", "AB12"], maze.Rooms);
+        Assert.Equal(["lobby"], maze.ExcludedRooms);
+    }
+
+    [Fact]
+    public void Update_AMazePrizeThatGivesAPerkThatDoesNotExist_IsRefusedAndNothingChanges()
+    {
+        var store = Store();
+        var before = store.Current;
+        var config = Custom() with { WorldEvents = Custom().WorldEvents with { Maze = new MazeOptions { PrizeGrantsPerk = "missing" } } };
+
+        Assert.ThrowsAny<ArgumentException>(() => store.Update(config));
+
+        Assert.Equal(before.Revision, Store().Current.Revision);
+    }
+
+    [Fact]
     public void Update_GivesANewRevision_AndWhatIsServedChanges()
     {
         var store = Store();
@@ -195,6 +251,17 @@ public sealed class EfGameplayConfigStoreTests : IDisposable
         using var context = _host.Factory.CreateDbContext();
 
         context.Prizes.Single().GrantsPerk = "not-a-perk";
+
+        Assert.Throws<DbUpdateException>(() => context.SaveChanges());
+    }
+
+    [Fact]
+    public void Update_TheMazePrizeCanOnlyGiveAPerkThatIsInTheTable()
+    {
+        Store().Update(Custom());
+        using var context = _host.Factory.CreateDbContext();
+
+        context.MazeEvents.Single().PrizeGrantsPerk = "not-a-perk";
 
         Assert.Throws<DbUpdateException>(() => context.SaveChanges());
     }

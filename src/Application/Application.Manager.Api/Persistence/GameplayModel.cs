@@ -86,6 +86,13 @@ internal static class GameplayModel
         SingleRow<BountyEventRow>(model, "world_event_bounty");
         SingleRow<MineFieldEventRow>(model, "world_event_mine_field");
         SingleRow<SugarRushEventRow>(model, "world_event_sugar_rush");
+        SingleRow<MazeEventRow>(model, "world_event_maze");
+        model.Entity<MazeEventRow>(maze =>
+        {
+            maze.Property(row => row.PrizeGrantsPerk).HasMaxLength(SnakeDbContext.MaxName);
+            maze.Property(row => row.PrizeColor).HasMaxLength(7).IsRequired();
+            maze.HasOne<PerkRow>().WithMany().HasForeignKey(row => row.PrizeGrantsPerk).OnDelete(DeleteBehavior.Restrict);
+        });
         model.Entity<BossRow>(boss =>
         {
             boss.ToTable("bosses");
