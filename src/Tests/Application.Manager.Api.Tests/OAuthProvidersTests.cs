@@ -60,7 +60,7 @@ public sealed class OAuthProvidersTests
     {
         Assert.NotNull(OAuthProviders.Get("GitHub"));
         Assert.Null(OAuthProviders.Get("myspace"));
-        Assert.Equal(new[] { "github", "discord", "google" }, OAuthProviders.All.Select(provider => provider.Id));
+        Assert.Equal(new[] { "github", "discord", "google", "steam" }, OAuthProviders.All.Select(provider => provider.Id));
     }
 
     [Fact]
@@ -68,5 +68,44 @@ public sealed class OAuthProvidersTests
     {
         foreach (var provider in OAuthProviders.All)
             Assert.DoesNotContain("email", provider.Scope, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Steam_IsSignedInWithOpenId_NotOAuth_AndTheOthersWithOAuth()
+    {
+        Assert.Equal(OAuthKind.OpenId, OAuthProviders.Get("steam")!.Kind);
+        Assert.All(new[] { "github", "discord", "google" }, id => Assert.Equal(OAuthKind.OAuth, OAuthProviders.Get(id)!.Kind));
+    }
+
+    [Theory]
+    [InlineData("https://steamcommunity.com/openid/id/76561198000000001", "76561198000000001")]
+    [InlineData("http://steamcommunity.com/openid/id/76561198000000001", "76561198000000001")]
+    public void SteamId_IsReadFromTheClaimedIdentity(string claimed, string expected)
+        => Assert.Equal(expected, SteamOpenId.ReadSteamId(claimed));
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("https://evil.example.com/openid/id/76561198000000001")]
+    [InlineData("https://steamcommunity.com.evil.example.com/openid/id/76561198000000001")]
+    [InlineData("https://steamcommunity.com/openid/id/123")]
+    [InlineData("https://steamcommunity.com/openid/id/76561198000000001/extra")]
+    [InlineData("https://steamcommunity.com/openid/id/7656119800000000a")]
+    public void SteamId_IsNothingForAnythingElse(string? claimed)
+        => Assert.Null(SteamOpenId.ReadSteamId(claimed));
+
+    [Fact]
+    public void SteamOpenId_StartsWithTheIdentifierSelectRequest_AndTheStateInTheReturnAddress()
+    {
+        var url = SteamOpenId.StartUrl(SteamOpenId.Endpoint, "https://snake.example.com/api/accounts/oauth/steam/callback", "https://snake.example.com/", "the-state");
+
+        Assert.StartsWith("https://steamcommunity.com/openid/login?", url);
+        var query = System.Web.HttpUtility.ParseQueryString(new Uri(url).Query);
+        Assert.Equal("http://specs.openid.net/auth/2.0", query["openid.ns"]);
+        Assert.Equal("checkid_setup", query["openid.mode"]);
+        Assert.Equal("https://snake.example.com/api/accounts/oauth/steam/callback?state=the-state", query["openid.return_to"]);
+        Assert.Equal("https://snake.example.com/", query["openid.realm"]);
+        Assert.Equal("http://specs.openid.net/auth/2.0/identifier_select", query["openid.identity"]);
+        Assert.Equal("http://specs.openid.net/auth/2.0/identifier_select", query["openid.claimed_id"]);
     }
 }

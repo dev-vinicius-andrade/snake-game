@@ -99,23 +99,35 @@ an `{ error }` body.
 
 `AccountsConfiguration:StorePath` (env `AccountsConfiguration__StorePath`): the accounts JSON file. Empty or missing: memory only, gone at restart.
 
-## Sign in with a social account (GitHub, Discord, Google)
+## Sign in with a social account (GitHub, Discord, Google, Steam)
 
-Players can use a social account instead of a recovery phrase. The game asks the provider only for **who the player is**: an id, a username and a name.
-**Never the email**: no provider is asked for the email scope, and nothing the provider answers with is kept except the id, the username and the name.
+Players can use a social account instead of a recovery phrase. The game asks the provider only for **who the player is**, and keeps almost nothing of it.
 
-- The account is found by the provider and the provider's id (`github` + `583231`), not by a name. The first time makes an account: the username comes from the
-  provider's username (for Google, the given name), cleaned to fit the username rules (letters, digits, space, `_ - .`, 2 to 20 characters, nothing the blocklist
-  stops; emoji and other characters are dropped); the **display name** from the provider's name, cleaned the same way; a name that is left with nothing becomes
-  `Player`. A tag is picked at random. After that the names are the player's own: signing in again never overwrites a display name they changed.
-- Such an account has **no recovery phrase**: the stored phrase hash is the marker `none`, which nothing matches, so no phrase signs in to it. The way back in is
-  the provider.
-- Other players only ever see the **display name** (the username without the tag when none was chosen). The tag stays private, for everyone, whichever way the
-  account was made.
-- Not built yet: linking a provider to an account that has a phrase, signing in with more than one provider to the same account, Apple (needs a signed client
-  secret and a form post callback).
+### What is kept, and what is not
 
-### How the sign in goes
+When a player continues with a social account, the game keeps **only a one-way hash of the account's login identifier, and a display name**. That is also what the site tells the
+player, next to the buttons ("Privacy: ... nothing about it except a one-way hash of its login identifier ... and your display name. No email, no password, no avatar, nothing else.").
+
+| Kept | How |
+| --- | --- |
+| The login identifier, as a hash | HMAC SHA-256 of `provider:id` with a secret only the server has (`AccountsConfiguration:LoginPepper`). The id itself is never written down, so a leaked accounts file cannot be turned back into provider ids, not even by trying every id. It is only used to find the account next time. |
+| One name | The provider's display name (else its username, else `Player`), cleaned to fit the username rules. It is the account's username **and** the name other players see; the player can change what others see at any time. The provider's username is not kept as well. |
+
+Not kept, and never asked for: the email, any other personal data, the avatar, the profile address, the provider's access token (used once and forgotten), the provider's id in clear,
+anything else the provider knows. No provider is asked for an email scope.
+
+Besides those, the account has what any account has: a random tag, the date it was made, the hashes of our own device tokens (so a browser can stay signed in), and the game's own
+stats and achievements. The accounts file is `AccountsConfiguration:StorePath`.
+
+- The account is found by the provider and the hash of the provider's id (`steam` + hash), not by a name. The first time makes an account; after that the name is the player's own:
+  signing in again never overwrites a display name they changed. A name that is left with nothing once cleaned (emoji only, blocked, too short) becomes `Player`. A tag is picked at random.
+- Such an account has **no recovery phrase**: the stored phrase hash is the marker `none`, which nothing matches, so no phrase signs in to it. The way back in is the provider.
+- Other players only ever see the **display name**. The tag stays private, for everyone, whichever way the account was made.
+- Keep `AccountsConfiguration:LoginPepper` (the Secret key `login-pepper`, made once by `deploy.sh`): if it changed, the hashes would no longer match and every social account would look new.
+  Without it the manager uses a built in development secret and says so in its log; that is fine for a local game and wrong for a real one.
+- Not built yet: linking a provider to an account that has a phrase, signing in with more than one provider to the same account, Apple (needs a signed client secret and a form post callback).
+
+### How the sign in goes (GitHub, Discord, Google: OAuth 2 with PKCE)
 
 1. The site shows a button for each provider that has keys (`GET /accounts/oauth/providers`) and sends the browser to `GET /accounts/oauth/{provider}/start`.
 2. The manager makes a random `state` and a PKCE verifier, keeps them for 10 minutes, puts the state in an `HttpOnly`, `SameSite=Lax` (and `Secure` over https)
@@ -123,12 +135,23 @@ Players can use a social account instead of a recovery phrase. The game asks the
 3. The provider redirects the browser to `GET /accounts/oauth/{provider}/callback?code&state`. The manager checks that the state is **the one in this browser's
    cookie** and still waiting (once only, for that provider), trades the code (with the verifier and the client secret) for an access token, asks for the profile,
    forgets the token, and finds or makes the account.
-4. It redirects to the site (`/account/oauth?ticket=…`, or `?error=<reason>`) with a **one time ticket**, good for 2 minutes. The site trades it at
+4. It redirects to the site (`/account/oauth?ticket=...`, or `?error=<reason>`) with a **one time ticket**, good for 2 minutes. The site trades it at
    `POST /accounts/oauth/exchange { ticket }` for the same answer as a sign in (`username`, `tag`, `display`, `displayName`, `token`). The device token is never in an address
    or the history, and the site removes the ticket from the address at once.
 
+### Steam (OpenID 2.0)
+
+Steam does not do OAuth: it answers with a signed OpenID answer that says only the player's Steam id. The steps 1 and 4 are the same; in the middle:
+
+- The browser is sent to `https://steamcommunity.com/openid/login` with `identifier_select`, and the `state` travels in the return address (`.../callback?state=...`).
+- On the way back the manager checks that the state is this browser's, that the answer is for exactly the return address it asked for, that the identity is Steam's own address for a
+  player (`https://steamcommunity.com/openid/id/<17 digits>`, from `steamcommunity.com` and nowhere else), and then **asks Steam whether the answer is really its own**
+  (`check_authentication`, which Steam answers yes to once). Only then is the player signed in.
+- Steam gives no name in the answer, so the Web API (`ISteamUser/GetPlayerSummaries`) is asked for the player's `personaname` with the game's Web API key. Nothing else of the profile is read.
+
 Reasons (`error=`): `cancelled` (the player said no at the provider), `invalidState` (not this browser's, expired or used), `providerFailed` (the provider refused, did not
-answer or sent no id), `unknownProvider`, `invalidTicket`, `throttled`, `noTagsLeft`. A new account counts towards the per IP registration throttle; a returning player does not.
+answer, sent no id, or an answer that was not for this request), `unknownProvider`, `invalidTicket`, `throttled`, `noTagsLeft`. A new account counts towards the per IP registration throttle;
+a returning player does not.
 
 ### Setting it up
 
@@ -140,17 +163,19 @@ example `https://snake.web.games.andradev.io/api/accounts/oauth/github/callback`
 | GitHub | Settings, Developer settings, OAuth Apps | Needs no scope: public profile only. |
 | Discord | discord.com/developers, Applications, OAuth2 | Scope `identify`. Add the callback under Redirects. |
 | Google | Google Cloud console, APIs and services, Credentials, OAuth client ID (Web application) | Scopes `openid profile`. Add the callback under Authorised redirect URIs. |
+| Steam | steamcommunity.com/dev/apikey | Only a Web API key, with the game's host as the domain. There is no client id and no callback to register: the return address is part of each request. |
 
-Then put the keys in `deploy/homelab/.env` (`OAUTH_GITHUB_CLIENT_ID`, `OAUTH_GITHUB_CLIENT_SECRET`, and the same for `DISCORD` and `GOOGLE`) and run `deploy.sh`: it
-keeps them in the Secret `snake-secrets`, and the manager reads them as `OAuth__Providers__<provider>__ClientId` and `…__ClientSecret`. `deploy.sh` also sets
-`OAuth__PublicApiUrl` (`https://<PUBLIC_HOST>/api`) and `OAuth__PublicUiUrl` (`https://<PUBLIC_HOST>`). A provider is offered only when **both** keys and the public
-address are set; with none, no button is shown and nothing else changes.
+Then put the keys in `deploy/homelab/.env` (`OAUTH_GITHUB_CLIENT_ID`, `OAUTH_GITHUB_CLIENT_SECRET`, the same for `DISCORD` and `GOOGLE`, and `OAUTH_STEAM_API_KEY`) and run `deploy.sh`: it
+keeps them in the Secret `snake-secrets`, and the manager reads them as `OAuth__Providers__<provider>__ClientId` and `...__ClientSecret` (for Steam the key is the secret). `deploy.sh` also sets
+`OAuth__PublicApiUrl` (`https://<PUBLIC_HOST>/api`) and `OAuth__PublicUiUrl` (`https://<PUBLIC_HOST>`), and makes the `login-pepper` once. A provider is offered only when its keys and
+the public address are set; with none, no button is shown and nothing else changes.
 
-For a test server or GitHub Enterprise, a provider can be pointed at other addresses with `OAuth__Providers__<provider>__AuthorizeUrl`, `…__TokenUrl` and `…__UserUrl`.
-For local development set `OAuth__PublicApiUrl=http://localhost:60510` and `OAuth__PublicUiUrl=http://localhost:5143`.
+For a test server or GitHub Enterprise, a provider can be pointed at other addresses with `OAuth__Providers__<provider>__AuthorizeUrl`, `...__TokenUrl` and `...__UserUrl` (for Steam,
+`AuthorizeUrl` is the OpenID login address and `UserUrl` the player summaries address). For local development set `OAuth__PublicApiUrl=http://localhost:60510` and
+`OAuth__PublicUiUrl=http://localhost:5143`.
 
-Server side: `OAuthService` (`Accounts/OAuth/`), `OAuthController` (`accounts/oauth`), `AccountService.SignInWithExternal`; accounts keep their social logins as
-`externalLogins` (`provider`, `subject`, `linkedAt`) in the accounts file.
+Server side: `OAuthService` (`Accounts/OAuth/`), `SteamOpenId`, `OAuthController` (`accounts/oauth`), `AccountService.SignInWithExternal`, `LoginIdentifier`; accounts keep their social
+logins as `externalLogins` (`provider`, `idHash`, `linkedAt`) in the accounts file.
 
 ## Later
 

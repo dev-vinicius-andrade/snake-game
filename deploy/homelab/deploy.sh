@@ -224,8 +224,14 @@ for provider in github discord google; do
     [ -z "$value" ] || OAUTH_ARGS+=("--from-literal=oauth-$provider-$part=$value")
   done
 done
+# Steam: only the Web API key, which asks Steam for the player's name.
+steam_key=${OAUTH_STEAM_API_KEY:-$(secret_value "$NS" snake-secrets oauth-steam-secret)}
+[ -z "$steam_key" ] || OAUTH_ARGS+=("--from-literal=oauth-steam-secret=$steam_key")
+# The secret that keys the hash of social account ids: made once and kept. Losing it makes every social account look new.
+LOGIN_PEPPER=$(secret_value "$NS" snake-secrets login-pepper); LOGIN_PEPPER=${LOGIN_PEPPER:-$(random_secret)}
 kube create secret generic snake-secrets \
   --from-literal=api-key="$API_KEY" \
+  --from-literal=login-pepper="$LOGIN_PEPPER" \
   --from-literal=admin-key="$ADMIN_KEY" \
   --from-literal=rabbitmq-url="amqp://$RABBIT_USER:$RABBIT_PASSWORD@rabbitmq.$INFRA_NS.svc.cluster.local:5672" \
   --from-literal=redis-password="$REDIS_PASSWORD" \

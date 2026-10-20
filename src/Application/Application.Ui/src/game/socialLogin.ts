@@ -18,6 +18,6 @@ export function readOAuthOutcome(query: Record<string, QueryValue>): OAuthOutcom
   return { kind: "error", error: (OAUTH_ERRORS as readonly string[]).includes(error) ? (error as OAuthError) : "providerFailed" };
 }
 
-const ICONS: Readonly<Record<string, string>> = { github: "mdi-github", discord: "mdi-discord", google: "mdi-google" };
+const ICONS: Readonly<Record<string, string>> = { github: "mdi-github", discord: "mdi-discord", google: "mdi-google", steam: "mdi-steam" };
 
 export const providerIcon = (id: string): string => ICONS[id] ?? "mdi-account-circle";

@@ -15,6 +15,9 @@ public sealed class OAuthCredentials
     public string UserUrl { get; set; } = string.Empty;
 
     public bool IsComplete => !string.IsNullOrWhiteSpace(ClientId) && !string.IsNullOrWhiteSpace(ClientSecret);
+
+    /// <summary>Whether the keys are enough for this provider: both for OAuth; for Steam only the Web API key, which is the secret.</summary>
+    public bool IsCompleteFor(OAuthProviderInfo provider) => provider.Kind == OAuthKind.OpenId ? !string.IsNullOrWhiteSpace(ClientSecret) : IsComplete;
 }
 
 /// <summary>Bound from the <c>OAuth</c> section. A provider is offered to players only when its keys are there.</summary>

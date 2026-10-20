@@ -177,7 +177,7 @@ export const messages = {
     displayNameSaved: "Saved. Other players now see this name.",
     handlePrivate: "This name with the tag is how you sign in. Keep it to yourself: other players only see your display name.",
     continueWith: "Continue with {provider}",
-    socialHint: "We only ask the provider for your username and name, never your email. You choose the name other players see.",
+    socialPrivacy: "Privacy: when you continue with a social account we keep nothing about it except a one-way hash of its login identifier (so we recognise you next time) and your display name. No email, no password, no avatar, nothing else. We never ask the provider for more.",
     orWithAPhrase: "or with a recovery phrase",
     oauthWorking: "Signing you in...",
     oauthTryAgain: "Try again",

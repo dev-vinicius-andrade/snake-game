@@ -26,8 +26,18 @@ describe("readOAuthOutcome", () => {
 
 describe("providerIcon", () => {
   it("has an icon for each provider the manager knows, and a generic one for another", () => {
-    for (const id of ["github", "discord", "google"]) expect(providerIcon(id)).toMatch(/^mdi-/);
+    for (const id of ["github", "discord", "google", "steam"]) expect(providerIcon(id)).toMatch(/^mdi-/);
     expect(providerIcon("somethingnew")).toBe("mdi-account-circle");
+  });
+});
+
+describe("the privacy note", () => {
+  it("says in both languages that only a hash of the login identifier and the display name are kept", () => {
+    for (const messages of [en, pt]) {
+      const note = (messages as any).account.socialPrivacy as string;
+      expect(note).toBeTruthy();
+      expect(note.toLowerCase()).toMatch(/hash/);
+    }
   });
 });
 

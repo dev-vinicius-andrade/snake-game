@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { AccountError, useAccount } from "@/composables/useAccount";
+import SocialPrivacyNote from "@/components/account/SocialPrivacyNote.vue";
 import { readOAuthOutcome, type OAuthError } from "@/game/socialLogin";
 import { getText } from "@/helpers";
 
@@ -38,7 +39,10 @@ onMounted(async () => {
     <VCol cols="12" sm="8" md="5" lg="4">
       <VCard :title="getText({ key: 'account.title' })">
         <VCardText>
-          <div v-if="working" role="status" data-test="oauth-working">{{ getText({ key: "account.oauthWorking" }) }}</div>
+          <template v-if="working">
+            <div role="status" data-test="oauth-working" class="mb-4">{{ getText({ key: "account.oauthWorking" }) }}</div>
+            <SocialPrivacyNote />
+          </template>
           <VAlert v-else type="error" variant="tonal" role="alert" data-test="oauth-error">{{ getText({ key: `account.oauthErrors.${failure}` }) }}</VAlert>
         </VCardText>
         <VCardActions v-if="!working">

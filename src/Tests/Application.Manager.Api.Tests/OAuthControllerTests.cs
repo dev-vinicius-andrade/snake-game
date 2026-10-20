@@ -32,6 +32,10 @@ public sealed class OAuthControllerTests
     {
         public int Exchanges { get; private set; }
 
+        public Task<bool> VerifyOpenIdAsync(OAuthProviderInfo provider, IReadOnlyDictionary<string, string> answer, CancellationToken cancellationToken) => Task.FromResult(true);
+
+        public Task<string?> GetSteamPersonaAsync(OAuthProviderInfo provider, string apiKey, string steamId, CancellationToken cancellationToken) => Task.FromResult<string?>("Gaben");
+
         public Task<string?> ExchangeCodeAsync(OAuthProviderInfo provider, OAuthCredentials credentials, string code, string redirectUri, string codeVerifier, CancellationToken cancellationToken)
         {
             Exchanges++;
@@ -193,4 +197,21 @@ public sealed class OAuthControllerTests
     [Fact]
     public void Exchange_ABlankTicketIsRefused()
         => Assert.Equal(StatusCodes.Status401Unauthorized, Assert.IsAssignableFrom<ObjectResult>(Controller().Exchange(new ExchangeTicketRequest { Ticket = " " })).StatusCode);
+
+    [Fact]
+    public async Task Callback_ForSteam_PassesTheWholeAnswerOn_AndSendsTheBrowserBackWithATicket()
+    {
+        _options.Providers["steam"] = new OAuthCredentials { ClientSecret = "web-api-key" };
+        var starter = Controller();
+        var state = QueryOf(RedirectOf(starter.Start("steam")))["openid.return_to"]!.Split("state=")[1];
+        var controller = Controller(stateCookie: state);
+        controller.Request.QueryString = new QueryString(
+            $"?state={state}&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0&openid.mode=id_res&openid.op_endpoint=https%3A%2F%2Fsteamcommunity.com%2Fopenid%2Flogin"
+            + "&openid.claimed_id=https%3A%2F%2Fsteamcommunity.com%2Fopenid%2Fid%2F76561198000000001&openid.identity=https%3A%2F%2Fsteamcommunity.com%2Fopenid%2Fid%2F76561198000000001"
+            + $"&openid.return_to={Uri.EscapeDataString($"{Api}/accounts/oauth/steam/callback?state={state}")}&openid.sig=x");
+
+        var url = RedirectOf(await controller.Callback("steam", null, null, null, CancellationToken.None));
+
+        Assert.StartsWith($"{Ui}/account/oauth?ticket=", url);
+    }
 }

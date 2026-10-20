@@ -64,6 +64,15 @@ secretEnv:
     secretName: snake-secrets
     key: oauth-google-secret
     optional: true
+  # Steam signs in with OpenID: its Web API key (steamcommunity.com/dev/apikey) only asks Steam for the player's name.
+  OAuth__Providers__steam__ClientSecret:
+    secretName: snake-secrets
+    key: oauth-steam-secret
+    optional: true
+  # Keys the hash of a social account's id. Made once by deploy.sh and kept: if it changed, every social account would look new.
+  AccountsConfiguration__LoginPepper:
+    secretName: snake-secrets
+    key: login-pepper
   # Opens the admin api and the /admin page. Without it the admin api is closed to everyone.
   AuthConfiguration__AdminApiKeys__0:
     secretName: snake-secrets

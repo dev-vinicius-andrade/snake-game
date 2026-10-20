@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { AccountError, useAccount } from "@/composables/useAccount";
 import { cleanUsername, formatDisplay, parseTag } from "@/game/accountName";
+import SocialPrivacyNote from "@/components/account/SocialPrivacyNote.vue";
 import { providerIcon } from "@/game/socialLogin";
 import { getText } from "@/helpers";
 
@@ -223,7 +224,7 @@ onBeforeUnmount(() => clearTimeout(availabilityTimer));
               >
                 {{ getText({ key: "account.continueWith", params: { provider: provider.title } }) }}
               </VBtn>
-              <div class="text-caption">{{ getText({ key: "account.socialHint" }) }}</div>
+              <SocialPrivacyNote />
               <div class="text-center text-caption my-2">{{ getText({ key: "account.orWithAPhrase" }) }}</div>
             </div>
             <VTabs v-model="tab" grow class="mb-4">

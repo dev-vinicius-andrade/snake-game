@@ -58,7 +58,10 @@ public sealed class OAuthController(OAuthService oauth, OAuthOptions options) : 
         Response.Cookies.Append(StateCookie, string.Empty, StateCookieOptions(TimeSpan.Zero));
         if (!string.IsNullOrEmpty(error))
             return Back(("error", "cancelled"));
-        var completed = await oauth.CompleteAsync(provider, code, state, browserState, ClientIp(), cancellationToken);
+        // Steam answers with a long signed OpenID answer, not a code: the whole address is needed.
+        var completed = oauth.KindOf(provider) == OAuthKind.OpenId
+            ? await oauth.CompleteOpenIdAsync(provider, Request.Query.ToDictionary(pair => pair.Key, pair => pair.Value.ToString()), browserState, ClientIp(), cancellationToken)
+            : await oauth.CompleteAsync(provider, code, state, browserState, ClientIp(), cancellationToken);
         return completed.Succeeded ? Back(("ticket", completed.Value)) : Back(("error", completed.Error));
     }
 

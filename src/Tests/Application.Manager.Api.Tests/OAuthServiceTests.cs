@@ -31,6 +31,25 @@ public sealed class OAuthServiceTests
         public List<string> TokenUrls { get; } = [];
         public List<string> UserUrls { get; } = [];
         public bool Throws { get; set; }
+        public int OpenIdChecks { get; private set; }
+        public bool OpenIdValid { get; set; } = true;
+        public string? SteamPersona { get; set; } = "Gaben";
+        public string? PersonaFor { get; private set; }
+        public string? PersonaKey { get; private set; }
+        public bool PersonaAsked => PersonaFor is not null;
+
+        public Task<bool> VerifyOpenIdAsync(OAuthProviderInfo provider, IReadOnlyDictionary<string, string> answer, CancellationToken cancellationToken)
+        {
+            OpenIdChecks++;
+            return Task.FromResult(OpenIdValid);
+        }
+
+        public Task<string?> GetSteamPersonaAsync(OAuthProviderInfo provider, string apiKey, string steamId, CancellationToken cancellationToken)
+        {
+            PersonaFor = steamId;
+            PersonaKey = apiKey;
+            return Task.FromResult(SteamPersona);
+        }
 
         public Task<string?> ExchangeCodeAsync(OAuthProviderInfo provider, OAuthCredentials credentials, string code, string redirectUri, string codeVerifier, CancellationToken cancellationToken)
         {
@@ -298,5 +317,200 @@ public sealed class OAuthServiceTests
         Assert.StartsWith("http://localhost:9999/authorize?", started.Url);
         Assert.Equal("http://localhost:9999/token", _client.TokenUrls.Single());
         Assert.Equal("http://localhost:9999/user", _client.UserUrls.Single());
+    }
+
+    private const string SteamId = "76561198000000001";
+
+    private void AllowSteam() => _options.Providers["steam"] = new OAuthCredentials { ClientSecret = "web-api-key" };
+
+    private Dictionary<string, string> SteamReturn(string state, Action<Dictionary<string, string>>? change = null)
+    {
+        var query = new Dictionary<string, string>
+        {
+            ["state"] = state,
+            ["openid.ns"] = "http://specs.openid.net/auth/2.0",
+            ["openid.mode"] = "id_res",
+            ["openid.op_endpoint"] = "https://steamcommunity.com/openid/login",
+            ["openid.claimed_id"] = $"https://steamcommunity.com/openid/id/{SteamId}",
+            ["openid.identity"] = $"https://steamcommunity.com/openid/id/{SteamId}",
+            ["openid.return_to"] = $"{Api}/accounts/oauth/steam/callback?state={state}",
+            ["openid.response_nonce"] = "2026-10-20T12:00:00Zabc",
+            ["openid.assoc_handle"] = "1234567890",
+            ["openid.signed"] = "signed,op_endpoint,claimed_id,identity,return_to,response_nonce,assoc_handle",
+            ["openid.sig"] = "signature",
+        };
+        change?.Invoke(query);
+        return query;
+    }
+
+    [Fact]
+    public void Steam_IsOfferedWithOnlyTheWebApiKey_NoClientId()
+    {
+        AllowSteam();
+
+        Assert.Contains("steam", Service().Providers().Select(provider => provider.Id));
+        Assert.Equal("Steam", Service().Providers().Single(provider => provider.Id == "steam").Title);
+    }
+
+    [Fact]
+    public void Steam_WithoutTheKeyIsNotOffered()
+    {
+        _options.Providers["steam"] = new OAuthCredentials { ClientId = "something" };
+
+        Assert.DoesNotContain("steam", Service().Providers().Select(provider => provider.Id));
+    }
+
+    [Fact]
+    public void Steam_StartSendsTheBrowserToSteam_WithTheStateInTheReturnAddress()
+    {
+        AllowSteam();
+
+        var started = Service().Start("steam").Value;
+
+        Assert.StartsWith("https://steamcommunity.com/openid/login?", started.Url);
+        var query = Query(started.Url);
+        Assert.Equal($"{Api}/accounts/oauth/steam/callback?state={started.State}", query["openid.return_to"]);
+        Assert.Equal("https://snake.example.com/", query["openid.realm"]);
+        Assert.DoesNotContain("web-api-key", started.Url);
+    }
+
+    [Fact]
+    public async Task Steam_CompleteChecksTheAnswerWithSteam_AsksForTheNameAndGivesATicket()
+    {
+        AllowSteam();
+        _client.SteamPersona = "Gaben";
+        var service = Service();
+        var started = service.Start("steam").Value;
+
+        var completed = await service.CompleteOpenIdAsync("steam", SteamReturn(started.State), started.State, Ip, CancellationToken.None);
+
+        Assert.True(completed.Succeeded, completed.Error);
+        Assert.Equal(1, _client.OpenIdChecks);
+        Assert.Equal((SteamId, "web-api-key"), (_client.PersonaFor, _client.PersonaKey));
+        var signedIn = service.Redeem(completed.Value).Value;
+        Assert.Equal("Gaben", signedIn.Account.PublicName);
+        Assert.Equal(LoginIdentifier.Hash("steam", SteamId, AccountService.DevelopmentPepper), Assert.Single(signedIn.Account.Logins).IdHash);
+    }
+
+    [Fact]
+    public async Task Steam_APlayerWithNoUsableNameIsStillSignedIn_AsPlayer()
+    {
+        AllowSteam();
+        _client.SteamPersona = null;
+        var service = Service();
+        var started = service.Start("steam").Value;
+
+        var completed = await service.CompleteOpenIdAsync("steam", SteamReturn(started.State), started.State, Ip, CancellationToken.None);
+
+        Assert.Equal("Player", service.Redeem(completed.Value).Value.Account.PublicName);
+    }
+
+    [Theory]
+    [InlineData("mode")]
+    [InlineData("endpoint")]
+    [InlineData("returnTo")]
+    [InlineData("claimed")]
+    [InlineData("identity")]
+    [InlineData("verify")]
+    public async Task Steam_AnythingOddInTheAnswerIsAFailure_BeforeAPlayerIsSignedIn(string what)
+    {
+        AllowSteam();
+        var service = Service();
+        var started = service.Start("steam").Value;
+        var answer = SteamReturn(started.State, query =>
+        {
+            switch (what)
+            {
+                case "mode": query["openid.mode"] = "setup_needed"; break;
+                case "endpoint": query["openid.op_endpoint"] = "https://evil.example.com/openid/login"; break;
+                case "returnTo": query["openid.return_to"] = "https://evil.example.com/cb?state=" + started.State; break;
+                case "claimed": query["openid.claimed_id"] = "https://evil.example.com/openid/id/" + SteamId; break;
+                case "identity": query["openid.identity"] = "https://steamcommunity.com/openid/id/76561198000000999"; break;
+            }
+        });
+        _client.OpenIdValid = what != "verify";
+
+        var completed = await service.CompleteOpenIdAsync("steam", answer, started.State, Ip, CancellationToken.None);
+
+        Assert.Equal(AccountErrors.ProviderFailed, completed.Error);
+        Assert.False(_client.PersonaAsked);
+    }
+
+    [Fact]
+    public async Task Steam_AStateThatIsNotTheBrowsersIsRefused_BeforeSteamIsAsked()
+    {
+        AllowSteam();
+        var service = Service();
+        var started = service.Start("steam").Value;
+
+        var completed = await service.CompleteOpenIdAsync("steam", SteamReturn(started.State), "another-browser", Ip, CancellationToken.None);
+
+        Assert.Equal(AccountErrors.InvalidState, completed.Error);
+        Assert.Equal(0, _client.OpenIdChecks);
+    }
+
+    [Fact]
+    public async Task Steam_TheStateInTheAnswerHasToBeTheBrowsersToo()
+    {
+        AllowSteam();
+        var service = Service();
+        var started = service.Start("steam").Value;
+        var other = service.Start("steam").Value;
+
+        var completed = await service.CompleteOpenIdAsync("steam", SteamReturn(other.State), started.State, Ip, CancellationToken.None);
+
+        Assert.Equal(AccountErrors.InvalidState, completed.Error);
+    }
+
+    [Fact]
+    public async Task Steam_AnAnswerWorksOnce()
+    {
+        AllowSteam();
+        var service = Service();
+        var started = service.Start("steam").Value;
+        await service.CompleteOpenIdAsync("steam", SteamReturn(started.State), started.State, Ip, CancellationToken.None);
+
+        var again = await service.CompleteOpenIdAsync("steam", SteamReturn(started.State), started.State, Ip, CancellationToken.None);
+
+        Assert.Equal(AccountErrors.InvalidState, again.Error);
+    }
+
+    [Fact]
+    public async Task Steam_TheOAuthCompletionDoesNotWorkForIt_AndTheOpenIdOneNotForOthers()
+    {
+        AllowSteam();
+        var service = Service();
+        var steam = service.Start("steam").Value;
+        var github = service.Start("github").Value;
+
+        var oauthForSteam = await service.CompleteAsync("steam", "code", steam.State, steam.State, Ip, CancellationToken.None);
+        var openIdForGitHub = await service.CompleteOpenIdAsync("github", SteamReturn(github.State), github.State, Ip, CancellationToken.None);
+
+        Assert.Equal(AccountErrors.UnknownProvider, oauthForSteam.Error);
+        Assert.Equal(AccountErrors.UnknownProvider, openIdForGitHub.Error);
+    }
+
+    [Fact]
+    public void KindOf_TellsTheControllerWhichWayAProviderSignsIn()
+    {
+        AllowSteam();
+        var service = Service();
+
+        Assert.Equal(OAuthKind.OpenId, service.KindOf("steam"));
+        Assert.Equal(OAuthKind.OAuth, service.KindOf("github"));
+        Assert.Null(service.KindOf("myspace"));
+    }
+
+    [Fact]
+    public async Task Steam_APlayerWhoCancelledAtSteamIsToldSo_NothingIsAsked()
+    {
+        AllowSteam();
+        var service = Service();
+        var started = service.Start("steam").Value;
+
+        var completed = await service.CompleteOpenIdAsync("steam", SteamReturn(started.State, query => query["openid.mode"] = "cancel"), started.State, Ip, CancellationToken.None);
+
+        Assert.Equal(AccountErrors.Cancelled, completed.Error);
+        Assert.Equal(0, _client.OpenIdChecks);
     }
 }

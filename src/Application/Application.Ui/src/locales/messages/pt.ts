@@ -177,7 +177,7 @@ export const messages = {
     displayNameSaved: "Salvo. Os outros jogadores agora veem este nome.",
     handlePrivate: "Este nome com o tag é como você entra. Guarde para você: os outros jogadores só veem o seu nome de exibição.",
     continueWith: "Continuar com {provider}",
-    socialHint: "Pedimos ao provedor só o seu usuário e nome, nunca o seu email. Você escolhe o nome que os outros jogadores veem.",
+    socialPrivacy: "Privacidade: ao continuar com uma conta social, não guardamos nada dela além de um hash de mão única do seu identificador de login (para reconhecer você na próxima vez) e o seu nome de exibição. Sem email, sem senha, sem avatar, nada mais. Nunca pedimos mais nada ao provedor.",
     orWithAPhrase: "ou com uma frase de recuperação",
     oauthWorking: "Entrando...",
     oauthTryAgain: "Tentar de novo",

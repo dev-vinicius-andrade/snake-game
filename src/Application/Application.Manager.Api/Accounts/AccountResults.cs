@@ -14,6 +14,7 @@ public static class AccountErrors
     public const string InvalidToken = "invalidToken";
     public const string Throttled = "throttled";
     public const string UnknownProvider = "unknownProvider";
+    public const string Cancelled = "cancelled";
     public const string InvalidState = "invalidState";
     public const string ProviderFailed = "providerFailed";
     public const string InvalidTicket = "invalidTicket";
