@@ -49,6 +49,50 @@ public record SnapshotEvent
     /// <summary>Milliseconds left of the sugar rush (boosting is free) that is going on. Left out while there is none.</summary>
     [JsonPropertyName("rush")]
     public int? Rush { get; set; }
+
+    /// <summary>The maze that stands in the room. Left out while there is none.</summary>
+    [JsonPropertyName("maze")]
+    public SnapshotMaze? Maze { get; set; }
+}
+
+/// <summary>
+/// A maze: what a client needs to build the same walls (the seed, the cells, the corridor, the twistiness and the block size, from the
+/// corner at x, y) and the milliseconds it has left. The prize is in the list of foods.
+/// </summary>
+public record SnapshotMaze
+{
+    [JsonPropertyName("x")]
+    public int X { get; set; }
+
+    [JsonPropertyName("y")]
+    public int Y { get; set; }
+
+    /// <summary>Cells across.</summary>
+    [JsonPropertyName("c")]
+    public int C { get; set; }
+
+    /// <summary>Cells down.</summary>
+    [JsonPropertyName("r")]
+    public int R { get; set; }
+
+    /// <summary>Blocks across a corridor.</summary>
+    [JsonPropertyName("k")]
+    public int K { get; set; }
+
+    /// <summary>Twistiness, 0 to 100.</summary>
+    [JsonPropertyName("v")]
+    public int V { get; set; }
+
+    [JsonPropertyName("s")]
+    public uint S { get; set; }
+
+    /// <summary>World units a block measures on a side.</summary>
+    [JsonPropertyName("u")]
+    public int U { get; set; }
+
+    /// <summary>Milliseconds the maze stands if nobody takes the prize.</summary>
+    [JsonPropertyName("t")]
+    public int T { get; set; }
 }
 
 /// <summary>A mine: the spot, how far its blast reaches, and the milliseconds until it is armed (0 once it is).</summary>

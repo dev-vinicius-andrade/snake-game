@@ -426,6 +426,39 @@ public sealed class SnapshotBuilderTests
     }
 
     [Fact]
+    public void Build_NoMaze_LeavesItOut() => Assert.False(Json().TryGetProperty("maze", out _));
+
+    [Fact]
+    public void Build_AMaze_IsOnlyWhatTheClientNeedsToBuildTheSameWalls()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        var walls = Substitute.For<IMazeWalls>();
+        _state.Maze.Returns(new WorldMaze(300.4, 200.6, 12, 8, 4, 60, 4000000000, 15, now.AddMilliseconds(90500), walls, Guid.NewGuid(), 2));
+
+        var maze = JsonAt(now).GetProperty("maze");
+
+        Assert.Equal(300, maze.GetProperty("x").GetInt32());
+        Assert.Equal(201, maze.GetProperty("y").GetInt32());
+        Assert.Equal(12, maze.GetProperty("c").GetInt32());
+        Assert.Equal(8, maze.GetProperty("r").GetInt32());
+        Assert.Equal(4, maze.GetProperty("k").GetInt32());
+        Assert.Equal(60, maze.GetProperty("v").GetInt32());
+        Assert.Equal(4000000000u, maze.GetProperty("s").GetUInt32());
+        Assert.Equal(15, maze.GetProperty("u").GetInt32());
+        Assert.Equal(90500, maze.GetProperty("t").GetInt32());
+        Assert.Equal(9, maze.EnumerateObject().Count());
+    }
+
+    [Fact]
+    public void Build_AMazePastItsTime_NeverSaysNegativeTime()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        _state.Maze.Returns(new WorldMaze(0, 0, 3, 3, 3, 0, 1, 15, now.AddMilliseconds(-9), Substitute.For<IMazeWalls>(), Guid.NewGuid(), 0));
+
+        Assert.Equal(0, JsonAt(now).GetProperty("maze").GetProperty("t").GetInt32());
+    }
+
+    [Fact]
     public void Build_AShowerPastItsTime_NeverSaysNegativeTime()
     {
         var now = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);

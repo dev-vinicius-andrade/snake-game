@@ -35,6 +35,7 @@ public class GameWorkerService : BackgroundService
     private readonly BountyRunner _bounties;
     private readonly MineFieldRunner _mines;
     private readonly SugarRushRunner _sugarRushes;
+    private readonly MazeRunner _mazes;
     private readonly TimeProvider _time;
     private readonly ConcurrentDictionary<Guid, FixedTimestepClock> _clocks = new();
     /// <summary>What each room last heard as its ranking, and what each player last heard as their score: said again only when it changes.</summary>
@@ -57,12 +58,14 @@ public class GameWorkerService : BackgroundService
         BountyRunner bounties,
         MineFieldRunner mines,
         SugarRushRunner sugarRushes,
+        MazeRunner mazes,
         TimeProvider time)
     {
         _fruitShowers = fruitShowers;
         _bounties = bounties;
         _mines = mines;
         _sugarRushes = sugarRushes;
+        _mazes = mazes;
         _worldEvents = worldEvents;
         _turrets = turrets;
         _zones = zones;
@@ -116,6 +119,7 @@ public class GameWorkerService : BackgroundService
             _bounties.Update(gameState);
             _mines.Update(gameState);
             _sugarRushes.Update(gameState);
+            _mazes.Update(gameState);
             var diedPlayers = (await StepAsync(gameState, ticks, cancellationToken)).Concat(struck).ToList();
             await NotifyDamageAsync(gameState);
             await NotifyDiedAsync(diedPlayers);

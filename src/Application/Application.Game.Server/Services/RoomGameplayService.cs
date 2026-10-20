@@ -20,12 +20,12 @@ public interface IEventTriggers
     TriggerResult Trigger(IGameState gameState, string kind);
 }
 
-/// <summary>The events an administrator can start by name: lightning, meteors, turret, zone, fruitshower, bounty, mines, sugarrush.</summary>
+/// <summary>The events an administrator can start by name: lightning, meteors, turret, zone, fruitshower, bounty, mines, sugarrush, maze.</summary>
 public sealed class EventTriggers(
     WorldEventRunner events, TurretRunner turrets, ZoneRunner zones,
-    FruitShowerRunner fruitShowers, BountyRunner bounties, MineFieldRunner mines, SugarRushRunner sugarRushes) : IEventTriggers
+    FruitShowerRunner fruitShowers, BountyRunner bounties, MineFieldRunner mines, SugarRushRunner sugarRushes, MazeRunner mazes) : IEventTriggers
 {
-    public static IReadOnlyList<string> Names { get; } = ["lightning", "meteors", "turret", "zone", "fruitshower", "bounty", "mines", "sugarrush"];
+    public static IReadOnlyList<string> Names { get; } = ["lightning", "meteors", "turret", "zone", "fruitshower", "bounty", "mines", "sugarrush", "maze"];
 
     public TriggerResult Trigger(IGameState gameState, string kind)
     {
@@ -39,6 +39,7 @@ public sealed class EventTriggers(
             "bounty" => bounties.Trigger(gameState),
             "mines" => mines.Trigger(gameState),
             "sugarrush" => sugarRushes.Trigger(gameState),
+            "maze" => mazes.Trigger(gameState),
             _ => (bool?)null
         };
         return started is null ? TriggerResult.UnknownEvent : started.Value ? TriggerResult.Started : TriggerResult.NotNow;

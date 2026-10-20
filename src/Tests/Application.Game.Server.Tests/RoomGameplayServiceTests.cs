@@ -56,6 +56,7 @@ public sealed class RoomGameplayServiceTests
     [InlineData("bounty")]
     [InlineData("mines")]
     [InlineData("sugarrush")]
+    [InlineData("maze")]
     public void Trigger_StartsTheEventTheAdminNamed(string kind)
     {
         _triggers.Trigger(_state, kind).Returns(TriggerResult.Started);
@@ -104,7 +105,8 @@ public sealed class EventTriggersTests
         var triggers = new EventTriggers(
             new WorldEventRunner(rules, gameStates, TimeProvider.System), new TurretRunner(rules, gameStates, TimeProvider.System), new ZoneRunner(rules, gameStates, TimeProvider.System),
             new FruitShowerRunner(rules, schedule, gameStates, TimeProvider.System), new BountyRunner(rules, schedule, TimeProvider.System),
-            new MineFieldRunner(rules, schedule, gameStates, TimeProvider.System), new SugarRushRunner(rules, schedule, TimeProvider.System));
+            new MineFieldRunner(rules, schedule, gameStates, TimeProvider.System), new SugarRushRunner(rules, schedule, TimeProvider.System),
+            new MazeRunner(rules, schedule, Microsoft.Extensions.Options.Options.Create(new Library.Commons.Game.Domain.Entities.Configurations.SnakeConfiguration { HeadSize = 15 }), TimeProvider.System));
         var room = Substitute.For<IRoom>();
         room.Guid.Returns(Guid.NewGuid());
         var state = Substitute.For<IGameState>();
@@ -120,6 +122,7 @@ public sealed class EventTriggersTests
         Assert.Equal(TriggerResult.NotNow, triggers.Trigger(state, "bounty"));
         Assert.Equal(TriggerResult.NotNow, triggers.Trigger(state, "mines"));
         Assert.Equal(TriggerResult.NotNow, triggers.Trigger(state, "sugarrush"));
+        Assert.Equal(TriggerResult.NotNow, triggers.Trigger(state, "maze"));
         Assert.Equal(TriggerResult.UnknownEvent, triggers.Trigger(state, "earthquake"));
     }
 
@@ -132,7 +135,8 @@ public sealed class EventTriggersTests
         var triggers = new EventTriggers(
             new WorldEventRunner(rules, gameStates, TimeProvider.System), new TurretRunner(rules, gameStates, TimeProvider.System), new ZoneRunner(rules, gameStates, TimeProvider.System),
             new FruitShowerRunner(rules, schedule, gameStates, TimeProvider.System), new BountyRunner(rules, schedule, TimeProvider.System),
-            new MineFieldRunner(rules, schedule, gameStates, TimeProvider.System), new SugarRushRunner(rules, schedule, TimeProvider.System));
+            new MineFieldRunner(rules, schedule, gameStates, TimeProvider.System), new SugarRushRunner(rules, schedule, TimeProvider.System),
+            new MazeRunner(rules, schedule, Microsoft.Extensions.Options.Options.Create(new Library.Commons.Game.Domain.Entities.Configurations.SnakeConfiguration { HeadSize = 15 }), TimeProvider.System));
         var room = Substitute.For<IRoom>();
         room.Guid.Returns(Guid.NewGuid());
         var state = Substitute.For<IGameState>();
@@ -143,5 +147,6 @@ public sealed class EventTriggersTests
         Assert.Equal(TriggerResult.Started, triggers.Trigger(state, "bounty"));
         Assert.Equal(TriggerResult.Started, triggers.Trigger(state, "mines"));
         Assert.Equal(TriggerResult.Started, triggers.Trigger(state, "sugarRush"));
+        Assert.Equal(TriggerResult.Started, triggers.Trigger(state, "Maze"));
     }
 }

@@ -29,6 +29,7 @@ public static class SnapshotBuilder
             Bounty = ToBounty(gameState.Bounty, at),
             Shower = MillisecondsLeft(gameState.FruitShowerEndsAt, at),
             Rush = MillisecondsLeft(gameState.SugarRushEndsAt, at),
+            Maze = ToMaze(gameState.Maze, at),
         };
     }
 
@@ -39,6 +40,22 @@ public static class SnapshotBuilder
         => bounty is null
             ? null
             : new SnapshotBounty { Guid = bounty.Target, T = (int)Math.Max(0, Math.Round((bounty.EndsAt - now).TotalMilliseconds)), M = bounty.RewardMass };
+
+    private static SnapshotMaze? ToMaze(WorldMaze? maze, DateTimeOffset now)
+        => maze is null
+            ? null
+            : new SnapshotMaze
+            {
+                X = (int)Math.Round(maze.X),
+                Y = (int)Math.Round(maze.Y),
+                C = maze.Columns,
+                R = maze.Rows,
+                K = maze.Corridor,
+                V = maze.Twistiness,
+                S = maze.Seed,
+                U = (int)Math.Round(maze.Unit),
+                T = (int)Math.Max(0, Math.Round((maze.EndsAt - now).TotalMilliseconds)),
+            };
 
     private static List<SnapshotMine>? ToMines(IGameState gameState, DateTimeOffset now)
     {
