@@ -5,6 +5,7 @@ import { getText } from "@/helpers";
 <template>
   <VAlert type="info" variant="tonal" density="compact" icon="mdi-shield-lock-outline" class="privacy-note" data-test="social-privacy">
     {{ getText({ key: "account.socialPrivacy" }) }}
+    <RouterLink :to="{ name: 'privacy' }" data-test="privacy-link">{{ getText({ key: "legal.privacy" }) }}</RouterLink>
   </VAlert>
 </template>
 

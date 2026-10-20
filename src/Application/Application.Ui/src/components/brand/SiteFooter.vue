@@ -8,6 +8,10 @@ import { getText } from "@/helpers";
   <footer class="footer">
     <RouterLink :to="{ name: 'about' }">{{ getText({ key: "footer.about" }) }}</RouterLink>
     <span aria-hidden="true">·</span>
+    <RouterLink :to="{ name: 'terms' }" data-test="footer-terms">{{ getText({ key: "footer.terms" }) }}</RouterLink>
+    <span aria-hidden="true">·</span>
+    <RouterLink :to="{ name: 'privacy' }" data-test="footer-privacy">{{ getText({ key: "footer.privacy" }) }}</RouterLink>
+    <span aria-hidden="true">·</span>
     <a :href="REPOSITORY_URL" target="_blank" rel="noopener noreferrer">
       <VIcon size="small" class="mr-1">mdi-github</VIcon>{{ getText({ key: "footer.source" }) }}
     </a>
