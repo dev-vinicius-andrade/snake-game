@@ -1,5 +1,17 @@
 namespace Application.Manager.Api.Persistence;
 
+/// <summary>The columns of a reward, the same on every table that has one (prizes, the bounty, the maze and the bosses).</summary>
+public interface IRewardColumns
+{
+    bool RewardRandomPerk { get; set; }
+    int RewardExtraLives { get; set; }
+    int RewardTierSurgeMin { get; set; }
+    int RewardTierSurgeMax { get; set; }
+    string? RewardTierSurgePerk { get; set; }
+    long RewardBonusMass { get; set; }
+    bool RewardMend { get; set; }
+}
+
 // The gameplay config as tables (docs/DATABASE.md): the perks, the prizes, the world events and the boss, and the few settings they share.
 // A save replaces all of it in one transaction, so the tables always hold one whole config, which <see cref="GameplaySettingsRow.Revision"/> names.
 
@@ -22,6 +34,12 @@ public sealed class GameplaySettingsRow
     public int BurstIntervalMilliseconds { get; set; }
 
     public int KillFoodsCredit { get; set; }
+
+    /// <summary>Share of its mass a snake keeps when an extra life saves it. Rows from before extra lives hold 0.5 (set by the migration).</summary>
+    public double ExtraLifeKeepShare { get; set; }
+
+    /// <summary>Seconds a saved snake cannot be hurt. Rows from before extra lives hold 3 (set by the migration).</summary>
+    public int ExtraLifeProtectSeconds { get; set; }
 
     public bool PrizesEnabled { get; set; }
 
@@ -49,6 +67,12 @@ public sealed class PerkRow
     /// <summary>JavaScript that decides more of what the perk does (docs/PERK_SCRIPTS.md).</summary>
     public string? Script { get; set; }
 
+    /// <summary>Seconds a cooldown ability of the perk takes to recharge. 0: the perk has none.</summary>
+    public int CooldownSeconds { get; set; }
+
+    /// <summary>Seconds a shield burst, dash or vacuum burst of the perk lasts.</summary>
+    public int DurationSeconds { get; set; }
+
     public int SortOrder { get; set; }
 }
 
@@ -62,6 +86,9 @@ public sealed class PerkEffectRow
     public string Effect { get; set; } = "";
 
     public double Amount { get; set; }
+
+    /// <summary>For event resistance: the one event it is for (<c>lightning</c>, <c>meteors</c>, <c>mines</c>, <c>zone</c>). Null: all of them.</summary>
+    public string? Target { get; set; }
 }
 
 /// <summary>A step up of a perk: with this many foods everything it does is multiplied.</summary>
@@ -88,7 +115,7 @@ public sealed class PerkRoomRow
     public string Room { get; set; } = "";
 }
 
-public sealed class PrizeRow
+public sealed class PrizeRow : IRewardColumns
 {
     public string Id { get; set; } = "";
 
@@ -112,6 +139,23 @@ public sealed class PrizeRow
     public string Color { get; set; } = "";
 
     public int SortOrder { get; set; }
+
+    // What else it gives (the reward). All off by default: a row from before rewards gives nothing more.
+
+    public bool RewardRandomPerk { get; set; }
+
+    public int RewardExtraLives { get; set; }
+
+    public int RewardTierSurgeMin { get; set; }
+
+    public int RewardTierSurgeMax { get; set; }
+
+    /// <summary>The perk a tier surge lifts. Empty: a random one. Checked when the config is saved, not by a foreign key.</summary>
+    public string? RewardTierSurgePerk { get; set; }
+
+    public long RewardBonusMass { get; set; }
+
+    public bool RewardMend { get; set; }
 }
 
 public sealed class PrizeRoomRow
@@ -218,7 +262,7 @@ public sealed class FruitShowerEventRow
 }
 
 /// <summary>Bounty on a random snake. One row (<see cref="Id"/> is 1).</summary>
-public sealed class BountyEventRow
+public sealed class BountyEventRow : IRewardColumns
 {
     public int Id { get; set; } = 1;
 
@@ -235,6 +279,23 @@ public sealed class BountyEventRow
     public int FoodsCredit { get; set; }
 
     public int MinPlayers { get; set; }
+
+    // What else it gives (the reward). All off by default: a row from before rewards gives nothing more.
+
+    public bool RewardRandomPerk { get; set; }
+
+    public int RewardExtraLives { get; set; }
+
+    public int RewardTierSurgeMin { get; set; }
+
+    public int RewardTierSurgeMax { get; set; }
+
+    /// <summary>The perk a tier surge lifts. Empty: a random one. Checked when the config is saved, not by a foreign key.</summary>
+    public string? RewardTierSurgePerk { get; set; }
+
+    public long RewardBonusMass { get; set; }
+
+    public bool RewardMend { get; set; }
 }
 
 /// <summary>Mine field. One row (<see cref="Id"/> is 1).</summary>
@@ -278,7 +339,7 @@ public sealed class SugarRushEventRow
 }
 
 /// <summary>Maze. One row (<see cref="Id"/> is 1).</summary>
-public sealed class MazeEventRow
+public sealed class MazeEventRow : IRewardColumns
 {
     public int Id { get; set; } = 1;
 
@@ -312,10 +373,27 @@ public sealed class MazeEventRow
     public string? PrizeGrantsPerk { get; set; }
 
     public string PrizeColor { get; set; } = "#ffd23f";
+
+    // What else it gives (the reward). All off by default: a row from before rewards gives nothing more.
+
+    public bool RewardRandomPerk { get; set; }
+
+    public int RewardExtraLives { get; set; }
+
+    public int RewardTierSurgeMin { get; set; }
+
+    public int RewardTierSurgeMax { get; set; }
+
+    /// <summary>The perk a tier surge lifts. Empty: a random one. Checked when the config is saved, not by a foreign key.</summary>
+    public string? RewardTierSurgePerk { get; set; }
+
+    public long RewardBonusMass { get; set; }
+
+    public bool RewardMend { get; set; }
 }
 
 /// <summary>A boss. Today the game has one, the turret (<see cref="Id"/> <c>turret</c>); more kinds are more rows.</summary>
-public sealed class BossRow
+public sealed class BossRow : IRewardColumns
 {
     public const string Turret = "turret";
 
@@ -349,6 +427,23 @@ public sealed class BossRow
     public string? GrantsPerk { get; set; }
 
     public int FoodsCredit { get; set; }
+
+    // What else it gives (the reward). All off by default: a row from before rewards gives nothing more.
+
+    public bool RewardRandomPerk { get; set; }
+
+    public int RewardExtraLives { get; set; }
+
+    public int RewardTierSurgeMin { get; set; }
+
+    public int RewardTierSurgeMax { get; set; }
+
+    /// <summary>The perk a tier surge lifts. Empty: a random one. Checked when the config is saved, not by a foreign key.</summary>
+    public string? RewardTierSurgePerk { get; set; }
+
+    public long RewardBonusMass { get; set; }
+
+    public bool RewardMend { get; set; }
 }
 
 /// <summary>A room a world event (<c>lightning</c>, <c>meteors</c>, <c>zone</c>, <c>fruit_shower</c>, <c>bounty</c>, <c>mine_field</c>, <c>sugar_rush</c>, <c>maze</c>) or a boss (<c>turret</c>) is for, or with <see cref="IsExcluded"/> not for.</summary>

@@ -228,9 +228,38 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("min_players");
 
+                    b.Property<long>("RewardBonusMass")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reward_bonus_mass");
+
+                    b.Property<int>("RewardExtraLives")
+                        .HasColumnType("integer")
+                        .HasColumnName("reward_extra_lives");
+
                     b.Property<long>("RewardMass")
                         .HasColumnType("bigint")
                         .HasColumnName("reward_mass");
+
+                    b.Property<bool>("RewardMend")
+                        .HasColumnType("boolean")
+                        .HasColumnName("reward_mend");
+
+                    b.Property<bool>("RewardRandomPerk")
+                        .HasColumnType("boolean")
+                        .HasColumnName("reward_random_perk");
+
+                    b.Property<int>("RewardTierSurgeMax")
+                        .HasColumnType("integer")
+                        .HasColumnName("reward_tier_surge_max");
+
+                    b.Property<int>("RewardTierSurgeMin")
+                        .HasColumnType("integer")
+                        .HasColumnName("reward_tier_surge_min");
+
+                    b.Property<string>("RewardTierSurgePerk")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("reward_tier_surge_perk");
 
                     b.Property<double>("ShotSpeed")
                         .HasColumnType("double precision")
@@ -283,9 +312,38 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("min_players");
 
+                    b.Property<long>("RewardBonusMass")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reward_bonus_mass");
+
+                    b.Property<int>("RewardExtraLives")
+                        .HasColumnType("integer")
+                        .HasColumnName("reward_extra_lives");
+
                     b.Property<long>("RewardMass")
                         .HasColumnType("bigint")
                         .HasColumnName("reward_mass");
+
+                    b.Property<bool>("RewardMend")
+                        .HasColumnType("boolean")
+                        .HasColumnName("reward_mend");
+
+                    b.Property<bool>("RewardRandomPerk")
+                        .HasColumnType("boolean")
+                        .HasColumnName("reward_random_perk");
+
+                    b.Property<int>("RewardTierSurgeMax")
+                        .HasColumnType("integer")
+                        .HasColumnName("reward_tier_surge_max");
+
+                    b.Property<int>("RewardTierSurgeMin")
+                        .HasColumnType("integer")
+                        .HasColumnName("reward_tier_surge_min");
+
+                    b.Property<string>("RewardTierSurgePerk")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("reward_tier_surge_perk");
 
                     b.HasKey("Id")
                         .HasName("pk_world_event_bounty");
@@ -401,6 +459,14 @@ namespace Application.Manager.Api.Persistence.Migrations
                     b.Property<int>("EmptyPrivateRoomMinutes")
                         .HasColumnType("integer")
                         .HasColumnName("empty_private_room_minutes");
+
+                    b.Property<double>("ExtraLifeKeepShare")
+                        .HasColumnType("double precision")
+                        .HasColumnName("extra_life_keep_share");
+
+                    b.Property<int>("ExtraLifeProtectSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("extra_life_protect_seconds");
 
                     b.Property<int>("KillFoodsCredit")
                         .HasColumnType("integer")
@@ -547,6 +613,35 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("prize_mass");
 
+                    b.Property<long>("RewardBonusMass")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reward_bonus_mass");
+
+                    b.Property<int>("RewardExtraLives")
+                        .HasColumnType("integer")
+                        .HasColumnName("reward_extra_lives");
+
+                    b.Property<bool>("RewardMend")
+                        .HasColumnType("boolean")
+                        .HasColumnName("reward_mend");
+
+                    b.Property<bool>("RewardRandomPerk")
+                        .HasColumnType("boolean")
+                        .HasColumnName("reward_random_perk");
+
+                    b.Property<int>("RewardTierSurgeMax")
+                        .HasColumnType("integer")
+                        .HasColumnName("reward_tier_surge_max");
+
+                    b.Property<int>("RewardTierSurgeMin")
+                        .HasColumnType("integer")
+                        .HasColumnName("reward_tier_surge_min");
+
+                    b.Property<string>("RewardTierSurgePerk")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("reward_tier_surge_perk");
+
                     b.Property<int>("Rows")
                         .HasColumnType("integer")
                         .HasColumnName("rows");
@@ -685,6 +780,11 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("effect");
 
+                    b.Property<string>("Target")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("target");
+
                     b.HasKey("PerkId", "Position")
                         .HasName("pk_perk_effects");
 
@@ -725,10 +825,18 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("id");
 
+                    b.Property<int>("CooldownSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("cooldown_seconds");
+
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("description");
+
+                    b.Property<int>("DurationSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_seconds");
 
                     b.Property<bool>("Enabled")
                         .HasColumnType("boolean")
@@ -854,6 +962,35 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("name");
+
+                    b.Property<long>("RewardBonusMass")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reward_bonus_mass");
+
+                    b.Property<int>("RewardExtraLives")
+                        .HasColumnType("integer")
+                        .HasColumnName("reward_extra_lives");
+
+                    b.Property<bool>("RewardMend")
+                        .HasColumnType("boolean")
+                        .HasColumnName("reward_mend");
+
+                    b.Property<bool>("RewardRandomPerk")
+                        .HasColumnType("boolean")
+                        .HasColumnName("reward_random_perk");
+
+                    b.Property<int>("RewardTierSurgeMax")
+                        .HasColumnType("integer")
+                        .HasColumnName("reward_tier_surge_max");
+
+                    b.Property<int>("RewardTierSurgeMin")
+                        .HasColumnType("integer")
+                        .HasColumnName("reward_tier_surge_min");
+
+                    b.Property<string>("RewardTierSurgePerk")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("reward_tier_surge_perk");
 
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer")

@@ -55,7 +55,7 @@ export const messages = {
     about: "Sobre e arquitetura",
     terms: "Termos de Serviço",
     privacy: "Política de Privacidade",
-    icons: "Ícones dos perks por Lorc, Delapouite e colaboradores, de",
+    credits: "Créditos e licenças",
     source: "Código no GitHub",
     language: "Idioma",
   },
@@ -250,6 +250,25 @@ export const messages = {
       invalidCredentials: "Nome, tag ou frase incorretos.",
       invalidToken: "Sua sessão acabou. Entre de novo.",
       unavailable: "Não foi possível falar com o servidor, tente de novo.",
+    },
+  },
+  credits: {
+    title: "Créditos e licenças",
+    subtitle: "O que outras pessoas fizeram e sobre o que o jogo é construído",
+    intro: "O jogo se apoia no trabalho de muita gente. Aqui está o que usamos, quem fez e sob qual licença. Obrigado a todos.",
+    groups: {
+      art: "Ícones e arte",
+      fonts: "Fontes",
+      front: "No seu navegador",
+      back: "Nos servidores",
+    },
+    sounds: {
+      title: "Sons",
+      text: "Os efeitos sonoros são feitos pelo próprio jogo, sintetizados no seu navegador. Nenhum arquivo de som de outra pessoa é usado.",
+    },
+    logos: {
+      title: "Logos de outros serviços",
+      text: "Os nomes e logos do GitHub, Discord, Google e Steam pertencem aos seus donos. Aparecem só nos botões de entrada, para dizer qual conta você usa.",
     },
   },
   forbidden: {

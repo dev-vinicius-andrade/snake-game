@@ -29,6 +29,7 @@ internal static class GameplayModel
             effect.HasKey(row => new { row.PerkId, row.Position });
             effect.Property(row => row.PerkId).HasMaxLength(SnakeDbContext.MaxName);
             effect.Property(row => row.Effect).HasMaxLength(SnakeDbContext.MaxName).IsRequired();
+            effect.Property(row => row.Target).HasMaxLength(16);
             effect.HasOne<PerkRow>().WithMany().HasForeignKey(row => row.PerkId).OnDelete(DeleteBehavior.Cascade);
         });
         model.Entity<PerkTierRow>(tier =>
@@ -53,6 +54,7 @@ internal static class GameplayModel
             prize.Property(row => row.Id).HasMaxLength(SnakeDbContext.MaxName);
             prize.Property(row => row.Name).HasMaxLength(SnakeDbContext.MaxName).IsRequired();
             prize.Property(row => row.GrantsPerk).HasMaxLength(SnakeDbContext.MaxName);
+            prize.Property(row => row.RewardTierSurgePerk).HasMaxLength(SnakeDbContext.MaxName);
             prize.Property(row => row.Color).HasMaxLength(16).IsRequired();
             prize.HasOne<PerkRow>().WithMany().HasForeignKey(row => row.GrantsPerk).OnDelete(DeleteBehavior.Restrict);
         });
@@ -84,12 +86,14 @@ internal static class GameplayModel
         });
         SingleRow<FruitShowerEventRow>(model, "world_event_fruit_shower");
         SingleRow<BountyEventRow>(model, "world_event_bounty");
+        model.Entity<BountyEventRow>(bounty => bounty.Property(row => row.RewardTierSurgePerk).HasMaxLength(SnakeDbContext.MaxName));
         SingleRow<MineFieldEventRow>(model, "world_event_mine_field");
         SingleRow<SugarRushEventRow>(model, "world_event_sugar_rush");
         SingleRow<MazeEventRow>(model, "world_event_maze");
         model.Entity<MazeEventRow>(maze =>
         {
             maze.Property(row => row.PrizeGrantsPerk).HasMaxLength(SnakeDbContext.MaxName);
+            maze.Property(row => row.RewardTierSurgePerk).HasMaxLength(SnakeDbContext.MaxName);
             maze.Property(row => row.PrizeColor).HasMaxLength(7).IsRequired();
             maze.HasOne<PerkRow>().WithMany().HasForeignKey(row => row.PrizeGrantsPerk).OnDelete(DeleteBehavior.Restrict);
         });
@@ -99,6 +103,7 @@ internal static class GameplayModel
             boss.HasKey(row => row.Id);
             boss.Property(row => row.Id).HasMaxLength(SnakeDbContext.MaxName);
             boss.Property(row => row.GrantsPerk).HasMaxLength(SnakeDbContext.MaxName);
+            boss.Property(row => row.RewardTierSurgePerk).HasMaxLength(SnakeDbContext.MaxName);
             boss.HasOne<PerkRow>().WithMany().HasForeignKey(row => row.GrantsPerk).OnDelete(DeleteBehavior.Restrict);
         });
         model.Entity<WorldEventRoomRow>(room =>

@@ -1,3 +1,4 @@
+using Library.Commons.Game.Domain.Entities;
 using System.Text.Json;
 using Application.Manager.Api.Persistence;
 using Domain.Game.Rules;
@@ -24,6 +25,8 @@ public sealed class EfGameplayConfigStoreTests : IDisposable
             ShotSpreadDegrees = 9,
             BurstIntervalMilliseconds = 70,
             KillFoodsCredit = 4,
+            ExtraLifeKeepShare = 0.25,
+            ExtraLifeProtectSeconds = 7,
             Perks =
             [
                 new PerkDefinition
@@ -34,13 +37,25 @@ public sealed class EfGameplayConfigStoreTests : IDisposable
                     Tiers = [new PerkTier { FoodsRequired = 20, Multiplier = 1.5 }, new PerkTier { FoodsRequired = 40, Multiplier = 2 }],
                     Rooms = ["lobby", "AB12"], ExcludedRooms = ["quiet"],
                 },
+                new PerkDefinition
+                {
+                    Id = "stormproof", Name = "Stormproof", FoodsRequired = 11, CooldownSeconds = 30, DurationSeconds = 4,
+                    Effects =
+                    [
+                        new PerkEffectEntry { Effect = PerkEffect.EventResistance, Amount = 0.5, Target = "zone" },
+                        new PerkEffectEntry { Effect = PerkEffect.EventResistance, Amount = 0.2 },
+                        new PerkEffectEntry { Effect = PerkEffect.ShieldBurst, Amount = 1 },
+                        new PerkEffectEntry { Effect = PerkEffect.ExtraLife, Amount = 2 },
+                    ],
+                },
                 new PerkDefinition { Id = "plain", Name = "Plain", FoodsRequired = 3, Enabled = false, Effects = [new PerkEffectEntry { Effect = PerkEffect.AutoFire, Amount = 1 }] },
             ],
         },
         Prize = new PrizeOptions
         {
             Enabled = false,
-            Prizes = [new PrizeDefinition { Id = "gold", Name = "Gold", Value = 55, FoodsCredit = 9, MinPlayers = 3, GrantsPerk = "scripted", Color = "#112233", Rooms = ["lobby"], ExcludedRooms = ["quiet", "other"] }],
+            Prizes = [new PrizeDefinition { Id = "gold", Name = "Gold", Value = 55, FoodsCredit = 9, MinPlayers = 3, GrantsPerk = "scripted", Color = "#112233", Rooms = ["lobby"], ExcludedRooms = ["quiet", "other"],
+                Reward = new PerkReward { GrantsRandomPerk = true, ExtraLives = 2, TierSurgeMin = 1, TierSurgeMax = 3, TierSurgePerk = "scripted", BonusMass = 90, Mend = true } }],
         },
         Rooms = new RoomLifetimeOptions { EmptyPrivateRoomMinutes = 15, MaxPrivateRoomMinutes = 120 },
         WorldEvents = new WorldEventOptions
@@ -48,7 +63,11 @@ public sealed class EfGameplayConfigStoreTests : IDisposable
             Enabled = false,
             Lightning = new LightningOptions { Enabled = false, MinIntervalSeconds = 50, MaxIntervalSeconds = 70, Radius = 80, TelegraphMilliseconds = 1200, MinStrikes = 3, MaxStrikes = 9, StormSeconds = 5, AimedShare = 0.4, Rooms = ["lobby"] },
             Meteors = new MeteorOptions { MinMeteors = 2, MaxMeteors = 4, RainSeconds = 3, ExcludedRooms = ["quiet"] },
-            Turret = new TurretOptions { HitPoints = 77, Arms = 8, GrantsPerk = "scripted", Rooms = ["boss-room"] },
+            Turret = new TurretOptions
+            {
+                HitPoints = 77, Arms = 8, GrantsPerk = "scripted", Rooms = ["boss-room"],
+                Reward = new PerkReward { ExtraLives = 1, TierSurgeMin = 2, TierSurgeMax = 2 },
+            },
             Zone = new ZoneOptions { FinalRadius = 111, DamageMass = 9, ExcludedRooms = ["quiet"] },
             FruitShower = new FruitShowerOptions
             {
@@ -58,6 +77,7 @@ public sealed class EfGameplayConfigStoreTests : IDisposable
             Bounty = new BountyOptions
             {
                 Enabled = false, MinIntervalSeconds = 12, MaxIntervalSeconds = 24, DurationSeconds = 36, RewardMass = 4321, FoodsCredit = 17, MinPlayers = 5,
+                Reward = new PerkReward { GrantsRandomPerk = true, Mend = true, BonusMass = 12 },
                 Rooms = ["arena"], ExcludedRooms = ["quiet", "other"],
             },
             Mines = new MineFieldOptions
@@ -75,6 +95,7 @@ public sealed class EfGameplayConfigStoreTests : IDisposable
                 Enabled = false, MinIntervalSeconds = 15, MaxIntervalSeconds = 30, DurationSeconds = 77, Columns = 9, Rows = 7, CorridorHeads = 5,
                 Twistiness = 33, WallMassLoss = 6, FoodPercent = 40, MinPlayers = 3, PrizeMass = 555, PrizeFoodsCredit = 31, PrizeGrantsPerk = "scripted",
                 PrizeColor = "#abcdef", Rooms = ["maze-room", "AB12"], ExcludedRooms = ["lobby"],
+                PrizeReward = new PerkReward { ExtraLives = 3, TierSurgeMin = 1, TierSurgeMax = 1 },
             },
         },
     };
@@ -93,6 +114,38 @@ public sealed class EfGameplayConfigStoreTests : IDisposable
         Assert.Equal(PerkOptions.BuiltIn.Sum(perk => perk.AllEffects().Count), context.PerkEffects.Count());
         Assert.Single(context.GameplaySettings);
         Assert.Single(context.Bosses);
+    }
+
+    [Fact]
+    public void Update_TheNewFieldsAreReallyInTheTables()
+    {
+        Store().Update(Custom());
+
+        using var context = _host.Factory.CreateDbContext();
+        var settings = context.GameplaySettings.Single();
+        Assert.Equal((0.25, 7), (settings.ExtraLifeKeepShare, settings.ExtraLifeProtectSeconds));
+        var perk = context.Perks.Single(row => row.Id == "stormproof");
+        Assert.Equal((30, 4), (perk.CooldownSeconds, perk.DurationSeconds));
+        Assert.Equal(["zone", null], context.PerkEffects.Where(row => row.PerkId == "stormproof").OrderBy(row => row.Position).Take(2).Select(row => row.Target).ToArray());
+        var prize = context.Prizes.Single();
+        Assert.Equal((true, 2, 1, 3, "scripted", 90L, true),
+            (prize.RewardRandomPerk, prize.RewardExtraLives, prize.RewardTierSurgeMin, prize.RewardTierSurgeMax, prize.RewardTierSurgePerk, prize.RewardBonusMass, prize.RewardMend));
+        Assert.Equal(1, context.Bosses.Single().RewardExtraLives);
+        Assert.Equal(12L, context.BountyEvents.Single().RewardBonusMass);
+        Assert.Equal(3, context.MazeEvents.Single().RewardExtraLives);
+    }
+
+    [Fact]
+    public void Update_ARewardLeftOff_IsStoredAsNothing_AndReadsBackAsNothing()
+    {
+        Store().Update(GameplayConfig.Defaults);
+
+        var back = Store().Current.Config;
+
+        Assert.True(back.Prize.Prizes.All(prize => prize.Reward.IsEmpty));
+        Assert.True(back.WorldEvents.Turret.Reward.IsEmpty);
+        Assert.True(back.WorldEvents.Bounty.Reward.IsEmpty);
+        Assert.True(back.WorldEvents.Maze.PrizeReward.IsEmpty);
     }
 
     [Fact]

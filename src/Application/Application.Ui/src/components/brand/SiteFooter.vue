@@ -22,11 +22,7 @@ import { getText } from "@/helpers";
       <VIcon size="small" class="mr-1">mdi-github</VIcon>{{ getText({ key: "footer.source" }) }}
     </a>
     <span aria-hidden="true">·</span>
-    <span>
-      {{ getText({ key: "footer.icons" }) }}
-      <a href="https://game-icons.net" target="_blank" rel="noopener noreferrer">game-icons.net</a>
-      (<a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener noreferrer">CC BY 3.0</a>)
-    </span>
+    <RouterLink :to="{ name: 'credits' }" data-test="footer-credits">{{ getText({ key: "footer.credits" }) }}</RouterLink>
   </footer>
 </template>
 

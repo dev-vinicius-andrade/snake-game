@@ -56,7 +56,7 @@ export const messages = {
     source: "Source on GitHub",
     terms: "Terms of Service",
     privacy: "Privacy Policy",
-    icons: "Perk icons by Lorc, Delapouite and contributors from",
+    credits: "Credits and licenses",
     language: "Language",
   },
   about: {
@@ -250,6 +250,25 @@ export const messages = {
       invalidCredentials: "Name, tag or phrase is wrong.",
       invalidToken: "Your session ended. Sign in again.",
       unavailable: "Could not reach the server, please try again.",
+    },
+  },
+  credits: {
+    title: "Credits and licenses",
+    subtitle: "What other people made, and that the game is built on",
+    intro: "The game stands on the work of many people. Here is what we use, who made it and under which license. Thank you to all of them.",
+    groups: {
+      art: "Icons and art",
+      fonts: "Fonts",
+      front: "In your browser",
+      back: "On the servers",
+    },
+    sounds: {
+      title: "Sounds",
+      text: "The sound effects are made by the game itself, synthesised in your browser. No sound files from anybody else are used.",
+    },
+    logos: {
+      title: "Logos of other services",
+      text: "The names and logos of GitHub, Discord, Google and Steam belong to their owners. They are only shown on the sign in buttons, to say which account you are using.",
     },
   },
   forbidden: {
