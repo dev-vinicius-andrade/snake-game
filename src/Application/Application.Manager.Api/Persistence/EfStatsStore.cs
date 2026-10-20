@@ -47,7 +47,7 @@ public sealed class EfStatsStore(IDbContextFactory<SnakeDbContext> factory) : IS
         if (loaded.Stats.HasApplied(report.Id))
             return StatsApplyResult.AlreadyApplied;
         var change = loaded.Stats.With(report, now, definitions);
-        Write(context, accountId, loaded, change, report.Id, now);
+        Write(context, accountId, loaded, change, report.Id, now, definitions);
         context.SaveChanges();
         return StatsApplyResult.Applied(change.Unlocked);
     }
@@ -66,15 +66,29 @@ public sealed class EfStatsStore(IDbContextFactory<SnakeDbContext> factory) : IS
         return new Loaded(stats, head, values, reports);
     }
 
-    private static void Write(SnakeDbContext context, Guid accountId, Loaded loaded, StatsChange change, Guid reportId, DateTimeOffset now)
+    private static void Write(SnakeDbContext context, Guid accountId, Loaded loaded, StatsChange change, Guid reportId, DateTimeOffset now,
+        IReadOnlyList<AchievementDefinition> definitions)
     {
         if (loaded.Head is null) context.StatsHeads.Add(new StatsHeadRow { AccountId = accountId, Version = 1 });
         else loaded.Head.Version++;
         WriteValues(context, accountId, loaded.Values, StatKind.Counter, change.Stats.Counters);
         WriteValues(context, accountId, loaded.Values, StatKind.Maximum, change.Stats.Maxima);
         WriteReport(context, accountId, loaded.Reports, reportId);
+        EnsureCatalog(context, change.Unlocked, definitions);
         foreach (var id in change.Unlocked)
             context.UnlockedAchievements.Add(new UnlockedAchievementRow { AccountId = accountId, AchievementId = id, UnlockedAt = now });
+    }
+
+    /// <summary>An unlock points at its achievement row: any that the catalog does not have yet is made from the definition, in the same save.</summary>
+    private static void EnsureCatalog(SnakeDbContext context, IReadOnlyList<string> unlocked, IReadOnlyList<AchievementDefinition> definitions)
+    {
+        if (unlocked.Count == 0) return;
+        var known = context.Achievements.Where(row => unlocked.Contains(row.Id)).Select(row => row.Id).ToHashSet();
+        foreach (var id in unlocked.Where(id => !known.Contains(id)))
+        {
+            var order = definitions.ToList().FindIndex(definition => definition.Id == id);
+            context.Achievements.Add(AchievementCatalog.ToRow(definitions[order], order));
+        }
     }
 
     private static void WriteValues(SnakeDbContext context, Guid accountId, List<StatValueRow> rows, StatKind kind, IReadOnlyDictionary<string, long> values)

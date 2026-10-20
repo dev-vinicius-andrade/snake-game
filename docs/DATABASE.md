@@ -31,7 +31,8 @@ not running. A store never answers "no such account" for a database it could not
 | `stats_heads` | one row per account with stats; `version` is a concurrency token | account |
 | `stat_values` | a counter total or a highest maximum, by key (`kind` 0 / 1) | account + kind + key |
 | `applied_reports` | the report ids already applied, with a sequence; only the newest 200 per account | account + report |
-| `unlocked_achievements` | which achievement, and when | account + achievement |
+| `achievements` | the catalog: id, icon, stat, threshold, sort order. Made from the definitions in the code when the manager starts (new ones added, changed ones updated, removed ones kept). The texts are in the client | id |
+| `unlocked_achievements` | which achievement, and when; points at `achievements` | account + achievement |
 
 Tables and columns are snake_case. Times are stored as UTC (`timestamptz` refuses any other offset). The model uses plain types only (no
 `jsonb`, no arrays), so the same model also runs on SQLite, which is what the store tests use.

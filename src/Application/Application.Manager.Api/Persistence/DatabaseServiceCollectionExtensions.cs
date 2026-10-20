@@ -24,6 +24,7 @@ public static class DatabaseServiceCollectionExtensions
             return services;
         var connection = configuration[ConnectionKey]!.Trim();
         services.AddPooledDbContextFactory<SnakeDbContext>(options => options.UseNpgsql(connection, npgsql => npgsql.MigrationsHistoryTable("migrations_history")));
+        services.AddHostedService<AchievementCatalogService>();
         if (!string.Equals(configuration[MigrateOnStartKey], "false", StringComparison.OrdinalIgnoreCase))
             services.AddHostedService<DatabaseMigrationService>();
         return services;

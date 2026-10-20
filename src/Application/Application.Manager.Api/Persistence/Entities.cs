@@ -85,6 +85,24 @@ public sealed class AppliedReportRow
     public long Sequence { get; set; }
 }
 
+/// <summary>
+/// An achievement of the game: what unlocks it (a stat reaching a threshold) and its icon. The texts are in the client, by <see cref="Id"/>.
+/// Made from the definitions in the code (<see cref="AchievementCatalog"/>), so the database can be read without knowing the code.
+/// </summary>
+public sealed class AchievementRow
+{
+    public string Id { get; set; } = "";
+
+    public string Icon { get; set; } = "";
+
+    public string Stat { get; set; } = "";
+
+    public long Threshold { get; set; }
+
+    /// <summary>Where it is in the list of the game.</summary>
+    public int SortOrder { get; set; }
+}
+
 public sealed class UnlockedAchievementRow
 {
     public Guid AccountId { get; set; }

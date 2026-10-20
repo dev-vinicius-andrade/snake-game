@@ -25,6 +25,8 @@ public sealed class SnakeDbContext(DbContextOptions<SnakeDbContext> options) : D
 
     public DbSet<AppliedReportRow> AppliedReports => Set<AppliedReportRow>();
 
+    public DbSet<AchievementRow> Achievements => Set<AchievementRow>();
+
     public DbSet<UnlockedAchievementRow> UnlockedAchievements => Set<UnlockedAchievementRow>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configuration)
@@ -79,11 +81,20 @@ public sealed class SnakeDbContext(DbContextOptions<SnakeDbContext> options) : D
             report.HasKey(row => new { row.AccountId, row.ReportId });
             report.HasIndex(row => new { row.AccountId, row.Sequence });
         });
+        model.Entity<AchievementRow>(achievement =>
+        {
+            achievement.ToTable("achievements");
+            achievement.HasKey(row => row.Id);
+            achievement.Property(row => row.Id).HasMaxLength(MaxName);
+            achievement.Property(row => row.Icon).HasMaxLength(MaxName * 2).IsRequired();
+            achievement.Property(row => row.Stat).HasMaxLength(MaxName).IsRequired();
+        });
         model.Entity<UnlockedAchievementRow>(unlocked =>
         {
             unlocked.ToTable("unlocked_achievements");
             unlocked.HasKey(row => new { row.AccountId, row.AchievementId });
             unlocked.Property(row => row.AchievementId).HasMaxLength(MaxName);
+            unlocked.HasOne<AchievementRow>().WithMany().HasForeignKey(row => row.AchievementId).OnDelete(DeleteBehavior.Restrict);
         });
         UseSnakeCaseNames(model);
     }

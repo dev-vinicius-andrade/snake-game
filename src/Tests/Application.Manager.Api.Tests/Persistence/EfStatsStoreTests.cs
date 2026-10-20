@@ -188,4 +188,31 @@ public sealed class EfStatsStoreTests : IDisposable
 
         Assert.Equal(1, before.Counters[StatKeys.Kills]);
     }
+
+    [Fact]
+    public void Apply_AnUnlock_PointsAtAnAchievementRow_MadeFromTheDefinitionIfTheCatalogDoesNotHaveItYet()
+    {
+        var store = _host.Stats();
+
+        Report(store, Stats((StatKeys.Kills, 30)));
+
+        using var context = _host.Factory.CreateDbContext();
+        var catalog = context.Achievements.ToDictionary(row => row.Id);
+        Assert.Equal(new[] { "first-blood", "hunter" }, catalog.Keys.Order());
+        Assert.Equal(("game-icons:crosshair", StatKeys.Kills, 25L), (catalog["hunter"].Icon, catalog["hunter"].Stat, catalog["hunter"].Threshold));
+        Assert.Equal(new[] { "first-blood", "hunter" }, context.UnlockedAchievements.Select(row => row.AchievementId).OrderBy(id => id));
+    }
+
+    [Fact]
+    public void Apply_AnAchievementAlreadyInTheCatalog_IsNotAddedAgain()
+    {
+        var store = _host.Stats();
+        Report(store, Stats((StatKeys.Kills, 1)));
+
+        Report(store, Stats((StatKeys.Kills, 1)), account: Guid.NewGuid());
+
+        using var context = _host.Factory.CreateDbContext();
+        Assert.Single(context.Achievements.Where(row => row.Id == "first-blood"));
+        Assert.Equal(2, context.UnlockedAchievements.Count());
+    }
 }

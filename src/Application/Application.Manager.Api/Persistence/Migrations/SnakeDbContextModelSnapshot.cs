@@ -70,6 +70,39 @@ namespace Application.Manager.Api.Persistence.Migrations
                     b.ToTable("accounts", (string)null);
                 });
 
+            modelBuilder.Entity("Application.Manager.Api.Persistence.AchievementRow", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("icon");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("Stat")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("stat");
+
+                    b.Property<long>("Threshold")
+                        .HasColumnType("bigint")
+                        .HasColumnName("threshold");
+
+                    b.HasKey("Id")
+                        .HasName("pk_achievements");
+
+                    b.ToTable("achievements", (string)null);
+                });
+
             modelBuilder.Entity("Application.Manager.Api.Persistence.AppliedReportRow", b =>
                 {
                     b.Property<Guid>("AccountId")
@@ -213,6 +246,9 @@ namespace Application.Manager.Api.Persistence.Migrations
                     b.HasKey("AccountId", "AchievementId")
                         .HasName("pk_unlocked_achievements");
 
+                    b.HasIndex("AchievementId")
+                        .HasDatabaseName("ix_unlocked_achievements_achievement_id");
+
                     b.ToTable("unlocked_achievements", (string)null);
                 });
 
@@ -234,6 +270,16 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_external_logins_accounts");
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.UnlockedAchievementRow", b =>
+                {
+                    b.HasOne("Application.Manager.Api.Persistence.AchievementRow", null)
+                        .WithMany()
+                        .HasForeignKey("AchievementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_unlocked_achievements_achievements");
                 });
 
             modelBuilder.Entity("Application.Manager.Api.Persistence.AccountRow", b =>
