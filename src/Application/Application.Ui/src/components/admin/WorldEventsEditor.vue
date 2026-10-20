@@ -13,6 +13,7 @@ import type {
   useAdminGameplay,
 } from "@/composables/useAdminGameplay";
 import { getText } from "@/helpers";
+import RewardFields from "./RewardFields.vue";
 
 const props = defineProps<{ gameplay: ReturnType<typeof useAdminGameplay> }>();
 const gameplay = props.gameplay;
@@ -211,6 +212,7 @@ onMounted(() => {
               :label="getText({ key: 'admin.gameplay.turretGrantsPerk' })"
             />
           </div>
+          <RewardFields :reward="draft.worldEvents.turret.reward" :perks="gameplay.perkChoices.value" />
           <VCombobox v-model="draft.worldEvents.turret.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.turretRooms' })" />
           <VCombobox v-model="draft.worldEvents.turret.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
         </div>
@@ -277,6 +279,7 @@ onMounted(() => {
               :label="getText({ key: `admin.gameplay.${field.label}` })"
             />
           </div>
+          <RewardFields :reward="draft.worldEvents.bounty.reward" :perks="gameplay.perkChoices.value" />
           <VCombobox v-model="draft.worldEvents.bounty.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.bountyRooms' })" />
           <VCombobox v-model="draft.worldEvents.bounty.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
         </div>
@@ -353,6 +356,7 @@ onMounted(() => {
               :label="getText({ key: 'admin.gameplay.mazePrizeGrantsPerk' })"
             />
           </div>
+          <RewardFields :reward="draft.worldEvents.maze.prizeReward" :perks="gameplay.perkChoices.value" />
           <VCombobox v-model="draft.worldEvents.maze.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.mazeRooms' })" />
           <VCombobox v-model="draft.worldEvents.maze.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
         </div>

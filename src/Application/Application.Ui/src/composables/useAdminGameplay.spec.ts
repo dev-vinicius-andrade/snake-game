@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ADMIN_KEY_STORAGE_KEY } from "./useAdminRooms";
-import { useAdminGameplay, type GameplayConfig, type GameplayHttp, type PrizeDefinition } from "./useAdminGameplay";
+import { EMPTY_REWARD, hasAbility, useAdminGameplay, type GameplayConfig, type GameplayHttp, type PrizeDefinition } from "./useAdminGameplay";
 
 const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
   perks: {
@@ -8,9 +8,11 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
     shotSpreadDegrees: 12,
     burstIntervalMilliseconds: 80,
     killFoodsCredit: 3,
+    extraLifeKeepShare: 0.5,
+    extraLifeProtectSeconds: 3,
     perks: [
-      { id: "magnet", name: "Magnet", foodsRequired: 6, enabled: true, effects: [{ effect: "Magnet", amount: 60 }], tiers: [], rooms: [], excludedRooms: [] },
-      { id: "twin", name: "Twin shot", foodsRequired: 15, enabled: true, effects: [{ effect: "ExtraShots", amount: 1 }], tiers: [], rooms: [], excludedRooms: [] },
+      { id: "magnet", name: "Magnet", foodsRequired: 6, enabled: true, cooldownSeconds: 0, durationSeconds: 0, effects: [{ effect: "Magnet", amount: 60 }], tiers: [], rooms: [], excludedRooms: [] },
+      { id: "twin", name: "Twin shot", foodsRequired: 15, enabled: true, cooldownSeconds: 0, durationSeconds: 0, effects: [{ effect: "ExtraShots", amount: 1 }], tiers: [], rooms: [], excludedRooms: [] },
     ],
   },
   prize: {
@@ -28,6 +30,7 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
         color: "#ffd23f",
         rooms: [],
         excludedRooms: [],
+        reward: { ...EMPTY_REWARD },
         ...overrides,
       },
     ],
@@ -75,6 +78,7 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
       minPlayers: 1,
       rewardMass: 60,
       foodsCredit: 15,
+      reward: { ...EMPTY_REWARD },
       rooms: [],
       excludedRooms: [],
     },
@@ -109,6 +113,7 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
       durationSeconds: 90,
       rewardMass: 150,
       foodsCredit: 10,
+      reward: { ...EMPTY_REWARD },
       minPlayers: 3,
       rooms: [],
       excludedRooms: [],
@@ -149,6 +154,7 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
       minPlayers: 2,
       prizeMass: 200,
       prizeFoodsCredit: 20,
+      prizeReward: { ...EMPTY_REWARD },
       prizeColor: "#ffd23f",
       rooms: [],
       excludedRooms: [],
@@ -1032,5 +1038,122 @@ describe("perk tiers", () => {
 
     const sent = http.put.mock.calls[0][2] as GameplayConfig;
     expect(sent.perks.perks[0].tiers!.map((tier) => tier.foodsRequired)).toEqual([12, 18]);
+  });
+});
+
+describe("useAdminGameplay rewards and cooldown perks", () => {
+  /** A config from a server that does not know rewards, cooldown perks or extra lives yet: none of those fields are in it. */
+  function oldServer() {
+    const old = structuredClone(config()) as any;
+    delete old.perks.extraLifeKeepShare;
+    delete old.perks.extraLifeProtectSeconds;
+    for (const perk of old.perks.perks) {
+      delete perk.cooldownSeconds;
+      delete perk.durationSeconds;
+    }
+    delete old.prize.prizes[0].reward;
+    delete old.worldEvents.turret.reward;
+    delete old.worldEvents.bounty.reward;
+    delete old.worldEvents.maze.prizeReward;
+    return old as GameplayConfig;
+  }
+
+  it("fills in what a server from before rewards does not send", async () => {
+    http.get.mockResolvedValue({ ...payload, current: { revision: "r1", config: oldServer() } });
+    const gameplay = create();
+
+    await gameplay.load();
+
+    const draft = gameplay.draft.value!;
+    expect(draft).toEqual(config());
+    expect(draft.perks.extraLifeKeepShare).toBe(0.5);
+    expect(draft.perks.extraLifeProtectSeconds).toBe(3);
+    expect(draft.prize.prizes[0].reward).toEqual(EMPTY_REWARD);
+    expect(gameplay.dirty.value).toBe(false);
+  });
+
+  it("keeps the reward the server sent and fills in the fields it left out", async () => {
+    const withReward = structuredClone(config()) as any;
+    withReward.prize.prizes[0].reward = { extraLives: 2, tierSurgeMin: 1, tierSurgeMax: 3, tierSurgePerk: "magnet" };
+    withReward.worldEvents.turret.reward = { mend: true };
+    http.get.mockResolvedValue({ ...payload, current: { revision: "r1", config: withReward } });
+    const gameplay = create();
+
+    await gameplay.load();
+
+    const draft = gameplay.draft.value!;
+    expect(draft.prize.prizes[0].reward).toEqual({ ...EMPTY_REWARD, extraLives: 2, tierSurgeMin: 1, tierSurgeMax: 3, tierSurgePerk: "magnet" });
+    expect(draft.worldEvents.turret.reward).toEqual({ ...EMPTY_REWARD, mend: true });
+  });
+
+  it("sends a reward without a blank perk to lift, and trims the one it has", async () => {
+    const gameplay = create();
+    await gameplay.load();
+    const draft = gameplay.draft.value!;
+    draft.prize.prizes[0].reward.tierSurgePerk = "  ";
+    draft.worldEvents.turret.reward.tierSurgePerk = " magnet ";
+    draft.worldEvents.bounty.reward.tierSurgePerk = "";
+    draft.worldEvents.maze.prizeReward.tierSurgePerk = "twin";
+
+    await gameplay.save();
+
+    const sent = http.put.mock.calls[0][2] as GameplayConfig;
+    expect("tierSurgePerk" in sent.prize.prizes[0].reward).toBe(false);
+    expect(sent.worldEvents.turret.reward.tierSurgePerk).toBe("magnet");
+    expect("tierSurgePerk" in sent.worldEvents.bounty.reward).toBe(false);
+    expect(sent.worldEvents.maze.prizeReward.tierSurgePerk).toBe("twin");
+  });
+
+  it("sends the target of an event resistance, and none for any other effect or a blank one", async () => {
+    const gameplay = create();
+    await gameplay.load();
+    const perks = gameplay.draft.value!.perks.perks;
+    perks[0].effects = [{ effect: "EventResistance", amount: 0.4, target: "zone" }, { effect: "EventResistance", amount: 0.2, target: "" }];
+    perks[1].effects = [{ effect: "Armor", amount: 0.2, target: "zone" }];
+
+    await gameplay.save();
+
+    const sent = http.put.mock.calls[0][2] as GameplayConfig;
+    const [first, second] = sent.perks.perks.find((perk) => perk.id === "magnet")!.effects;
+    expect(first.target).toBe("zone");
+    expect("target" in second).toBe(false);
+    expect("target" in sent.perks.perks.find((perk) => perk.id === "twin")!.effects[0]).toBe(false);
+  });
+
+  it("knows which perks have a cooldown ability", () => {
+    expect(hasAbility({ effects: [{ effect: "Armor", amount: 1 }, { effect: "Dash", amount: 1 }] })).toBe(true);
+    expect(hasAbility({ effects: [{ effect: "Armor", amount: 1 }] })).toBe(false);
+  });
+
+  it("sends the cooldown and duration of a perk with an ability, and zeros for a perk without one", async () => {
+    const gameplay = create();
+    await gameplay.load();
+    const perks = gameplay.draft.value!.perks.perks;
+    perks[0].effects = [{ effect: "ShieldBurst", amount: 1 }];
+    perks[0].cooldownSeconds = 30;
+    perks[0].durationSeconds = 4;
+    perks[1].cooldownSeconds = 99;
+    perks[1].durationSeconds = 9;
+
+    await gameplay.save();
+
+    const sent = http.put.mock.calls[0][2] as GameplayConfig;
+    const shield = sent.perks.perks.find((perk) => perk.id === "magnet")!;
+    const plain = sent.perks.perks.find((perk) => perk.id === "twin")!;
+    expect([shield.cooldownSeconds, shield.durationSeconds]).toEqual([30, 4]);
+    expect([plain.cooldownSeconds, plain.durationSeconds]).toEqual([0, 0]);
+  });
+
+  it("gives a new prize an empty reward of its own", async () => {
+    const gameplay = create();
+    await gameplay.load();
+
+    gameplay.addPrize();
+    gameplay.addPrize();
+    const [, first, second] = [null, ...gameplay.draft.value!.prize.prizes];
+    first!.reward.extraLives = 3;
+
+    expect(second!.reward.extraLives).toBe(0);
+    expect(EMPTY_REWARD.extraLives).toBe(0);
   });
 });

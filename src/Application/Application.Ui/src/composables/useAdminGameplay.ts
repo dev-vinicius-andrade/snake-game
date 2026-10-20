@@ -2,6 +2,7 @@ import { adminHeaders, isRejected } from "./adminAuth";
 import axios from "axios";
 import { computed, ref, shallowRef } from "vue";
 import { resolveManagerUrl } from "@/config/env";
+import { isAbilityEffect } from "@/game/perkInfo";
 import { ADMIN_KEY_STORAGE_KEY, type KeyStorage } from "./useAdminRooms";
 
 export type PerkEffect = string;
@@ -9,7 +10,44 @@ export type PerkEffect = string;
 export interface PerkEffectEntry {
   effect: PerkEffect;
   amount: number;
+  /** For event resistance: the one event it is for (lightning, meteors, mines, zone). Left out: all of them. */
+  target?: string | null;
 }
+
+/**
+ * What else a prize, the turret, a bounty or the maze prize gives: a random perk, extra lives, a tier surge (a perk the snake has lifted by
+ * some tiers beyond what its foods give), mass, a mend. Everything off gives nothing.
+ */
+export interface RewardConfig {
+  grantsRandomPerk: boolean;
+  /** Lives given, 0 to 5. */
+  extraLives: number;
+  /** Tiers a perk is lifted by, picked between the two. 0 and 0: no surge. 0 to 10. */
+  tierSurgeMin: number;
+  tierSurgeMax: number;
+  /** The perk to lift. Empty: a random one of those the snake has that can still go up. */
+  tierSurgePerk?: string | null;
+  /** Mass given at once, 0 to 10000. */
+  bonusMass: number;
+  /** Heals the whole body. */
+  mend: boolean;
+}
+
+/** Nothing given. What a reward is when a config from before rewards says nothing. */
+export const EMPTY_REWARD: RewardConfig = { grantsRandomPerk: false, extraLives: 0, tierSurgeMin: 0, tierSurgeMax: 0, bonusMass: 0, mend: false };
+
+const completeReward = (reward?: Partial<RewardConfig> | null): RewardConfig => ({ ...EMPTY_REWARD, ...reward });
+
+/** A reward as it is sent: a blank perk to lift is left out. */
+function cleanReward(reward: RewardConfig): RewardConfig {
+  const copy = { ...reward };
+  if (!copy.tierSurgePerk?.trim()) delete copy.tierSurgePerk;
+  else copy.tierSurgePerk = copy.tierSurgePerk.trim();
+  return copy;
+}
+
+/** Whether the perk has a cooldown ability (shield burst, dash, heal pulse, vacuum burst), so it needs a cooldown. */
+export const hasAbility = (perk: Pick<PerkDefinition, "effects">): boolean => perk.effects.some((entry) => isAbilityEffect(entry.effect));
 
 /** A step up of a perk: with this many foods everything it does is `multiplier` times its amounts. */
 export interface PerkTierConfig {
@@ -29,6 +67,10 @@ export interface PerkDefinition {
   icon?: string | null;
   /** A sentence players see in the perk's tooltip. */
   description?: string | null;
+  /** Seconds a cooldown ability of the perk (shield burst, dash, heal pulse, vacuum burst) takes to recharge. 0 for a perk with none. */
+  cooldownSeconds?: number;
+  /** Seconds a shield burst, dash or vacuum burst lasts. */
+  durationSeconds?: number;
   /** Everything the perk does. Empty only for a perk whose script does it. */
   effects: PerkEffectEntry[];
   /** Invite codes, names or ids of the rooms the perk works in. Empty: every room (a perk with a script: none). */
@@ -95,6 +137,8 @@ export interface TurretConfig {
   foodsCredit: number;
   /** The id of a perk the snake that brings it down gets. Empty: none. */
   grantsPerk?: string | null;
+  /** What else the snake that brings it down gets. */
+  reward: RewardConfig;
   rooms: string[];
   excludedRooms: string[];
 }
@@ -146,6 +190,8 @@ export interface BountyConfig extends WorldEventConfigBase {
   rewardMass: number;
   /** How many foods the kill counts for toward perks (and tiers), 0 to 1000. */
   foodsCredit: number;
+  /** What else the snake that kills the wanted one gets. */
+  reward: RewardConfig;
 }
 
 /** Mines: laid round the room, each armed after a moment, they stay until a snake touches one and it blows up. */
@@ -188,6 +234,8 @@ export interface MazeConfig extends WorldEventConfigBase {
   prizeFoodsCredit: number;
   /** A perk of the list the snake that takes the prize gets. Left out: none. */
   prizeGrantsPerk?: string | null;
+  /** What else the snake that takes the prize gets. */
+  prizeReward: RewardConfig;
   /** Six hex digits such as #ffd23f. */
   prizeColor: string;
 }
@@ -199,6 +247,10 @@ export interface GameplayConfig {
     burstIntervalMilliseconds: number;
     /** How many foods killing another snake counts for toward perks and their tiers. */
     killFoodsCredit: number;
+    /** Share (0..1) of its mass a snake keeps when an extra life saves it. */
+    extraLifeKeepShare: number;
+    /** Seconds a snake that an extra life saved cannot be hurt. */
+    extraLifeProtectSeconds: number;
     perks: PerkDefinition[];
   };
   prize: {
@@ -241,6 +293,8 @@ export interface PrizeDefinition {
   minPlayers: number;
   /** The id of a perk the snake gets, whatever the foods it has eaten. Empty: none. */
   grantsPerk?: string | null;
+  /** What else the snake that eats it gets: a random perk, lives, a tier surge, mass, a mend. */
+  reward: RewardConfig;
   /** Six hex digits, for example #ffd23f. */
   color: string;
   rooms: string[];
@@ -350,6 +404,7 @@ const DEFAULT_TURRET: TurretConfig = {
   minPlayers: 1,
   rewardMass: 60,
   foodsCredit: 15,
+  reward: { ...EMPTY_REWARD },
   rooms: [],
   excludedRooms: [],
 };
@@ -390,6 +445,7 @@ const DEFAULT_BOUNTY: BountyConfig = {
   durationSeconds: 90,
   rewardMass: 150,
   foodsCredit: 10,
+  reward: { ...EMPTY_REWARD },
   minPlayers: 3,
   rooms: [],
   excludedRooms: [],
@@ -436,6 +492,7 @@ const DEFAULT_MAZE: MazeConfig = {
   minPlayers: 2,
   prizeMass: 200,
   prizeFoodsCredit: 20,
+  prizeReward: { ...EMPTY_REWARD },
   prizeColor: "#ffd23f",
   rooms: [],
   excludedRooms: [],
@@ -464,6 +521,7 @@ const DEFAULT_PRIZE: PrizeDefinition = {
   value: 20,
   foodsCredit: 8,
   minPlayers: 2,
+  reward: { ...EMPTY_REWARD },
   color: "#ffd23f",
   rooms: [],
   excludedRooms: [],
@@ -546,8 +604,12 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
       perk.effects ??= [];
       perk.rooms ??= [];
       perk.excludedRooms ??= [];
+      perk.cooldownSeconds ??= 0;
+      perk.durationSeconds ??= 0;
     }
     copy.perks.killFoodsCredit ??= 3;
+    copy.perks.extraLifeKeepShare ??= 0.5;
+    copy.perks.extraLifeProtectSeconds ??= 3;
     completePrizes(copy);
     copy.rooms ??= { emptyPrivateRoomMinutes: 10, maxPrivateRoomMinutes: 0 };
     const events = (copy.worldEvents ??= {
@@ -574,6 +636,9 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     events.mines = { ...DEFAULT_MINES, ...events.mines };
     events.sugarRush = { ...DEFAULT_SUGAR_RUSH, ...events.sugarRush };
     events.maze = { ...DEFAULT_MAZE, ...events.maze };
+    events.turret.reward = completeReward(events.turret.reward);
+    events.bounty.reward = completeReward(events.bounty.reward);
+    events.maze.prizeReward = completeReward(events.maze.prizeReward);
     for (const event of eventsOf(events)) {
       event.rooms ??= [];
       event.excludedRooms ??= [];
@@ -598,7 +663,13 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
       ];
     }
     for (const field of ["spawnIntervalSeconds", "lifetimeSeconds", "value", "foodsCredit", "minPlayers"] as const) delete old[field];
-    old.prizes = old.prizes.map((kind) => ({ ...DEFAULT_PRIZE, ...kind, rooms: kind.rooms ?? [], excludedRooms: kind.excludedRooms ?? [] }));
+    old.prizes = old.prizes.map((kind) => ({
+      ...DEFAULT_PRIZE,
+      ...kind,
+      reward: completeReward(kind.reward),
+      rooms: kind.rooms ?? [],
+      excludedRooms: kind.excludedRooms ?? [],
+    }));
   }
 
   function take(document: GameplayDocument) {
@@ -633,6 +704,14 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
       perk.tiers = [...(perk.tiers ?? [])].sort((first, second) => first.foodsRequired - second.foodsRequired);
       perk.rooms = perk.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       perk.excludedRooms = perk.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+      for (const entry of perk.effects) {
+        if (entry.effect !== "EventResistance" || !entry.target?.trim()) delete entry.target;
+      }
+      // A perk with no cooldown ability has nothing to recharge: stale numbers would only confuse.
+      if (!hasAbility(perk)) {
+        perk.cooldownSeconds = 0;
+        perk.durationSeconds = 0;
+      }
       if (!perk.script?.trim()) delete perk.script;
       if (!perk.icon?.trim()) delete perk.icon;
       else perk.icon = perk.icon.trim();
@@ -643,6 +722,7 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
       kind.rooms = kind.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       kind.excludedRooms = kind.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       if (!kind.grantsPerk?.trim()) delete kind.grantsPerk;
+      kind.reward = cleanReward(kind.reward);
     }
     for (const event of eventsOf(body.worldEvents)) {
       event.rooms = event.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
@@ -651,9 +731,12 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     const turret = body.worldEvents.turret;
     if (!turret.grantsPerk?.trim()) delete turret.grantsPerk;
     else turret.grantsPerk = turret.grantsPerk.trim();
+    turret.reward = cleanReward(turret.reward);
+    body.worldEvents.bounty.reward = cleanReward(body.worldEvents.bounty.reward);
     const maze = body.worldEvents.maze;
     if (!maze.prizeGrantsPerk?.trim()) delete maze.prizeGrantsPerk;
     else maze.prizeGrantsPerk = maze.prizeGrantsPerk.trim();
+    maze.prizeReward = cleanReward(maze.prizeReward);
     try {
       take(await http.put(url, adminKey, body));
       status.value = "saved";

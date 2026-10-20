@@ -3,9 +3,11 @@ import { computed, defineAsyncComponent, onMounted, reactive, ref } from "vue";
 import type { ScriptCheck, useAdminGameplay } from "@/composables/useAdminGameplay";
 import GameIcon from "@/components/game/GameIcon.vue";
 import { getText } from "@/helpers";
-import { PERK_EFFECTS, PERK_ICON_CHOICES, perkIconOf, tierLabel } from "@/game/perkInfo";
+import { LASTING_ABILITY_EFFECTS, PERK_EFFECTS, PERK_ICON_CHOICES, RESISTANCE_TARGETS, perkIconOf, tierLabel } from "@/game/perkInfo";
 import { SCRIPT_TEMPLATES } from "@/game/scriptTemplates";
+import RewardFields from "./RewardFields.vue";
 import WorldEventsEditor from "./WorldEventsEditor.vue";
+import { hasAbility } from "@/composables/useAdminGameplay";
 
 /** The code editor is big, so it is loaded only when a script is opened. */
 const ScriptEditor = defineAsyncComponent(() => import("./ScriptEditor.vue"));
@@ -53,6 +55,15 @@ const effectItems = computed(() =>
     title: effectName(effect),
   }))
 );
+
+/** The events an event resistance can be limited to; the first item means all of them. */
+const targetItems = computed(() => [
+  { value: "", title: getText({ key: "admin.gameplay.perkTargetAll" }) },
+  ...RESISTANCE_TARGETS.map((target) => ({ value: target, title: getText({ key: `game.events.${target}` }) })),
+]);
+
+/** A perk needs a duration when one of its abilities lasts (a heal pulse is instant). */
+const needsDuration = (perk: { effects: Array<{ effect: string }> }) => perk.effects.some((entry) => LASTING_ABILITY_EFFECTS.includes(entry.effect));
 
 const KNOWN_ERRORS = ["unavailable", "invalidKey"];
 const errorText = computed(() => {
@@ -113,6 +124,12 @@ onMounted(() => {
           <VCol cols="6" md="4">
             <VTextField v-model.number="draft.perks.killFoodsCredit" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.killFoodsCredit' })" />
           </VCol>
+          <VCol cols="6" md="4">
+            <VTextField v-model.number="draft.perks.extraLifeKeepShare" type="number" step="0.05" min="0" max="1" density="compact" hide-details :label="getText({ key: 'admin.gameplay.extraLifeKeep' })" />
+          </VCol>
+          <VCol cols="6" md="4">
+            <VTextField v-model.number="draft.perks.extraLifeProtectSeconds" type="number" min="0" max="60" density="compact" hide-details :label="getText({ key: 'admin.gameplay.extraLifeProtect' })" />
+          </VCol>
         </VRow>
 
         <VExpansionPanels v-model="openPerks" multiple class="perk-panels">
@@ -137,6 +154,16 @@ onMounted(() => {
             <div class="perk-row perk-effect">
               <VSelect v-model="entry.effect" :items="effectItems" item-title="title" item-value="value" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkEffect' })" />
               <VTextField v-model.number="entry.amount" type="number" step="any" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkAmount' })" />
+              <VSelect
+                v-if="entry.effect === 'EventResistance'"
+                v-model="entry.target"
+                :items="targetItems"
+                item-title="title"
+                item-value="value"
+                density="compact"
+                hide-details
+                :label="getText({ key: 'admin.gameplay.perkTarget' })"
+              />
               <VBtn size="small" variant="text" :disabled="perk.effects.length <= 1 && !perk.script?.trim()" @click="gameplay.removeEffect(index, effectIndex)">
                 {{ getText({ key: "admin.gameplay.removeEffect" }) }}
               </VBtn>
@@ -144,6 +171,21 @@ onMounted(() => {
             </div>
           </template>
           <VBtn size="x-small" variant="text" class="mt-1" @click="gameplay.addEffect(index)">{{ getText({ key: "admin.gameplay.addEffect" }) }}</VBtn>
+
+          <div v-if="hasAbility(perk)" class="perk-row perk-effect" data-ability>
+            <VTextField v-model.number="perk.cooldownSeconds" type="number" min="1" max="3600" density="compact" hide-details :label="getText({ key: 'admin.gameplay.perkCooldown' })" />
+            <VTextField
+              v-if="needsDuration(perk)"
+              v-model.number="perk.durationSeconds"
+              type="number"
+              min="1"
+              max="600"
+              density="compact"
+              hide-details
+              :label="getText({ key: 'admin.gameplay.perkDuration' })"
+            />
+            <div class="perk-help">{{ getText({ key: "admin.gameplay.abilityHint" }) }}</div>
+          </div>
 
           <div v-for="(tier, tierIndex) in perk.tiers" :key="`tier-${tierIndex}`" class="perk-row perk-effect" data-tier>
             <strong class="perk-tier-name">{{ tierName(tierIndex) }}</strong>
@@ -274,6 +316,7 @@ onMounted(() => {
               :label="getText({ key: 'admin.gameplay.prizeGrantsPerk' })"
             />
           </div>
+          <RewardFields :reward="kind.reward" :perks="gameplay.perkChoices.value" />
           <VCombobox v-model="kind.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.prizeRooms' })" />
           <VCombobox v-model="kind.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
           <VBtn size="small" variant="text" color="error" class="mt-1" :disabled="draft.prize.prizes.length <= 1" @click="gameplay.removePrize(index)">
