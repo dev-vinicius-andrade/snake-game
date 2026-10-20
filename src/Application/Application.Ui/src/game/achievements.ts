@@ -46,7 +46,17 @@ export const STAT_KEYS = [
   "bestScore",
   "longestSnake",
   "bestKillsInLife",
+  "shotsFired",
+  "shotsHit",
+  "damageDealt",
+  "segmentsBroken",
+  "boostSeconds",
+  "longestLife",
+  "bestFoodsInLife",
 ] as const;
+
+/** The stats that count seconds, which the profile shows as a time. */
+export const TIME_STATS: readonly string[] = ["playSeconds", "boostSeconds", "longestLife"];
 
 export type StatKey = (typeof STAT_KEYS)[number];
 

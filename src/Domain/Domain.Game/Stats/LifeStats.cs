@@ -22,6 +22,11 @@ public sealed class LifeStats
     private long _meteorHits;
     private long _bestScore;
     private long _longestSnake;
+    private long _shotsFired;
+    private long _shotsHit;
+    private double _damageDealt;
+    private long _segmentsBroken;
+    private TimeSpan _boosted;
 
     private LifeStats(DateTimeOffset startedAt) => _startedAt = startedAt;
 
@@ -41,6 +46,22 @@ public sealed class LifeStats
     }
 
     public void Killed() => _kills++;
+
+    /// <summary>One shot left the snake (every shot of a volley counts).</summary>
+    public void ShotFired() => _shotsFired++;
+
+    /// <summary>One of its shots hit another snake, and took this much off it (nothing for a hit on the head, which kills).</summary>
+    public void ShotHit(double damage)
+    {
+        _shotsHit++;
+        _damageDealt += Math.Max(0, damage);
+    }
+
+    /// <summary>One of its shots broke a body segment off another snake.</summary>
+    public void SegmentBroken() => _segmentsBroken++;
+
+    /// <summary>The snake spent this long boosting.</summary>
+    public void Boosted(TimeSpan time) => _boosted += time;
 
     /// <summary>The snake landed the last shot on the boss.</summary>
     public void BroughtDownBoss() => _bossKills++;
@@ -75,12 +96,19 @@ public sealed class LifeStats
             [StatKeys.LightningHits] = _lightningHits,
             [StatKeys.MeteorHits] = _meteorHits,
             [StatKeys.PlaySeconds] = (long)(endedAt - _startedAt).TotalSeconds,
+            [StatKeys.ShotsFired] = _shotsFired,
+            [StatKeys.ShotsHit] = _shotsHit,
+            [StatKeys.DamageDealt] = (long)_damageDealt,
+            [StatKeys.SegmentsBroken] = _segmentsBroken,
+            [StatKeys.BoostSeconds] = (long)_boosted.TotalSeconds,
         };
         var maxima = new Dictionary<string, long>
         {
             [StatKeys.BestScore] = _bestScore,
             [StatKeys.LongestSnake] = _longestSnake,
             [StatKeys.BestKillsInLife] = _kills,
+            [StatKeys.LongestLife] = (long)(endedAt - _startedAt).TotalSeconds,
+            [StatKeys.BestFoodsInLife] = _foods,
         };
         return new LifeStatsReport(reportId, Capped(counters), Capped(maxima));
     }

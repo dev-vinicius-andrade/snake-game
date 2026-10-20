@@ -16,8 +16,14 @@ game server and the manager**, from what the server saw: a client never says it 
 ## Stats (`StatKeys`)
 
 Counters (the manager adds): `games` (1 per life that began), `deaths`, `kills`, `foods` (foods actually eaten, not the credit), `prizes`, `bossKills`
-(turret brought down by the last shot), `lightningHits` and `meteorHits` (times the snake lost mass to a strike), `playSeconds`.
-Maxima (the manager keeps the highest): `bestScore` (peak mass of one life), `longestSnake` (peak number of segments), `bestKillsInLife`.
+(turret brought down by the last shot), `lightningHits` and `meteorHits` (times the snake lost mass to a strike), `playSeconds`,
+`shotsFired` (every shot of a volley), `shotsHit` (shots that hit another snake, head or body), `damageDealt` (whole points of damage shots did to
+other snakes' bodies; a head hit kills and adds none), `segmentsBroken` (body segments its shots broke off) and `boostSeconds` (time spent boosting).
+Maxima (the manager keeps the highest): `bestScore` (peak mass of one life), `longestSnake` (peak number of segments), `bestKillsInLife`,
+`longestLife` (seconds of the longest life) and `bestFoodsInLife` (foods eaten in one life).
+
+Reports from a game server that does not know a newer stat just leave it out, and a manager ignores a stat it does not know, so the two can be
+deployed in any order.
 
 ## Achievements (`Achievements.Defaults`)
 

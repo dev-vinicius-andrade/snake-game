@@ -126,4 +126,65 @@ public sealed class LifeStatsTests
     {
         Assert.Equal(0, Finish(LifeStats.Begin(Start, -4, 6)).Maxima[StatKeys.BestScore]);
     }
+
+    [Fact]
+    public void ShotFired_AndShotHit_CountShotsHitsAndTheDamageTheyDid()
+    {
+        var stats = LifeStats.Begin(Start, 0, 6);
+
+        stats.ShotFired();
+        stats.ShotFired();
+        stats.ShotFired();
+        stats.ShotHit(2.4);
+        stats.ShotHit(0);
+
+        var report = Finish(stats);
+        Assert.Equal((3L, 2L, 2L), (report.Counters[StatKeys.ShotsFired], report.Counters[StatKeys.ShotsHit], report.Counters[StatKeys.DamageDealt]));
+    }
+
+    [Fact]
+    public void SegmentBroken_CountsTheBodyPartsThatThisSnakeShotOff()
+    {
+        var stats = LifeStats.Begin(Start, 0, 6);
+
+        stats.SegmentBroken();
+        stats.SegmentBroken();
+
+        Assert.Equal(2, Finish(stats).Counters[StatKeys.SegmentsBroken]);
+    }
+
+    [Fact]
+    public void Boosted_AddsUpTheTimeSpentBoosting_InWholeSeconds()
+    {
+        var stats = LifeStats.Begin(Start, 0, 6);
+
+        stats.Boosted(TimeSpan.FromMilliseconds(400));
+        stats.Boosted(TimeSpan.FromMilliseconds(400));
+        stats.Boosted(TimeSpan.FromMilliseconds(400));
+
+        Assert.Equal(1, Finish(stats).Counters[StatKeys.BoostSeconds]);
+    }
+
+    [Fact]
+    public void Finish_TheLengthOfTheLifeAndTheFoodsOfItAreItsBests()
+    {
+        var stats = LifeStats.Begin(Start, 0, 6);
+        stats.Ate(FoodKind.Normal);
+        stats.Ate(FoodKind.Normal);
+        stats.Ate(FoodKind.Prize);
+
+        var report = Finish(stats, seconds: 125);
+
+        Assert.Equal((125L, 3L), (report.Maxima[StatKeys.LongestLife], report.Maxima[StatKeys.BestFoodsInLife]));
+        Assert.Equal(125, report.Counters[StatKeys.PlaySeconds]);
+    }
+
+    [Fact]
+    public void Finish_EveryNewValueIsCapped_LikeTheOthers()
+    {
+        var stats = LifeStats.Begin(Start, 0, 6);
+        for (var shot = 0; shot < 5; shot++) stats.ShotHit(1_000_000);
+
+        Assert.Equal(LifeStats.MaxReportedValue, Finish(stats).Counters[StatKeys.DamageDealt]);
+    }
 }

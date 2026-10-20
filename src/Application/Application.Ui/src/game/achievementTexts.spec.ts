@@ -19,8 +19,9 @@ const defaults = [...csSource.matchAll(DEFAULTS_RE)].map((m) => ({
 const LANGS = ['en', 'pt'] as const
 
 describe('achievement texts', () => {
-  it('parses the 17 default achievements from Achievements.cs', () => {
-    expect(defaults.length).toBe(17)
+  it('parses every default achievement from Achievements.cs', () => {
+    expect(defaults.length).toBeGreaterThanOrEqual(17)
+    expect(new Set(defaults.map((d) => d.id)).size).toBe(defaults.length)
   })
 
   it('ids in the JSON match the C# defaults in order', () => {
@@ -47,8 +48,8 @@ describe('achievement texts', () => {
       it('thresholds in descriptions match Achievements.cs', () => {
         for (const d of defaults) {
           const description = ACHIEVEMENT_TEXTS[lang][d.id].description
-          if (d.stat === 'PlaySeconds') {
-            expect(/\d/.test(description) && /hour|hora/i.test(description), `${lang}/${d.id}`).toBe(true)
+          if (['PlaySeconds', 'BoostSeconds', 'LongestLife'].includes(d.stat)) {
+            expect(/\d/.test(description) && /hour|hora|minute|minuto/i.test(description), `${lang}/${d.id}`).toBe(true)
             continue
           }
           expect(description, `${lang}/${d.id}`).toMatch(new RegExp(`\\b${d.threshold}\\b`))

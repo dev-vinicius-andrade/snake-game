@@ -189,6 +189,7 @@ public class GameStateService : IGameStateService
         var boost = _boostRules.Step(player.IsBoosting, player.BoostTicks, player.Score, perks.BoostSpeedBonus, perks.BoostLengthFactor);
         player.BoostTicks = boost.BoostTicks;
         player.Score -= boost.MassSpent;
+        if (boost.Active) StatsOf(player)?.Boosted(_tickRateService.TickRate);
         player.ShotCooldownTicks = _shotCooldownRules.Tick(player.ShotCooldownTicks);
         var tickRateMilliseconds = _tickRateService.TickRate.TotalMilliseconds;
         var speedFactor = _snakeConfiguration.Value.Speed * boost.SpeedMultiplier;
@@ -409,6 +410,7 @@ public class GameStateService : IGameStateService
         obstacle.SpeedFactor = perks.ShotSpeedFactor;
         obstacle.Piercing = perks.Piercing;
         gameState.Obstacles.Add(obstacle.Guid, obstacle);
+        StatsOf(player)?.ShotFired();
     }
 
     /// <summary>The way each shot of a volley goes: one straight along the snake, more fanned out around it.</summary>
@@ -476,6 +478,7 @@ public class GameStateService : IGameStateService
     {
         var head = player.CurrentPosition;
         gameState.Hits.Enqueue(new DamageDealt(impact.Shot.CreatedyBy.Guid, player.Guid, head.X, head.Y, 0, DamageKind.Kill));
+        if (GetPlayer(gameState, impact.Shot.CreatedyBy) is { } shooter) StatsOf(shooter)?.ShotHit(0);
         KillPlayer(gameState, player);
         RegisterKill(gameState, impact.Shot.CreatedyBy.Guid, player);
     }
@@ -483,7 +486,8 @@ public class GameStateService : IGameStateService
     private void DamageBody(IGameState gameState, IPlayer player, ShotImpact impact)
     {
         var targetLength = player.Path.Count;
-        var shooterLength = GetPlayer(gameState, impact.Shot.CreatedyBy)?.Path.Count ?? InitialLength;
+        var shooter = GetPlayer(gameState, impact.Shot.CreatedyBy);
+        var shooterLength = shooter?.Path.Count ?? InitialLength;
         var damage = _damageCalculator.ShotDamage(shooterLength, targetLength) * EffectsOf(gameState, player).DamageFactor;
         var maxHp = _damageCalculator.MaxSegmentHp(targetLength);
         var hitAt = player.Path[impact.Hit.SegmentIndex];
@@ -491,10 +495,20 @@ public class GameStateService : IGameStateService
         var outcome = _bodyShotRules.ApplyDamage(ToBodyState(player), impact.Hit.SegmentIndex, damage,
             maxHp, canBreak: targetLength > InitialLength);
         RecordDamage(gameState, impact, player, hitAt, Math.Min(damage, hpBefore), outcome.SegmentBroken);
+        CountBodyShot(shooter, Math.Min(damage, hpBefore), outcome.SegmentBroken);
         ApplyBody(player, outcome.Body);
         if (outcome.BrokenAt.HasValue)
             DropBrokenSegment(gameState, player, outcome.BrokenAt.Value);
         UpdatePlayer(player);
+    }
+
+    /// <summary>A shot of a signed-in snake that hurt another snake's body: it counts as a hit, with the damage it did, and a segment broken off.</summary>
+    private void CountBodyShot(IPlayer? shooter, double damage, bool segmentBroken)
+    {
+        if (shooter is null) return;
+        var stats = StatsOf(shooter);
+        stats?.ShotHit(damage);
+        if (segmentBroken) stats?.SegmentBroken();
     }
 
     public void FireTurret(IGameState gameState, IReadOnlyList<double> angles)

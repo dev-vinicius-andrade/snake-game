@@ -4,7 +4,7 @@ import GameIcon from "@/components/game/GameIcon.vue";
 import { tokenRejected } from "@/composables/useAccount";
 import { useLocale } from "@/composables/useLocale";
 import { useProfile } from "@/composables/useProfile";
-import { STAT_KEYS, achievementText, buildAchievementViews, formatPlayTime, mergeAchievementTexts, sortAchievements } from "@/game/achievements";
+import { STAT_KEYS, TIME_STATS, achievementText, buildAchievementViews, formatPlayTime, mergeAchievementTexts, sortAchievements } from "@/game/achievements";
 import { ACHIEVEMENT_TEXTS } from "@/game/achievementTexts";
 import { getText } from "@/helpers";
 
@@ -19,7 +19,7 @@ const unlockedCount = computed(() => views.value.filter((view) => view.unlocked)
 
 function statValue(key: string): string {
   const value = stats.value[key] ?? 0;
-  if (key !== "playSeconds") return String(value);
+  if (!TIME_STATS.includes(key)) return String(value);
   const { hours, minutes, seconds } = formatPlayTime(value);
   if (hours > 0) return getText({ key: "profile.time.hoursMinutes", params: { hours, minutes } });
   if (minutes > 0) return getText({ key: "profile.time.minutes", params: { minutes } });

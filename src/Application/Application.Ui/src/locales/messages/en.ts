@@ -286,6 +286,13 @@ export const messages = {
       bestScore: "Best score",
       longestSnake: "Longest snake",
       bestKillsInLife: "Most kills in one life",
+      shotsFired: "Shots fired",
+      shotsHit: "Shots that hit",
+      damageDealt: "Damage dealt",
+      segmentsBroken: "Segments broken off",
+      boostSeconds: "Time boosting",
+      longestLife: "Longest life",
+      bestFoodsInLife: "Most fruits in one life",
     },
   },
   perkEffects: {

@@ -2151,4 +2151,83 @@ public sealed class GameStateServiceTests
         Assert.True(removed);
         Assert.Empty(_state.Players);
     }
+
+    [Fact]
+    public async Task Shoot_AnAccountPlayer_CountsTheShotItFired()
+    {
+        var (service, reports) = Reporting();
+        var shooter = AddAccountPlayer(service, AccountA, "shooter", 500, 500, score: 5);
+
+        await service.Shoot(_state, _room, shooter);
+        await service.DisconnectPlayer(_room, shooter);
+
+        Assert.Equal(1, ReportOf(reports, AccountA).Counters[StatKeys.ShotsFired]);
+    }
+
+    [Fact]
+    public async Task CheckObstacleCollision_AShotOnTheBody_CountsAHitAndTheDamageForTheShooter_NotForTheTarget()
+    {
+        var (service, reports) = Reporting();
+        var target = AddAccountPlayer(service, AccountA, "target", 500, 500);
+        var shooter = AddAccountPlayer(service, AccountB, "shooter", 1500, 100);
+        AddShot(shooter, target.Path[2].X - 0.1, 500);
+
+        await service.CheckObstacleCollision(_state, target);
+        await service.DisconnectPlayer(_room, target);
+        await service.DisconnectPlayer(_room, shooter);
+
+        var dealt = ReportOf(reports, AccountB).Counters;
+        var suffered = ReportOf(reports, AccountA).Counters;
+        Assert.Equal(1, dealt[StatKeys.ShotsHit]);
+        Assert.True(dealt[StatKeys.DamageDealt] >= 1);
+        Assert.Equal(0, dealt[StatKeys.SegmentsBroken]);
+        Assert.Equal((0L, 0L), (suffered[StatKeys.ShotsHit], suffered[StatKeys.DamageDealt]));
+    }
+
+    [Fact]
+    public async Task CheckObstacleCollision_AHeadShot_CountsAHitWithoutDamage()
+    {
+        var (service, reports) = Reporting();
+        var target = AddAccountPlayer(service, AccountA, "target", 500, 500, length: 11, score: 5);
+        var shooter = AddAccountPlayer(service, AccountB, "shooter", 1500, 100);
+        AddShot(shooter, target.CurrentPosition.X, 500);
+
+        await service.CheckObstacleCollision(_state, target);
+        await service.DisconnectPlayer(_room, shooter);
+
+        var dealt = ReportOf(reports, AccountB).Counters;
+        Assert.Equal((1L, 0L), (dealt[StatKeys.ShotsHit], dealt[StatKeys.DamageDealt]));
+    }
+
+    [Fact]
+    public async Task CheckObstacleCollision_AShotThatBreaksASegmentOff_CountsItForTheShooter()
+    {
+        var (service, reports) = Reporting();
+        var target = AddPlayer("target", 500, 500, length: 8, score: 2);
+        target.SegmentHealth[2] = 0.05;
+        var shooter = AddAccountPlayer(service, AccountB, "shooter", 1500, 100);
+        AddShot(shooter, target.Path[2].X - 0.1, 500);
+
+        await service.CheckObstacleCollision(_state, target);
+        await service.DisconnectPlayer(_room, shooter);
+
+        Assert.Equal(1, ReportOf(reports, AccountB).Counters[StatKeys.SegmentsBroken]);
+    }
+
+    [Fact]
+    public async Task MovePlayer_Boosting_AddsTheTimeSpentBoosting_AndNotTheTimeNotBoosting()
+    {
+        var (service, reports) = Reporting();
+        var player = AddAccountPlayer(service, AccountA, "boost", 500, 500, score: 50);
+        player.IsBoosting = true;
+        foreach (var _ in Enumerable.Range(0, 60)) await service.MovePlayer(_state, player);
+        player.IsBoosting = false;
+        foreach (var _ in Enumerable.Range(0, 60)) await service.MovePlayer(_state, player);
+
+        await service.DisconnectPlayer(_room, player);
+
+        var seconds = ReportOf(reports, AccountA).Counters[StatKeys.BoostSeconds];
+        var expected = (long)(60 * _tickRate.TickRate.TotalSeconds);
+        Assert.Equal(expected, seconds);
+    }
 }
