@@ -58,6 +58,12 @@ async function signOut() {
   flex-direction: column;
   height: min(85vh, 760px);
 }
+/* The title, the tabs and the buttons keep their own height: left to flex they were squeezed whenever the content was tall, and the tabs came out cut short. */
+.profile-card :deep(.v-card-item),
+.profile-card :deep(.v-tabs),
+.profile-card :deep(.v-card-actions) {
+  flex: 0 0 auto;
+}
 .profile-body {
   flex: 1 1 auto;
   min-height: 0;
