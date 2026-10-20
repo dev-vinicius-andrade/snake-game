@@ -14,7 +14,26 @@ export const PERK_EFFECTS = [
   "Armor",
   "Regeneration",
   "Magnet",
+  "Precision",
+  "ExtraLife",
+  "EventResistance",
+  "Plunder",
+  "ShieldBurst",
+  "Dash",
+  "HealPulse",
+  "VacuumBurst",
 ] as const;
+
+/** The effects that are used on a key and then recharge, instead of working all the time. */
+export const ABILITY_EFFECTS: readonly string[] = ["ShieldBurst", "Dash", "HealPulse", "VacuumBurst"];
+
+/** The effects that need a duration besides the cooldown (a heal pulse is instant). */
+export const LASTING_ABILITY_EFFECTS: readonly string[] = ["ShieldBurst", "Dash", "VacuumBurst"];
+
+/** The world events a resistance can be limited to, as the server names them. */
+export const RESISTANCE_TARGETS = ["lightning", "meteors", "mines", "zone"] as const;
+
+export const isAbilityEffect = (effect: string): boolean => ABILITY_EFFECTS.includes(effect);
 
 const ICONS: Readonly<Record<string, string>> = {
   ExtraShots: "game-icons:arrow-cluster",
@@ -28,6 +47,14 @@ const ICONS: Readonly<Record<string, string>> = {
   Armor: "game-icons:checked-shield",
   Regeneration: "game-icons:health-increase",
   Magnet: "game-icons:magnet",
+  Precision: "game-icons:bullseye",
+  ExtraLife: "game-icons:heart-plus",
+  EventResistance: "game-icons:bolt-shield",
+  Plunder: "game-icons:money-stack",
+  ShieldBurst: "game-icons:energy-shield",
+  Dash: "game-icons:wingfoot",
+  HealPulse: "game-icons:healing",
+  VacuumBurst: "game-icons:vortex",
 };
 
 /** The icon of an effect; an effect this client does not know yet still gets one. */
@@ -47,18 +74,23 @@ interface IconSource {
 export const perkIconOf = (perk: IconSource): string => (perk.icon && ICON_NAME.test(perk.icon) ? perk.icon : perkIcon(perk.effects[0]?.effect ?? ""));
 
 /** Where the sentence that says what an effect does is kept in the language files. */
-export const perkTooltipKey = (effect: string): string => `perkEffects.${effect}.tooltip`;
+export const perkTooltipKey = (effect: string, target?: string | null): string =>
+  effect === "EventResistance" && target ? `perkEffects.${effect}.tooltipTarget` : `perkEffects.${effect}.tooltip`;
 
 interface PerkLike {
   effect: string;
   amount: number;
   foodsRequired: number;
+  /** For a cooldown ability: seconds to recharge, and seconds it lasts. */
+  cooldownSeconds?: number;
+  durationSeconds?: number;
 }
 
 const rounded = (value: number, decimals = 2) => Math.round(value * 10 ** decimals) / 10 ** decimals;
 
 /** The effects whose amount is a share, which the game never lets a tier push past this. */
-const RATIO_EFFECTS = ["FasterReload", "EfficientBoost", "Armor"];
+const RATIO_EFFECTS = ["FasterReload", "EfficientBoost", "Armor", "Precision", "EventResistance", "Plunder"];
+const MAX_EXTRA_LIVES = 5;
 const MAX_SCALED_RATIO = 0.95;
 
 /** The numbers a tooltip talks about: the amount, the same as a percent, the shots in a volley or burst, the foods needed. A tier scales the amount. */
@@ -69,6 +101,9 @@ export function perkParams(perk: PerkLike, multiplier = 1) {
     percent: Math.round(scaled * 100),
     count: Math.round(scaled) + 1,
     foods: perk.foodsRequired,
+    lives: Math.min(MAX_EXTRA_LIVES, Math.round(scaled)),
+    cooldown: perk.cooldownSeconds ?? 0,
+    duration: perk.durationSeconds ?? 0,
   };
 }
 

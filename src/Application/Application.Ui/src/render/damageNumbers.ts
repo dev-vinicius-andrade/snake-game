@@ -8,6 +8,7 @@ const RISE_WORLD_UNITS = 40;
 const DEALT_COLOR = "#ffd23f";
 const TAKEN_COLOR = "#ff5a5a";
 const OTHER_COLOR = "#ffffff";
+const SAVED_COLOR = "#6bff8a";
 
 /** A 3x5 pixel font: `#` is a lit pixel. Only what damage labels need. */
 const GLYPHS: Readonly<Record<string, readonly string[]>> = {
@@ -23,6 +24,8 @@ const GLYPHS: Readonly<Record<string, readonly string[]>> = {
   "9": ["###", "#.#", "###", "..#", "###"],
   "-": ["...", "...", "###", "...", "..."],
   K: ["#.#", "#.#", "##.", "#.#", "#.#"],
+  U: ["#.#", "#.#", "#.#", "#.#", "###"],
+  P: ["###", "#.#", "###", "#..", "#.."],
   O: ["###", "#.#", "#.#", "#.#", "###"],
 };
 
@@ -34,12 +37,14 @@ export const glyphFor = (character: string): readonly string[] => GLYPHS[charact
 /** The text of a damage number: the damage as a whole number, at least 1, or KO for a kill, or a minus and the mass lost. */
 export function damageLabel(damage: FloatingDamage): string {
   if (damage.kind === "kill") return "KO";
+  if (damage.kind === "saved") return "1UP";
   if (damage.kind === "lost") return `-${Math.max(1, Math.round(damage.damage))}`;
   return String(Math.max(1, Math.round(damage.damage)));
 }
 
 /** Gold for damage you dealt, red for damage you took, white for anyone else's. */
 export function damageColor(damage: FloatingDamage, selfGuid: string | null | undefined): string {
+  if (damage.kind === "saved") return SAVED_COLOR;
   if (damage.shooterGuid === selfGuid) return DEALT_COLOR;
   return damage.targetGuid === selfGuid ? TAKEN_COLOR : OTHER_COLOR;
 }

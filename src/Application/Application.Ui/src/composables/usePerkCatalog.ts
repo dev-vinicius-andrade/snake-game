@@ -5,6 +5,8 @@ import { resolveManagerUrl } from "@/config/env";
 export interface CatalogEffect {
   effect: string;
   amount: number;
+  /** For event resistance: the one event it is for. Left out: all of them. */
+  target?: string | null;
 }
 
 /** A step up of a perk: with this many foods everything the perk does is `multiplier` times its amounts. */
@@ -24,6 +26,10 @@ export interface CatalogPerk {
   icon?: string | null;
   /** A sentence that says what the perk does, for a perk whose effects are in a script. */
   description?: string | null;
+  /** Seconds a cooldown ability of the perk takes to recharge; left out or 0 for a perk that has none. */
+  cooldownSeconds?: number;
+  /** Seconds a shield burst, dash or vacuum burst lasts. */
+  durationSeconds?: number;
 }
 
 /** What the manager sends: a perk from before tiers has none. */

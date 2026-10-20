@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import en from "@/locales/messages/en";
 import pt from "@/locales/messages/pt";
-import { PERK_EFFECTS, PERK_ICON_CHOICES, perkIcon, perkIconOf, perkParams, perkTooltipKey, tierInfo, tierLabel } from "./perkInfo";
+import { ABILITY_EFFECTS, LASTING_ABILITY_EFFECTS, PERK_EFFECTS, PERK_ICON_CHOICES, RESISTANCE_TARGETS, isAbilityEffect, perkIcon, perkIconOf, perkParams, perkTooltipKey, tierInfo, tierLabel } from "./perkInfo";
 import { gameIconBody } from "./gameIcons";
 
 describe("perkInfo", () => {
@@ -65,6 +65,42 @@ describe("perkInfo", () => {
   it("rounds odd amounts so a tooltip stays readable", () => {
     expect(perkParams({ effect: "Armor", amount: 0.3333333, foodsRequired: 20 }).percent).toBe(33);
     expect(perkParams({ effect: "BoostSpeed", amount: 0.25000001, foodsRequired: 8 }).amount).toBe(0.25);
+  });
+});
+
+describe("perkInfo for rewards", () => {
+  it("knows the new effects and which of them are cooldown abilities", () => {
+    for (const effect of ["Precision", "ExtraLife", "EventResistance", "Plunder", "ShieldBurst", "Dash", "HealPulse", "VacuumBurst"])
+      expect(PERK_EFFECTS).toContain(effect);
+    expect(ABILITY_EFFECTS).toEqual(["ShieldBurst", "Dash", "HealPulse", "VacuumBurst"]);
+    expect(isAbilityEffect("Dash")).toBe(true);
+    expect(isAbilityEffect("Armor")).toBe(false);
+  });
+
+  it("asks for a duration of the abilities that last, and not of the heal pulse", () => {
+    expect(LASTING_ABILITY_EFFECTS).not.toContain("HealPulse");
+    expect(LASTING_ABILITY_EFFECTS).toContain("ShieldBurst");
+  });
+
+  it("points an event resistance with a target at its own sentence", () => {
+    expect(perkTooltipKey("EventResistance", "zone")).toBe("perkEffects.EventResistance.tooltipTarget");
+    expect(perkTooltipKey("EventResistance", null)).toBe("perkEffects.EventResistance.tooltip");
+    expect(perkTooltipKey("Armor", "zone")).toBe("perkEffects.Armor.tooltip");
+  });
+
+  it("has a sentence for each target in both languages", () => {
+    for (const messages of [en, pt]) {
+      expect((messages as any).perkEffects.EventResistance.tooltipTarget).toBeTruthy();
+      for (const target of RESISTANCE_TARGETS) expect((messages as any).game.events[target], target).toBeTruthy();
+    }
+  });
+
+  it("turns the new amounts into the numbers a tooltip talks about", () => {
+    expect(perkParams({ effect: "Precision", amount: 0.4, foodsRequired: 22 }).percent).toBe(40);
+    expect(perkParams({ effect: "ExtraLife", amount: 1, foodsRequired: 55 }, 2).lives).toBe(2);
+    expect(perkParams({ effect: "ExtraLife", amount: 1, foodsRequired: 55 }, 9).lives).toBe(5);
+    expect(perkParams({ effect: "Dash", amount: 0.8, foodsRequired: 18, cooldownSeconds: 15, durationSeconds: 2 })).toMatchObject({ percent: 80, cooldown: 15, duration: 2 });
+    expect(perkParams({ effect: "EventResistance", amount: 0.5, foodsRequired: 28 }, 5).percent).toBe(95);
   });
 });
 

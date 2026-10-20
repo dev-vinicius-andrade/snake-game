@@ -514,6 +514,31 @@ public sealed partial class GameStateServiceTests
     }
 
     [Fact]
+    public async Task UseAbility_AShieldBurst_MarksTheSnakeAsProtected_SoEveryoneCanSeeIt()
+    {
+        var service = WithPerks(Shield(duration: 3));
+        var player = AbilityUser(Shield());
+        await Refreshed(player, service);
+
+        service.UseAbilityByPlayerId("user");
+
+        Assert.Equal(_clock.GetUtcNow().AddSeconds(3), player.ProtectedUntil);
+    }
+
+    [Fact]
+    public async Task UseAbility_AShieldBurst_NeverCutsShortALongerProtection()
+    {
+        var service = WithPerks(Shield(duration: 3));
+        var player = AbilityUser(Shield());
+        await Refreshed(player, service);
+        player.ProtectedUntil = _clock.GetUtcNow().AddSeconds(10);
+
+        service.UseAbilityByPlayerId("user");
+
+        Assert.Equal(_clock.GetUtcNow().AddSeconds(10), player.ProtectedUntil);
+    }
+
+    [Fact]
     public async Task UseAbility_WhileRecharging_DoesNothing_AndWorksAgainWhenReady()
     {
         var service = WithPerks(Shield(cooldown: 30));

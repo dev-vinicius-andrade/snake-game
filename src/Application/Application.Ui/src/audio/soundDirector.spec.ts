@@ -92,6 +92,16 @@ describe("SoundDirector", () => {
     expect(watch(frame({ shots: [shot("a", "me")] }), frame({ shots: [shot("a", "me"), shot("c", "other")] }))).toEqual([]);
   });
 
+  it("plays ability when a cooldown perk of the own snake goes from ready to recharging, not while it recharges", () => {
+    const ready = frame({ snakes: [snake("me", 100, 100, { abilities: [{ id: "dash", readyMs: 0, activeMs: 0 }] })] });
+    const used = frame({ snakes: [snake("me", 100, 100, { abilities: [{ id: "dash", readyMs: 15000, activeMs: 2000 }] })] });
+    const recharging = frame({ snakes: [snake("me", 100, 100, { abilities: [{ id: "dash", readyMs: 12000, activeMs: 0 }] })] });
+
+    expect(watch(ready, used)).toEqual(["ability"]);
+    expect(watch(used, recharging)).toEqual([]);
+    expect(watch(recharging, ready)).toEqual([]);
+  });
+
   it("plays boost when the own snake starts boosting, not while it goes on", () => {
     const boosting = frame({ snakes: [snake("me", 100, 100, { isBoosting: true })] });
     expect(watch(frame(), boosting)).toEqual(["boost"]);
@@ -156,6 +166,10 @@ describe("SoundDirector", () => {
       director.observe(frame(), "me");
       director.damage([hit({ kind: "hit" }), hit({ kind: "lost", shooterGuid: "" }), hit({ kind: "broke" })], "me");
       expect(engine.take()).toEqual(["hurt", "hurt", "broke"]);
+    });
+    it("plays saved when an extra life saves the own snake", () => {
+      director.damage([hit({ kind: "saved", shooterGuid: "", damage: 1 })], "me");
+      expect(engine.take()).toEqual(["saved"]);
     });
     it("plays hit when the own shot lands, kill when it kills", () => {
       director.damage([hit({ shooterGuid: "me", targetGuid: "other", kind: "hit" }), hit({ shooterGuid: "me", targetGuid: "other", kind: "kill" })], "me");

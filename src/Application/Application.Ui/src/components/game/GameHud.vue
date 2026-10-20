@@ -49,6 +49,7 @@ const controls = computed(() => [
   getText({ key: "game.controls.move" }),
   getText({ key: "game.controls.shoot" }),
   getText({ key: "game.controls.boost" }),
+  getText({ key: "game.controls.ability" }),
 ]);
 </script>
 

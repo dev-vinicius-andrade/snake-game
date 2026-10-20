@@ -1,4 +1,5 @@
 import type {
+  AbilitySnapshot,
   FoodSnapshot,
   GameColor,
   GamePoint,
@@ -68,6 +69,18 @@ function parseTiers(raw: unknown, count: number): number[] {
   });
 }
 
+/** The cooldown perks: one per perk id, with the times that are not a whole number of milliseconds from zero up made safe. */
+function parseAbilities(raw: unknown): AbilitySnapshot[] | undefined {
+  const abilities = asList(raw)
+    .filter(isDictionary)
+    .flatMap((entry) =>
+      typeof entry.id === "string"
+        ? [{ id: entry.id, readyMs: isFinite(entry.r) ? Math.max(0, entry.r) : 0, activeMs: isFinite(entry.a) ? Math.max(0, entry.a) : 0 }]
+        : []
+    );
+  return abilities.length > 0 ? abilities : undefined;
+}
+
 function parseSnake(player: unknown): SnakeSnapshot | null {
   if (!isDictionary(player)) return null;
   const path = parsePath(player.path);
@@ -89,6 +102,9 @@ function parseSnake(player: unknown): SnakeSnapshot | null {
     score: isFinite(player.score) ? player.score : 0,
     color: parseSingleColor(player.color),
     direction: parseDirection(player.direction),
+    lives: isFinite(player.lives) && player.lives > 0 ? Math.floor(player.lives) : 0,
+    protectedMs: isFinite(player.prot) && player.prot > 0 ? player.prot : 0,
+    abilities: parseAbilities(player.ab),
   };
 }
 

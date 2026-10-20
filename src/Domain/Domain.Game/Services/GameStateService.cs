@@ -227,6 +227,8 @@ public class GameStateService : IGameStateService
             var first = perk.First();
             player.Abilities[perk.Key] = new AbilityTimer(now.AddMilliseconds(first.CooldownMilliseconds), now.AddMilliseconds(first.DurationMilliseconds));
             foreach (var spec in perk.Where(spec => spec.Effect == PerkEffect.HealPulse)) HealByPulse(player, spec.Amount);
+            if (perk.Any(spec => spec.Effect == PerkEffect.ShieldBurst))
+                player.ProtectedUntil = new[] { player.ProtectedUntil ?? now, now.AddMilliseconds(first.DurationMilliseconds) }.Max();
             used = true;
         }
         return used;

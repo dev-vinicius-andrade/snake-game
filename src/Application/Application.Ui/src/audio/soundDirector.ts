@@ -10,6 +10,10 @@ const PRIZE_REACH = 3 * DEFAULT_HEAD_SIZE;
 const livingOwn = (snapshot: GameSnapshot, selfGuid: string): SnakeSnapshot | undefined =>
   snapshot.snakes.find((snake) => snake.guid === selfGuid && snake.isAlive);
 
+/** A cooldown perk the snake could use before and has to wait for now was used in between. */
+const abilityUsed = (before: SnakeSnapshot, after: SnakeSnapshot): boolean =>
+  (after.abilities ?? []).some((ability) => ability.readyMs > 0 && (before.abilities ?? []).some((was) => was.id === ability.id && was.readyMs <= 0));
+
 /** Whether a point (world units) lies within the grid of the maze. */
 function insideMaze(maze: MazeSnapshot, point: GamePoint): boolean {
   const blocks = (cells: number) => (cells * (maze.corridor + 1) + 1) * maze.unit;
@@ -61,6 +65,7 @@ export class SoundDirector {
     if (selfGuid && event.targetGuid === selfGuid) {
       // The kill that ends the own snake is the death sound's business.
       if (event.kind === "kill") return null;
+      if (event.kind === "saved") return "saved";
       return event.kind === "broke" ? "broke" : "hurt";
     }
     if (selfGuid && event.shooterGuid === selfGuid) {
@@ -84,6 +89,7 @@ export class SoundDirector {
     const known = new Set(before.shots.map((shot) => shot.guid));
     if (after.shots.some((shot) => shot.ownerGuid === selfGuid && !known.has(shot.guid))) sounds.push("shoot");
     if (own.isBoosting && !wasOwn.isBoosting) sounds.push("boost");
+    if (abilityUsed(wasOwn, own)) sounds.push("ability");
     return sounds;
   }
 

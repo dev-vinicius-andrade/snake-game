@@ -46,7 +46,7 @@ const playerStore = usePlayerStore();
 const game = useGameConnection({ pingIntervalMs: 2000 });
 /** Own snake, read from the latest snapshot; the session asks whether the auto fire perk is on. */
 const ownAutoFire = () => !!game.snapshot.value?.snakes.find((snake) => snake.guid === game.self.value?.guid)?.autoFire;
-const session = useSnakeSession({ joiner: useManagerJoin(), game, autoFire: ownAutoFire });
+const session = useSnakeSession({ joiner: useManagerJoin(), game, autoFire: ownAutoFire, autoAbilities: () => eye.phase.value === "active" });
 
 const toasts = useAchievementToasts({ events: game.unlocked });
 const sounds = useGameSounds({ snapshot: game.snapshot, damage: game.damage, death: game.death, selfGuid: () => game.self.value?.guid });
@@ -98,6 +98,12 @@ const eye = useEyeControl({
   onIntent: session.handleIntent,
   canSteer: session.allowsGazeSteer,
 });
+
+// Eye and face control have no spare gesture for cooldown perks: while they steer, the server uses them by itself when they would help.
+watch(
+  () => eye.phase.value === "active",
+  (active) => session.setAutoAbilities(active)
+);
 
 /** Mouse aim and eye control both steer, so only one of them can be on. */
 function toggleMouseAim() {
@@ -180,7 +186,13 @@ onBeforeUnmount(() => {
         <AchievementToast :id="toasts.current.value" />
       </template>
     </GameHud>
-    <PerkList :perks="ownSnake?.perks ?? []" :tiers="ownSnake?.perkTiers" :catalog="perkCatalog.perks.value" />
+    <PerkList
+      :perks="ownSnake?.perks ?? []"
+      :tiers="ownSnake?.perkTiers"
+      :catalog="perkCatalog.perks.value"
+      :abilities="ownSnake?.abilities"
+      :lives="ownSnake?.lives"
+    />
     <PrizeHint :compass="compass" />
     <StrikeHint :warning="strikes" />
     <BossHint :compass="boss" />
@@ -188,7 +200,7 @@ onBeforeUnmount(() => {
     <BountyHint :warning="bounty" />
     <MazeHint :warning="maze" />
     <TimedEventHint :events="timed" />
-    <TouchControls v-if="session.phase.value === 'playing'" @intent="session.handleIntent" />
+    <TouchControls v-if="session.phase.value === 'playing'" :abilities="(ownSnake?.abilities?.length ?? 0) > 0" @intent="session.handleIntent" />
     <EyeControlPanel
       v-if="showDetails || eye.phase.value === 'error'"
       :phase="eye.phase.value"

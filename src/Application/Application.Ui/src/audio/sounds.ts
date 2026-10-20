@@ -21,6 +21,8 @@ export const SOUND_IDS = [
   "mazeEnter",
   "mazeWall",
   "mazePrize",
+  "saved",
+  "ability",
 ] as const;
 
 export type SoundId = (typeof SOUND_IDS)[number];
@@ -67,6 +69,8 @@ export const SOUNDS: Record<SoundId, Note[]> = {
   mazeOpen: [tone(0, 0.3, "triangle", 110, 220, 0.3), tone(0.3, 0.4, "triangle", 220, 330, 0.3)],
   mazeEnter: arpeggio([262, 330, 392], 0.09, "triangle", 0.25),
   mazeWall: [tone(0, 0.07, "square", 150, 100, 0.25), tone(0, 0.05, "noise", 0, undefined, 0.12)],
+  saved: [...arpeggio([392, 523, 659, 784, 1047], 0.06, "triangle", 0.3), tone(0.3, 0.35, "square", 1047, 1568, 0.22)],
+  ability: [tone(0, 0.1, "square", 330, 660, 0.2), tone(0.08, 0.16, "triangle", 660, 990, 0.22)],
   mazePrize: [...arpeggio([523, 659, 784, 1047, 784, 1047, 1319], 0.08, "square", 0.25), tone(0.56, 0.5, "triangle", 1319, undefined, 0.2)],
 };
 

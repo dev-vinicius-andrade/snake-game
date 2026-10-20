@@ -83,7 +83,7 @@ describe("useKeyboardControls", () => {
 
     expect(target.key("keydown", "ArrowDown").preventDefault).toHaveBeenCalled();
     expect(target.key("keydown", "Space").preventDefault).toHaveBeenCalled();
-    expect(target.key("keydown", "KeyQ").preventDefault).not.toHaveBeenCalled();
+    expect(target.key("keydown", "KeyZ").preventDefault).not.toHaveBeenCalled();
   });
 
   it("ignores auto repeat shots", () => {

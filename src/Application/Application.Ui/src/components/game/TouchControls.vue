@@ -7,6 +7,11 @@ import { endStick, moveStick, startStick, type StickState } from "@/input/touchS
 
 const emit = defineEmits<{ (event: "intent", intent: ControlIntent): void }>();
 
+defineProps<{
+  /** The snake has a cooldown perk: a button for it is shown. */
+  abilities?: boolean;
+}>();
+
 /** Shown on phones and tablets; a mouse or keyboard has its own controls. */
 const isTouch = useMediaQuery("(pointer: coarse)");
 
@@ -51,6 +56,10 @@ function shootUp() {
   emit("intent", { type: "shootRelease" });
 }
 
+function ability() {
+  emit("intent", { type: "ability" });
+}
+
 function boosting(active: boolean) {
   emit("intent", { type: "boost", active });
 }
@@ -89,6 +98,9 @@ function boosting(active: boolean) {
         @contextmenu.prevent
       >
         {{ getText({ key: "game.touch.boost" }) }}
+      </button>
+      <button v-if="abilities" type="button" class="touch-button" @pointerdown.prevent="ability" @contextmenu.prevent>
+        {{ getText({ key: "game.touch.ability" }) }}
       </button>
     </div>
   </div>

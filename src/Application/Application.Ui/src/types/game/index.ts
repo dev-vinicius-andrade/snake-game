@@ -39,6 +39,19 @@ export interface SnakeSnapshot {
   score: number;
   color: GameColor;
   direction: SnakeDirection;
+  /** Extra lives the snake can still be saved with. Left out: none. */
+  lives?: number;
+  /** Milliseconds left of the protection after an extra life or a shield burst, when the snapshot was sent. Left out or 0: none. */
+  protectedMs?: number;
+  /** The cooldown perks of the snake. Left out: none. */
+  abilities?: AbilitySnapshot[];
+}
+
+/** A cooldown perk of a snake: the perk id, the milliseconds until it can be used again (0: ready) and until its effect ends (0: off). */
+export interface AbilitySnapshot {
+  id: string;
+  readyMs: number;
+  activeMs: number;
 }
 
 export type FoodKind = "normal" | "prize";
@@ -143,8 +156,8 @@ export interface MazeSnapshot {
   msLeft: number;
 }
 
-/** `lost` is not a shot: the own snake lost mass to lightning, a meteor or the zone, at its head. */
-export type DamageKind = "hit" | "broke" | "kill" | "lost";
+/** `lost` is not a shot: the own snake lost mass to lightning, a meteor or the zone, at its head. `saved`: an extra life saved the snake; `damage` is the lives it has left. */
+export type DamageKind = "hit" | "broke" | "kill" | "lost" | "saved";
 
 /** A shot did damage: sent to the shooter and to the snake that was hit. */
 export interface DamageEvent {

@@ -483,6 +483,23 @@ function eyeOffsets(facing: Facing, pixels: number): Array<[number, number]> {
   }
 }
 
+const SHIELD_COLOR = "#7fe9ff";
+const SHIELD_BLINK_MS = 160;
+
+/** A ring of pixels one pixel out from the head, blinking, for a snake nothing can hurt for the moment. */
+export function drawShield(painter: Painter, head: GamePoint, segmentPixels: number, timeMs: number) {
+  if (Math.floor(timeMs / SHIELD_BLINK_MS) % 2 === 1) return;
+  const last = segmentPixels;
+  for (let offset = -1; offset <= last; offset++) {
+    painter.pixel(SHIELD_COLOR, head, segmentPixels, offset, -1);
+    painter.pixel(SHIELD_COLOR, head, segmentPixels, offset, last);
+    if (offset >= 0 && offset < last) {
+      painter.pixel(SHIELD_COLOR, head, segmentPixels, -1, offset);
+      painter.pixel(SHIELD_COLOR, head, segmentPixels, last, offset);
+    }
+  }
+}
+
 /** Every other segment, counting from the head, is a little darker: a straight snake shows its segments instead of looking like a bar. */
 const ALTERNATE_SHADE = 0.82;
 
@@ -537,6 +554,9 @@ export function drawFrame(ctx: PixelContext, snapshot: GameSnapshot, options: Re
   const others = living.filter((snake) => snake.guid !== options.selfGuid);
   const own = living.filter((snake) => snake.guid === options.selfGuid);
   [...others, ...own].forEach((snake) => drawSnake(painter, snake, segmentPixels, damageTint, snapshot.room));
+  living.filter((snake) => (snake.protectedMs ?? 0) > 0 && snake.path.length > 0).forEach((snake) =>
+    drawShield(painter, snake.path[snake.path.length - 1], segmentPixels, options.timeMs ?? 0)
+  );
   const wanted = wantedSnake(snapshot);
   if (wanted) drawBountyMark(painter, wanted.head, segmentPixels, pixelSize, options.timeMs ?? 0);
   if (options.strikes) drawStrikeFlash(painter, options.strikes, pixelSize);

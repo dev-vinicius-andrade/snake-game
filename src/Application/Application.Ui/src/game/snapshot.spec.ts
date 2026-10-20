@@ -36,6 +36,8 @@ describe("parseSnapshot", () => {
       score: 7,
       color: { fillColor: "#ff0000", border: "#ff0000" },
       direction: "right",
+      lives: 0,
+      protectedMs: 0,
     });
   });
 
@@ -283,6 +285,31 @@ describe("parseSnapshot", () => {
     raw.foods.push({ x: 11, y: 20, c: "#00ff00" });
 
     expect(new Set(parseSnapshot(raw)!.foods.map((food) => food.guid)).size).toBe(2);
+  });
+
+  it("reads the lives, the protection and the cooldown perks of a snake", () => {
+    const raw = clone(fixture) as any;
+    raw.snakes[0].lives = 2;
+    raw.snakes[0].prot = 1500;
+    raw.snakes[0].ab = [{ id: "shield", r: 12000, a: 2000 }, { id: "dash" }, { r: 5 }, { id: "bad", r: -3, a: "x" }];
+
+    const snake = parseSnapshot(raw)!.snakes[0];
+
+    expect(snake.lives).toBe(2);
+    expect(snake.protectedMs).toBe(1500);
+    expect(snake.abilities).toEqual([
+      { id: "shield", readyMs: 12000, activeMs: 2000 },
+      { id: "dash", readyMs: 0, activeMs: 0 },
+      { id: "bad", readyMs: 0, activeMs: 0 },
+    ]);
+  });
+
+  it("reads a snake without lives, protection or cooldown perks as having none", () => {
+    const snake = parseSnapshot(clone(fixture))!.snakes[0];
+
+    expect(snake.lives).toBe(0);
+    expect(snake.protectedMs).toBe(0);
+    expect(snake.abilities).toBeUndefined();
   });
 
   it("reads the perks, foods eaten and auto fire of a snake", () => {

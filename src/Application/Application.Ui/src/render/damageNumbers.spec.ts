@@ -34,6 +34,20 @@ describe("damageLabel", () => {
   });
 });
 
+describe("a life that saved the snake", () => {
+  it("shows 1UP in green, for whoever sees it", () => {
+    const saved = hit({ kind: "saved", damage: 0 });
+
+    expect(damageLabel(saved)).toBe("1UP");
+    expect(damageColor(saved, "me")).toBe("#6bff8a");
+    expect(damageColor(saved, "someone")).toBe("#6bff8a");
+  });
+
+  it("can draw every letter of it", () => {
+    for (const character of "1UP") expect(glyphFor(character).length, character).toBe(5);
+  });
+});
+
 describe("damageColor for a loss", () => {
   it("is the colour of damage taken, for the snake that lost it", () => {
     expect(damageColor(hit({ kind: "lost", shooterGuid: "00000000-0000-0000-0000-000000000000", targetGuid: "me" }), "me")).toBe(
