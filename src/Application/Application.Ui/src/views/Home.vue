@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { openProfile } from "@/composables/useProfileModal";
 import { computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import LanguageSwitcher from "@/components/brand/LanguageSwitcher.vue";
@@ -42,7 +43,7 @@ function playNow() {
         <div class="text-caption">{{ getText({ key: "profile.playingAs" }) }}</div>
         <div class="text-h6" data-test="account-display">{{ accounts.account.value?.displayName }}</div>
         <div class="signed-in-actions">
-          <RouterLink :to="{ name: 'profile' }" data-test="profile-link">{{ getText({ key: "profile.link" }) }}</RouterLink>
+          <button type="button" class="link-button" data-test="profile-link" @click="openProfile()">{{ getText({ key: "profile.link" }) }}</button>
           <button type="button" class="link-button" data-test="sign-out" @click="accounts.logout()">
             {{ getText({ key: "account.signOut" }) }}
           </button>

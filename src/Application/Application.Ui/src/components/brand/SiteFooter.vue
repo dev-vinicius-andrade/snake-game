@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import { RouterLink } from "vue-router";
+import ProfileButton from "@/components/account/ProfileButton.vue";
 import { REPOSITORY_URL } from "@/config/links";
+import { hasAccountToken } from "@/composables/useAccount";
 import { getText } from "@/helpers";
 </script>
 
 <template>
   <footer class="footer">
+    <template v-if="hasAccountToken">
+      <ProfileButton variant="link" />
+      <span aria-hidden="true">·</span>
+    </template>
     <RouterLink :to="{ name: 'about' }">{{ getText({ key: "footer.about" }) }}</RouterLink>
     <span aria-hidden="true">·</span>
     <RouterLink :to="{ name: 'terms' }" data-test="footer-terms">{{ getText({ key: "footer.terms" }) }}</RouterLink>

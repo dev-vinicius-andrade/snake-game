@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ProfileButton from "@/components/account/ProfileButton.vue";
 import { computed } from "vue";
 import { useConfirmClick } from "@/composables/useConfirmClick";
 import { getText } from "@/helpers";
@@ -49,6 +50,7 @@ const controls = computed(() => [
   <!-- Top left: the player panel, and under it whatever the screen adds (the invite of a private room), so they never overlap. -->
   <div class="hud-left">
     <section class="hud-panel hud-player">
+      <ProfileButton variant="icon" class="hud-profile" />
       <div class="hud-name">{{ nickname }}</div>
       <div class="hud-score">{{ getText({ key: "game.score" }) }}: {{ score }}</div>
       <div v-if="ping !== null" class="hud-ping" :class="pingClass">{{ getText({ key: "game.ping" }) }} {{ ping }} ms</div>
@@ -124,6 +126,15 @@ const controls = computed(() => [
 }
 .hud-left .hud-panel {
   position: static;
+}
+.hud-player {
+  position: relative !important;
+  padding-right: 44px;
+}
+.hud-profile {
+  position: absolute;
+  top: 6px;
+  right: 6px;
 }
 .hud-right {
   position: fixed;

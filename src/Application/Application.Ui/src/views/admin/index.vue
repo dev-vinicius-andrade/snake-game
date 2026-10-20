@@ -5,6 +5,7 @@ import GameplayEditor from "@/components/admin/GameplayEditor.vue";
 import RoomGameplayDialog from "@/components/admin/RoomGameplayDialog.vue";
 import RoomPerksDialog from "@/components/admin/RoomPerksDialog.vue";
 import ForbiddenPage from "@/components/ForbiddenPage.vue";
+import { openProfile } from "@/composables/useProfileModal";
 import { adminAccess } from "@/composables/adminAccess";
 import { useAccount } from "@/composables/useAccount";
 import { useAdminGameplay } from "@/composables/useAdminGameplay";
@@ -139,6 +140,7 @@ onMounted(async () => {
 
           <VCardActions v-if="signedIn">
             <VBtn @click="admin.refresh">{{ getText({ key: "admin.refresh" }) }}</VBtn>
+            <VBtn data-test="admin-profile" @click="openProfile()">{{ getText({ key: "profile.link" }) }}</VBtn>
             <VSpacer />
             <VBtn @click="admin.signOut">{{ getText({ key: "admin.signOut" }) }}</VBtn>
           </VCardActions>
