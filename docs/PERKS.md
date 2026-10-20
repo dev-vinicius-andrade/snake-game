@@ -44,8 +44,8 @@ the one before and multiplies everything the perk does by its `multiplier`, coun
 
 - A snake is at the highest tier whose foods it has reached. A perk it was given (by a prize or the turret) with few foods is at tier I.
 - **Foods are not only food.** What a snake has done counts as foods toward perks and so toward tiers: eating, a prize's `foodsCredit`,
-  **killing another snake** (`killFoodsCredit` on the perks, 3 by default) and **bringing the turret down** (`foodsCredit` on the turret,
-  15 by default). A kill or a boss can therefore lift a perk to the next tier.
+  **killing another snake** (`killFoodsCredit` on the perks, 3 by default), **bringing the turret down** (`foodsCredit` on the turret,
+  15 by default) and **killing the wanted snake of a bounty** (`foodsCredit` on the bounty, 10 by default, on top of the kill credit). A kill or a boss can therefore lift a perk to the next tier.
 - Everything with an amount scales: radius, speed, regeneration, shots (rounded to whole shots). Switches (auto fire, piercing) have
   no strength, so tiers do not change them. A share (armor, quick reload, deep lungs) never goes past 95 % however high the tier.
 - Scripted perks are not scaled; they decide for themselves.

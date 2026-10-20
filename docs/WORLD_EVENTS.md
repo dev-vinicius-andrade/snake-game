@@ -1,11 +1,12 @@
 # World events
 
-Things that happen to a whole room now and then, apart from what the snakes do. There are four:
+Things that happen to a whole room now and then, apart from what the snakes do. There are eight:
 
 - **Lightning storm**: a burst of small strikes over a few seconds.
 - **Meteor rain**: a shower of big, slow meteors over a few seconds. Lightning and meteors share one engine.
 - **Turret boss**: a mini boss that sits in the room firing volleys until snakes shoot it down. It has its own state and runner.
 - **Shrinking safe zone**: a circle that closes in on the room; snakes outside it lose mass and die. It has its own state and runner.
+- **Fruit shower**, **bounty**, **mine field** and **sugar rush**: see [below](#fruit-shower-bounty-mine-field-and-sugar-rush).
 
 The next ones (earthquakes that open fissures, procedurally generated challenge paths) are to be added beside them; see
 [Adding the next event](#adding-the-next-event).
@@ -87,6 +88,60 @@ The client draws the dashed final circle, the ring, the danger tint and a banner
 zone is closing: stay inside", "Stay inside the circle"). While the own snake is outside the banner turns red, says it is losing mass,
 and the edges of the screen glow red.
 
+## Fruit shower, bounty, mine field and sugar rush
+
+Four more events, all timed by one pure scheduler (`EventSchedule`) and run alike (`ScheduledEventRunner`). Each comes every
+`minIntervalSeconds` to `maxIntervalSeconds` in a room with at least `minPlayers` players, has `rooms` and `excludedRooms` like the
+others, and can be started by an administrator on request (`fruitshower`, `bounty`, `mines`, `sugarrush`; the number of players is
+ignored then). They have no calm/wild room choice yet: a room can only leave them out with `excludedRooms`.
+
+- **Fruit shower** (a good thing). For `durationSeconds` (20) fruit falls at random spots, `fruitsPerSecond` (8) of it, through the
+  food generator (`IGameStateService.GenerateFood`), so it is ordinary food that stays until eaten. It ignores the room's food limit.
+  A frame never pours more than one second of fruit, so a stall does not flood the room. Banner: "Fruit shower!".
+- **Bounty.** One random living snake is marked wanted for `durationSeconds` (90). A marker over its head, in every player's snapshot,
+  shows it, with a banner saying who it is and the reward. **Killing it** (a head shot, or it running into the killer's body) pays the
+  killer `rewardMass` (150) mass at once and `foodsCredit` (10) foods toward its perks, and takes the mark off. The mark also ends when
+  the snake dies some other way (a strike, the zone), leaves, or the time is up; the next bounty is scheduled from then. Killing
+  someone else, or the wanted snake killing itself, pays nothing. It needs `minPlayers` (3) so there is someone to hunt it.
+- **Mine field.** A field puts `minMines` to `maxMines` (6 to 14) mines at random spots. Each is shown at once and is **armed** after
+  `armMilliseconds` (2000), then **stays until a snake's head comes within `triggerRadius` (20) of it**. The field itself is over at
+  once but its mines are not, so fields add up, at most 40 on the map (`WorldEventRules.MaxActiveMines`). Going off is like a strike
+  with `radius` (60): every body segment of every snake in the blast breaks off and falls as a pellet (the head is never killed, and a
+  snake never loses body below its starting length), and the snakes that lost mass see `-N`. An invulnerable snake neither sets one off
+  nor is hurt. Mines vanish when the event is switched off or the room empties.
+- **Sugar rush.** For `durationSeconds` (30) **boosting costs no mass** for every snake in the room, even one with none left
+  (`IGameState.SugarRushEndsAt`, read by `GameStateService.MovePlayer`; `BoostRules.Step(free: true)`). Banner: "Sugar rush!".
+
+```jsonc
+"fruitShower": { "enabled": true, "minIntervalSeconds": 180, "maxIntervalSeconds": 420,
+                 "durationSeconds": 20,                   // 1 to 60
+                 "fruitsPerSecond": 8,                    // 1 to 30
+                 "minPlayers": 1, "rooms": [], "excludedRooms": [] },
+"bounty":      { "enabled": true, "minIntervalSeconds": 240, "maxIntervalSeconds": 600,
+                 "durationSeconds": 90,                   // 5 to 3600
+                 "rewardMass": 150,                       // 0 to 10000
+                 "foodsCredit": 10,                       // 0 to 1000
+                 "minPlayers": 3, "rooms": [], "excludedRooms": [] },
+"mines":       { "enabled": true, "minIntervalSeconds": 150, "maxIntervalSeconds": 360,
+                 "minMines": 6, "maxMines": 14,           // 1 to 40
+                 "radius": 60,                            // blast, 1 to 1000
+                 "triggerRadius": 20,                     // how close a head must come, 1 to 200
+                 "armMilliseconds": 2000,                 // 0 to 60000
+                 "minPlayers": 1, "rooms": [], "excludedRooms": [] },
+"sugarRush":   { "enabled": true, "minIntervalSeconds": 240, "maxIntervalSeconds": 600,
+                 "durationSeconds": 30,                   // 1 to 600
+                 "minPlayers": 1, "rooms": [], "excludedRooms": [] }
+```
+
+A saved config from before these events has none of the four sections: it gets their defaults, switched on. In the database each has
+its own table (`world_event_fruit_shower`, `world_event_bounty`, `world_event_mine_field`, `world_event_sugar_rush`, see
+[DATABASE.md](DATABASE.md)), and the migration that adds them also writes the default row for each, so a database that already has a
+saved config starts running them with the defaults; a config read from a database with no row for one of them gets its defaults too.
+
+On the wire, in the snapshot (all left out while idle): `mines: [{ x, y, r, t }]` (spot, blast radius, milliseconds until armed, 0 once
+armed; a mine that disappears from the newest snapshot was set off, which the client shows as an explosion), `bounty: { guid, t, m }`
+(the wanted snake's guid in `snakes`, milliseconds left, reward mass), `shower: ms` and `rush: ms` (milliseconds left).
+
 ## What a strike costs, and how it is felt
 
 - **A splash on the body.** When a strike falls, every segment of every snake that was inside it throws bits off: white and yellow
@@ -129,7 +184,7 @@ the game server, which applies them at once.
 ```
 POST /rooms                          { id, name?, maxPlayers, gameplay?: { turret: "off", lightning: "wild", ... } }   (host)
 PUT  /admin/rooms/{id}/gameplay      { turret: "off", ... }                              (admin key; only what differs from the default)
-POST /admin/rooms/{id}/events/{kind}  kind: lightning | meteors | turret | zone         (admin key; 204, 409 not now, 404, 502)
+POST /admin/rooms/{id}/events/{kind}  kind: lightning | meteors | turret | zone | fruitshower | bounty | mines | sugarrush         (admin key; 204, 409 not now, 404, 502)
 ```
 
 ## Settings
@@ -246,6 +301,10 @@ makes it a storm. A config without `meteors`, `turret` or `zone` gets their defa
 | `ZoneHint.vue` | `components/game` | The banner for the zone, and the red glow while the own snake is outside. |
 | `BossHint.vue` | `components/game` | The banner for the boss: an arrow to it, its hit points and the distance. |
 | `StrikeHint.vue` | `components/game` | The banner: "Lightning incoming!", "Meteors incoming!", or "... Get out of the circle!" when the own head is inside one. |
+| `FruitShowerOptions`, `BountyOptions`, `MineFieldOptions`, `SugarRushOptions`, `IScheduledEvent` | `Domain.Game/Rules/ScheduledEventOptions.cs` | The settings of the four newer events; validated in `WorldEventRules` (`MaxActiveMines` is 40). |
+| `EventSchedule`, `EventWindow` | `Domain.Game/Rules/EventSchedule.cs` | Pure timing shared by them: wait, begin (for a duration, or at once), end. Clock and random numbers are passed in. |
+| `ScheduledEventRunner`, `FruitShowerRunner`, `BountyRunner`, `MineFieldRunner`, `SugarRushRunner` | `Domain.Game/Services` | Per room, from the game loop every frame: begin, tick, clear (also when the room empties or the event is switched off), and `Trigger`. They keep what the clients must see in `IGameState` (`Mines`, `Bounty`, `FruitShowerEndsAt`, `SugarRushEndsAt`). |
+| `GameStateService.ResolveMines`, `PayBounty`, free boost in `MovePlayer` | `Domain.Game/Services/GameStateService.cs` | What a mine does when touched, what killing the wanted snake pays (from `RegisterKill`), and boosting for free during a sugar rush. |
 | `WorldEventsEditor.vue` | `components/admin` | The admin form, one card per event. Props: `{ gameplay: ReturnType<typeof useAdminGameplay> }`. |
 
 ### Why the game loop, not the 1 s food worker
