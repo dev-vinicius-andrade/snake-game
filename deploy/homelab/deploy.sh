@@ -20,8 +20,15 @@
 #   FORCE_BUILD=1  Rebuild every image even when the registry already has its tag.
 #   SKIP_BUILD=1   Build nothing; the images must already be in the registry under their tags.
 #
-# Only what changed is built: each image is tagged src-<hash> of the files it is built from (working tree included).
+# Only what changed is built: each image is built under src-<hash> of the files it is built from (working tree included).
 # An image whose tag is already in the registry is not rebuilt and its pods are not restarted.
+#
+# Tags in the registry: every image that is deployed is tagged with the release, vMAJOR.MINOR.PATCH (v1.0.7), and with latest.
+#   VERSION        The release, with or without the v (the CI passes the one of the git tag). Left out, a run that built something
+#                  works out the next one: the patch after the highest vX.Y.Z among the git tags and (with podman, which can list
+#                  tags) the tags of the registry, or v1.0.0 for the first. A run that built nothing makes no version.
+#   The pods keep running the src-<hash> tag, so a release that did not change an image does not restart it; the workloads carry
+#   the release as the label app.kubernetes.io/version. To mark a commit in git too: git tag -a v1.0.7 -m "Release 1.0.7".
 #
 # Settings can live in deploy/homelab/.env (copy .env.example; not committed) as KEY=value lines, or in the file named by
 # ENV_FILE. A variable already set in the environment wins over the file.
@@ -53,8 +60,11 @@ load_env_file "${ENV_FILE:-$HERE/.env}"
 CONTEXT="${KUBE_CONTEXT:-home-lab-main}"
 # Builds and pushes with podman, or with docker where there is no podman (CONTAINER_TOOL overrides).
 CONTAINER_TOOL=${CONTAINER_TOOL:-$(command -v podman >/dev/null 2>&1 && echo podman || echo docker)}
-# The release being deployed, such as 1.4.2. Optional. Images also get it as a tag and the workloads as a label.
+# The release being deployed, such as 1.4.2 (a leading v is allowed). Images get it as the tag v1.4.2 and the workloads as a label.
+# Left out, a run that builds something works out the next one (see below).
 VERSION=${VERSION:-}
+VERSION=${VERSION#v}
+BUILT=0
 NS=home-apps
 INFRA_NS=infrastructure
 REPO=$(cd "$HERE/../.." && pwd)
@@ -167,16 +177,30 @@ build_push() { # name tag dockerfile context [podman build args...]
   fi
   "$CONTAINER_TOOL" build --network host -q -t "$image" -f "$dockerfile" "$@" "$context" | tail -1
   push "$image"
+  BUILT=1
 }
 
-# The image that is deployed also gets the release version as a tag, so the registry reads as a list of releases. The workloads
-# keep running the source tag: a release that did not change an image does not restart it.
+# The versions (vX.Y.Z) the registry has for an image, one per line. Only podman can list the tags of a registry.
+registry_versions() { # name
+  [ "$CONTAINER_TOOL" = podman ] || return 0
+  podman search --list-tags --limit 10000 --format '{{.Tag}}' "$REGISTRY/$1" 2>/dev/null | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true
+}
+
+# The next release: the patch after the highest vX.Y.Z in git and in the registry, so a deploy from here never reuses a number.
+next_version() {
+  { (cd "$REPO" && git tag -l 'v*' 2>/dev/null) || true; registry_versions snake-ui; } | bash "$HERE/ci/next-version.sh" patch
+}
+
+# The image that is deployed also gets the release as a tag (v1.0.7) and latest, so the registry reads as a list of releases. The
+# workloads keep running the source tag: a release that did not change an image does not restart it.
 tag_version() { # name tag
   [ -n "$VERSION" ] || return 0
-  local source="$REGISTRY/$1:$2" release="$REGISTRY/$1:$VERSION"
+  local source="$REGISTRY/$1:$2" alias
   "$CONTAINER_TOOL" image inspect "$source" >/dev/null 2>&1 || "$CONTAINER_TOOL" pull -q "$source" >/dev/null
-  "$CONTAINER_TOOL" tag "$source" "$release"
-  push "$release"
+  for alias in "v$VERSION" latest; do
+    "$CONTAINER_TOOL" tag "$source" "$REGISTRY/$1:$alias"
+    push "$REGISTRY/$1:$alias"
+  done
 }
 
 if [ "${SKIP_BUILD:-0}" != "1" ]; then
@@ -184,6 +208,11 @@ if [ "${SKIP_BUILD:-0}" != "1" ]; then
   build_push snake-game-server "$GAME_TAG" "$SRC/Application/Application.Game.Server/Dockerfile" "$SRC"
   build_push snake-ui "$UI_TAG" "$SRC/Application/Application.Ui/Dockerfile" "$SRC/Application/Application.Ui" \
     --build-arg "VITE_MANAGER_URL=$MANAGER_URL"
+  # A run that built something is a new release; one that built nothing (or was told a fixed tag) is not.
+  if [ -z "$VERSION" ] && [ -z "${TAG:-}" ] && [ "$BUILT" = 1 ]; then
+    VERSION=$(next_version)
+    echo "New release v$VERSION (the next after the tags in git and in the registry)"
+  fi
   tag_version snake-manager "$MANAGER_TAG"
   tag_version snake-game-server "$GAME_TAG"
   tag_version snake-ui "$UI_TAG"
@@ -246,7 +275,7 @@ install() { # release name values-file tag host [extra helm args...]
   helm_install "$release" "$CHART" -f "$HERE/values/$values.yaml" \
     --set-string "image.repository=$REGISTRY/$image" --set-string "image.tag=$tag" --set-string "ingress.host=$host" --set "ingress.enabled=$INGRESS" \
     --set-string "ingress.className=$INGRESS_CLASS" --set-string "ingress.clusterIssuer=$CLUSTER_ISSUER" \
-    ${VERSION:+--set-string "appVersion=$VERSION"} "$@"
+    ${VERSION:+--set-string "appVersion=v$VERSION"} "$@"
 }
 # Only the site is reached from outside; it passes /api and /game on, so the other two get no ingress of their own.
 install snake-manager snake-manager manager "$MANAGER_TAG" "" --set "ingress.enabled=false" \
@@ -270,6 +299,6 @@ kube get pods
 echo
 echo "Site   https://$UI_HOST"
 echo "Admin  https://$UI_HOST/admin"
-[ -z "$VERSION" ] || echo "Version $VERSION"
+[ -z "$VERSION" ] || echo "Release v$VERSION (images tagged v$VERSION and latest). To mark it in git: git tag -a v$VERSION -m \"Release $VERSION\""
 echo "Admin key:  kubectl ${CONTEXT:+--context $CONTEXT }-n $NS get secret snake-secrets -o go-template='{{index .data \"admin-key\"}}' | base64 -d"
 echo "Manager https://$UI_HOST/api   Game server https://$UI_HOST/game"

@@ -50,11 +50,20 @@ run "in-cluster run" KUBE_CONTEXT=in-cluster CONTAINER_TOOL=docker VERSION=1.2.3
   check "in-cluster: helm is not given a context" log_lacks '^helm .*--kube-context'
   check "in-cluster: kubectl still runs" log_has '^kubectl .*-n home-apps'
   check "in-cluster: namespaces are looked up, not forced" log_has '^kubectl get namespace home-apps'
-  check "in-cluster: helm gets the version for the labels" log_has '^helm .*appVersion=1\.2\.3'
-  check "in-cluster: images are given the version as a tag" log_has '^docker tag reg\.test/proj/snake-ui:src-[0-9a-f]{12} reg\.test/proj/snake-ui:1\.2\.3'
-  check "in-cluster: the version tag is pushed" log_has '^docker push -q reg\.test/proj/snake-game-server:1\.2\.3'
+  check "in-cluster: helm gets the version for the labels" log_has '^helm .*appVersion=v1\.2\.3'
+  check "in-cluster: images are given the version as a v tag" log_has '^docker tag reg\.test/proj/snake-ui:src-[0-9a-f]{12} reg\.test/proj/snake-ui:v1\.2\.3'
+  check "in-cluster: the version tag is pushed" log_has '^docker push -q reg\.test/proj/snake-game-server:v1\.2\.3'
+  check "in-cluster: images are given latest too" log_has '^docker tag reg\.test/proj/snake-ui:src-[0-9a-f]{12} reg\.test/proj/snake-ui:latest'
+  check "in-cluster: latest is pushed" log_has '^docker push -q reg\.test/proj/snake-manager:latest'
+  check "in-cluster: no tag without the v" log_lacks 'snake-ui:1\.2\.3'
   check "in-cluster: images come from the registry check, not podman" log_lacks '^podman'
   check "in-cluster: all three workloads are installed" bash -c "[ \$(grep -c '^helm .*upgrade --install' '$WORK/log') -eq 3 ]"
+}
+
+# --- a version given with the v is the same version
+run "v version run" KUBE_CONTEXT=in-cluster CONTAINER_TOOL=docker VERSION=v1.2.3 && {
+  check "a leading v is accepted and not doubled" log_has '^docker push -q reg\.test/proj/snake-ui:v1\.2\.3$'
+  check "a leading v does not make vv" log_lacks ':vv1'
 }
 
 # --- an image that is not in the registry is built and pushed
@@ -68,12 +77,43 @@ run "unchanged run" KUBE_CONTEXT=in-cluster CONTAINER_TOOL=docker STUB_REGISTRY_
   check "does not build what the registry has" log_lacks '^docker build'
 }
 
-# --- from a workstation: the named context, podman, no version
-run "workstation run" KUBE_CONTEXT=mine CONTAINER_TOOL=podman STUB_TAGS="" && {
+# --- from a workstation with nothing in the registry: everything is built and the next version is worked out
+run "workstation first run" KUBE_CONTEXT=mine CONTAINER_TOOL=podman STUB_TAGS="" && {
   check "workstation: kubectl gets the context" log_has '^kubectl --context mine'
   check "workstation: helm gets the context" log_has '^helm --kube-context mine'
-  check "workstation: without a version nothing is tagged with one" log_lacks '^podman tag'
-  check "workstation: without a version helm is not given one" log_lacks 'appVersion='
+  check "workstation: a build gets a version of its own, vMAJOR.MINOR.PATCH" log_has '^podman push -q reg\.test/proj/snake-ui:v[0-9]+\.[0-9]+\.[0-9]+$'
+  check "workstation: and latest" log_has '^podman push -q reg\.test/proj/snake-ui:latest$'
+  check "workstation: helm gets the worked out version" log_has '^helm .*appVersion=v[0-9]+\.[0-9]+\.[0-9]+'
+  check "workstation: the registry is asked which versions exist" log_has '^podman search --list-tags .*snake-ui'
+}
+
+# --- the next number comes after the highest the registry has, so a local deploy never reuses one
+run "next after the registry" KUBE_CONTEXT=mine CONTAINER_TOOL=podman STUB_TAGS=$'v9.9.8
+v9.9.9
+v2.0.0
+latest
+src-abc
+v1.0.0-beta' && {
+  check "the next version is the patch after the highest in the registry" log_has '^podman push -q reg\.test/proj/snake-ui:v9\.9\.10$'
+  check "tags that are not vX.Y.Z are ignored" log_lacks ':v2\.0\.1'
+}
+
+# --- docker cannot list the registry: the git tags are all it has, and it still versions
+run "docker local run" KUBE_CONTEXT=mine CONTAINER_TOOL=docker STUB_REGISTRY_HAS=no && {
+  check "docker: a build gets a version of its own" log_has '^docker push -q reg\.test/proj/snake-ui:v[0-9]+\.[0-9]+\.[0-9]+$'
+  check "docker: and latest" log_has '^docker push -q reg\.test/proj/snake-ui:latest$'
+}
+
+# --- nothing changed: no new version, nothing re-tagged
+run "unchanged local run" KUBE_CONTEXT=mine CONTAINER_TOOL=docker STUB_REGISTRY_HAS=yes && {
+  check "unchanged: nothing is built" log_lacks '^docker build'
+  check "unchanged: no new version is made" log_lacks '^docker tag'
+  check "unchanged: helm is not given a version" log_lacks 'appVersion='
+}
+
+# --- a fixed TAG is a request for that tag: no version of its own
+run "fixed tag run" KUBE_CONTEXT=mine CONTAINER_TOOL=docker TAG=mytag STUB_REGISTRY_HAS=no && {
+  check "a fixed tag gets no worked out version" log_lacks ':v[0-9]+\.[0-9]+\.[0-9]+'
 }
 
 exit "$FAILED"

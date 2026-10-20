@@ -119,9 +119,10 @@ The script deploys to the kube context `home-lab-main`. If yours has another nam
 What the script does:
 
 1. Checks the cluster and the registry login, applies the two namespaces, checks the `cr-homel4b` and `cloudflared-token` Secrets.
-2. Builds and pushes the three images. Each is tagged `src-<hash>` of the files it is built from; a tag already in the
-   registry is not rebuilt and its release keeps its pods. `TAG`, `FORCE_BUILD=1` and `SKIP_BUILD=1` work as in the
-   Empower script.
+2. Builds and pushes the three images. Each is built as `src-<hash>` of the files it is built from; a tag already in the
+   registry is not rebuilt and its release keeps its pods. A run that built something is a release: the images are also tagged
+   `vMAJOR.MINOR.PATCH` (the next `v1.0.N` after the tags in git and in the registry, or the `VERSION` you give) and `latest`.
+   `TAG`, `FORCE_BUILD=1` and `SKIP_BUILD=1` work as in the Empower script.
 3. Creates, once, the Secrets `rabbitmq-credentials` and `redis-credentials` in `infrastructure` (random passwords), and
    applies RabbitMQ and Redis unless they already exist.
 4. Creates the Secret `snake-secrets` in `home-apps`: `api-key` and `admin-key` (random, created once, kept), plus the

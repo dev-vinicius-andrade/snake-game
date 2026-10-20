@@ -22,10 +22,16 @@ Versions are `MAJOR.MINOR.PATCH`, from git tags `vMAJOR.MINOR.PATCH`.
 What a version gives you:
 
 - A git tag and a GitHub release with generated notes.
-- Each image in the registry carries the version as a tag next to its source tag (`snake-ui:1.0.5` and `snake-ui:src-3f558ee10481`).
-- The Deployments carry the label `app.kubernetes.io/version: 1.0.5` (`kubectl -n home-apps get deploy -L app.kubernetes.io/version`).
+- Each image in the registry is tagged `v1.0.5` and `latest`, next to its build tag (`snake-ui:v1.0.5`, `snake-ui:latest` and `snake-ui:src-3f558ee10481`).
+  This is the same when you run `deploy.sh` by hand: without a `VERSION` it works out the next one by itself (see below).
+- The Deployments carry the label `app.kubernetes.io/version: v1.0.5` (`kubectl -n home-apps get deploy -L app.kubernetes.io/version`).
 - Pods run the **source** tag, so a release that did not change an image does not restart it. A release that only touches
   the site does not drop the players from the game server.
+
+**Running `deploy.sh` by hand** needs no version: a run that builds something is a new release, and the script takes the next patch after the
+highest `vX.Y.Z` among the git tags and, with podman (which can list a registry's tags), the tags of the registry, so a local deploy never reuses a number; the
+first is `v1.0.0`. A run that builds nothing makes no version. `VERSION=1.0.9` (or `v1.0.9`) sets it; a fixed `TAG` does not get one. The script does not
+create the git tag: to mark the commit run `git tag -a v1.0.9 -m "Release 1.0.9"` (and push it to have CI release it).
 
 Release from `main`: run **Release** in the Actions tab (it refuses other branches). Or tag by hand; the deploy starts by itself:
 
