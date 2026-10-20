@@ -193,4 +193,42 @@ public sealed class AchievementServiceTests
         Assert.Equal("Nelly", profile!.Account.PublicName);
         Assert.Empty(profile.Achievements);
     }
+
+    private sealed class FakeCatalog(params AchievementEntry[] entries) : IAchievementCatalog
+    {
+        public List<AchievementEntry> Entries { get; } = entries.ToList();
+
+        public bool IsWritable => true;
+
+        public IReadOnlyList<AchievementEntry> All() => Entries;
+
+        public AchievementChange Save(AchievementEntry entry) => AchievementChange.Saved;
+
+        public AchievementChange Delete(string id) => AchievementChange.Deleted;
+    }
+
+    [Fact]
+    public void Definitions_FollowTheCatalogAsItChanges_OnlyTheEnabledOnes()
+    {
+        var catalog = new FakeCatalog(new AchievementEntry("a-one", "game-icons:snake", StatKeys.Games, 1), new AchievementEntry("b-two", "game-icons:snake", StatKeys.Games, 5, Enabled: false));
+        var service = new AchievementService(_accounts, _stats, _time, catalog: catalog);
+
+        Assert.Equal(new[] { "a-one" }, service.Definitions.Select(definition => definition.Id));
+
+        catalog.Entries.Add(new AchievementEntry("c-three", "game-icons:snake", StatKeys.Kills, 3));
+
+        Assert.Equal(new[] { "a-one", "c-three" }, service.Definitions.Select(definition => definition.Id));
+    }
+
+    [Fact]
+    public void ACustomAchievement_UnlocksLikeAnyOther()
+    {
+        var catalog = new FakeCatalog(new AchievementEntry("snacker", "game-icons:sparkles", StatKeys.Foods, 10));
+        var service = new AchievementService(_accounts, _stats, _time, catalog: catalog);
+        var account = _account;
+
+        var result = service.Report(account.Id, Guid.NewGuid(), new Dictionary<string, long> { [StatKeys.Foods] = 12 }, null);
+
+        Assert.Equal(new[] { "snacker" }, result.Value.Ids);
+    }
 }

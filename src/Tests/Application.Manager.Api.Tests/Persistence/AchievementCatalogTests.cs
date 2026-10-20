@@ -49,13 +49,23 @@ public sealed class AchievementCatalogTests : IDisposable
     }
 
     [Fact]
-    public void Sync_ADefinitionThatChanged_IsUpdatedInPlace()
+    public void Sync_ADefinitionThatChangedInTheCode_DoesNotOverwriteWhatIsInTheDatabase_BecauseAnAdminMayHaveEditedIt()
     {
         AchievementCatalog.Sync(_host.Factory, Definitions);
 
         AchievementCatalog.Sync(_host.Factory, [new("first-steps", "game-icons:snake", "games", 3), Definitions[1]]);
 
-        Assert.Equal(3, Rows().Single(row => row.Id == "first-steps").Threshold);
+        Assert.Equal(1, Rows().Single(row => row.Id == "first-steps").Threshold);
+    }
+
+    [Fact]
+    public void Sync_ANewDefinition_IsAddedAtTheEnd_WithoutTouchingTheOthers()
+    {
+        AchievementCatalog.Sync(_host.Factory, Definitions);
+
+        AchievementCatalog.Sync(_host.Factory, [.. Definitions, new("new-one", "game-icons:snake", "games", 9)]);
+
+        Assert.Equal(new[] { "first-steps", "hunter", "new-one" }, Rows().Select(row => row.Id));
     }
 
     [Fact]

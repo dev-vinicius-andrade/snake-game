@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Application.Manager.Api.Accounts;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Application.Manager.Api.Persistence;
@@ -54,6 +55,8 @@ public sealed class SnakeDbContext(DbContextOptions<SnakeDbContext> options) : D
     public DbSet<AccountRoleRow> AccountRoles => Set<AccountRoleRow>();
 
     public DbSet<AchievementRow> Achievements => Set<AchievementRow>();
+
+    public DbSet<AchievementTextRow> AchievementTexts => Set<AchievementTextRow>();
 
     public DbSet<UnlockedAchievementRow> UnlockedAchievements => Set<UnlockedAchievementRow>();
 
@@ -116,6 +119,16 @@ public sealed class SnakeDbContext(DbContextOptions<SnakeDbContext> options) : D
             achievement.Property(row => row.Id).HasMaxLength(MaxName);
             achievement.Property(row => row.Icon).HasMaxLength(MaxName * 2).IsRequired();
             achievement.Property(row => row.Stat).HasMaxLength(MaxName).IsRequired();
+        });
+        model.Entity<AchievementTextRow>(text =>
+        {
+            text.ToTable("achievement_texts");
+            text.HasKey(row => new { row.AchievementId, row.Locale });
+            text.Property(row => row.AchievementId).HasMaxLength(MaxName);
+            text.Property(row => row.Locale).HasMaxLength(8);
+            text.Property(row => row.Name).HasMaxLength(AchievementRules.MaxName * 2).IsRequired();
+            text.Property(row => row.Description).HasMaxLength(AchievementRules.MaxDescription * 2).IsRequired();
+            text.HasOne<AchievementRow>().WithMany().HasForeignKey(row => row.AchievementId).OnDelete(DeleteBehavior.Cascade);
         });
         model.Entity<UnlockedAchievementRow>(unlocked =>
         {

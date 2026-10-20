@@ -36,7 +36,7 @@ public sealed class AchievementsWiringTests : IDisposable
 
         Assert.Same(service, provider.GetRequiredService<AchievementService>());
         Assert.IsType<FileStatsStore>(provider.GetRequiredService<IStatsStore>());
-        Assert.Same(Achievements.Defaults, service.Definitions);
+        Assert.Equal(Achievements.Defaults, service.Definitions);
         Assert.Equal(new[] { "first-blood" }, result.Value!.Ids);
     }
 

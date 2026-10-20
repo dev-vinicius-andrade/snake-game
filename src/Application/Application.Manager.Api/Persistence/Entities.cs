@@ -101,6 +101,21 @@ public sealed class AchievementRow
 
     /// <summary>Where it is in the list of the game.</summary>
     public int SortOrder { get; set; }
+
+    /// <summary>Off: it cannot be unlocked and is not listed. Kept, because players may have unlocked it.</summary>
+    public bool Enabled { get; set; } = true;
+}
+
+/// <summary>The name and description of an achievement in one language (<c>en</c>, <c>pt</c>), as an administrator wrote them.</summary>
+public sealed class AchievementTextRow
+{
+    public string AchievementId { get; set; } = "";
+
+    public string Locale { get; set; } = "";
+
+    public string Name { get; set; } = "";
+
+    public string Description { get; set; } = "";
 }
 
 public sealed class UnlockedAchievementRow

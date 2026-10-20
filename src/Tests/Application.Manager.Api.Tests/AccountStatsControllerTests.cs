@@ -206,7 +206,7 @@ public sealed class AccountStatsControllerTests
 
         Assert.Equal(StatusCodes.Status200OK, status);
         var listed = body.EnumerateArray().ToList();
-        Assert.All(listed, achievement => Assert.Equal(new[] { "id", "icon", "stat", "threshold" }, Names(achievement)));
+        Assert.All(listed, achievement => Assert.Equal(new[] { "id", "icon", "stat", "threshold", "texts" }, Names(achievement)));
         Assert.Equal(
             Achievements.Defaults,
             listed.Select(achievement => new AchievementDefinition(
@@ -214,6 +214,23 @@ public sealed class AccountStatsControllerTests
                 achievement.GetProperty("icon").GetString()!,
                 achievement.GetProperty("stat").GetString()!,
                 achievement.GetProperty("threshold").GetInt64())));
+    }
+
+    [Fact]
+    public void ListAchievements_ListsWhatTheCatalogHas_EnabledOnes_WithTheTextsAnAdminWrote()
+    {
+        var catalog = new MemoryAchievementCatalog();
+        catalog.Save(new AchievementEntry("snacker", "game-icons:sparkles", StatKeys.Foods, 10, true,
+            new Dictionary<string, AchievementText> { ["en"] = new("Snacker", "Eat 10 fruits.") }));
+        catalog.Save(new AchievementEntry("hidden", "game-icons:snake", StatKeys.Games, 1, false));
+        var controller = new AccountStatsController(new AchievementService(new FileAccountStore(null), new FileStatsStore(null), _time, catalog: catalog), _accounts);
+
+        var (_, body) = Read(controller.ListAchievements());
+
+        var snacker = Assert.Single(body.EnumerateArray());
+        Assert.Equal("snacker", snacker.GetProperty("id").GetString());
+        Assert.Equal("Snacker", snacker.GetProperty("texts").GetProperty("en").GetProperty("name").GetString());
+        Assert.Equal("Eat 10 fruits.", snacker.GetProperty("texts").GetProperty("en").GetProperty("description").GetString());
     }
 
     [Theory]

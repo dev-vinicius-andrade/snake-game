@@ -13,11 +13,13 @@ public sealed class AchievementService
     private readonly IStatsStore _stats;
     private readonly TimeProvider _time;
     private readonly ILogger<AchievementService>? _logger;
-    private readonly IReadOnlyDictionary<string, int> _definitionOrder;
+    private readonly IReadOnlyList<AchievementDefinition> _fixed;
+    private readonly IAchievementCatalog? _catalog;
 
-    /// <param name="definitions">The achievements that can be unlocked; <see cref="Achievements.Defaults"/> when null.</param>
+    /// <param name="definitions">The achievements that can be unlocked, when they are fixed; <see cref="Achievements.Defaults"/> when null.</param>
+    /// <param name="catalog">Where the achievements are kept. When given, it decides what can be unlocked, and a change to it is seen at once.</param>
     public AchievementService(IAccountStore accounts, IStatsStore stats, TimeProvider time, IReadOnlyList<AchievementDefinition>? definitions = null,
-        ILogger<AchievementService>? logger = null)
+        ILogger<AchievementService>? logger = null, IAchievementCatalog? catalog = null)
     {
         ArgumentNullException.ThrowIfNull(accounts);
         ArgumentNullException.ThrowIfNull(stats);
@@ -26,14 +28,17 @@ public sealed class AchievementService
         _stats = stats;
         _time = time;
         _logger = logger;
-        Definitions = definitions ?? Achievements.Defaults;
-        _definitionOrder = Definitions
-            .Select((definition, index) => KeyValuePair.Create(definition.Id, index))
-            .DistinctBy(entry => entry.Key, StringComparer.Ordinal)
-            .ToDictionary(StringComparer.Ordinal);
+        _fixed = definitions ?? Achievements.Defaults;
+        _catalog = catalog;
     }
 
-    public IReadOnlyList<AchievementDefinition> Definitions { get; }
+    /// <summary>The achievements that can be unlocked now: the ones the catalog has switched on, or the fixed list.</summary>
+    public IReadOnlyList<AchievementDefinition> Definitions => _catalog?.Definitions() ?? _fixed;
+
+    /// <summary>The same with the texts and the icon for the site: what the public list shows.</summary>
+    public IReadOnlyList<AchievementEntry> Entries()
+        => _catalog?.All().Where(entry => entry.Enabled).ToList().AsReadOnly()
+           ?? _fixed.Select(definition => new AchievementEntry(definition.Id, definition.Icon, definition.Stat, definition.Threshold)).ToList().AsReadOnly();
 
     /// <summary>
     /// Adds one life's numbers to the account and answers with the achievements that unlocked. A report id already applied succeeds with
@@ -78,13 +83,17 @@ public sealed class AchievementService
         => StatKeys.Counters.Concat(StatKeys.Maxima).ToDictionary(key => key, stats.ValueOf, StringComparer.Ordinal).AsReadOnly();
 
     private IReadOnlyList<UnlockedAchievement> UnlockedInOrder(AccountStats stats)
-        => stats.Unlocked
+    {
+        var order = Definitions
+            .Select((definition, index) => KeyValuePair.Create(definition.Id, index))
+            .DistinctBy(entry => entry.Key, StringComparer.Ordinal)
+            .ToDictionary(StringComparer.Ordinal);
+        return stats.Unlocked
             .OrderBy(unlock => unlock.Value)
-            .ThenBy(unlock => DefinitionOrder(unlock.Key))
+            .ThenBy(unlock => order.GetValueOrDefault(unlock.Key, int.MaxValue))
             .ThenBy(unlock => unlock.Key, StringComparer.Ordinal)
             .Select(unlock => new UnlockedAchievement(unlock.Key, unlock.Value))
             .ToList()
             .AsReadOnly();
-
-    private int DefinitionOrder(string achievementId) => _definitionOrder.GetValueOrDefault(achievementId, int.MaxValue);
+    }
 }

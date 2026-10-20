@@ -97,6 +97,10 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("id");
 
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
                     b.Property<string>("Icon")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -121,6 +125,36 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .HasName("pk_achievements");
 
                     b.ToTable("achievements", (string)null);
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.AchievementTextRow", b =>
+                {
+                    b.Property<string>("AchievementId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("achievement_id");
+
+                    b.Property<string>("Locale")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("locale");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.HasKey("AchievementId", "Locale")
+                        .HasName("pk_achievement_texts");
+
+                    b.ToTable("achievement_texts", (string)null);
                 });
 
             modelBuilder.Entity("Application.Manager.Api.Persistence.AppliedReportRow", b =>
@@ -824,6 +858,16 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_account_roles_roles");
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.AchievementTextRow", b =>
+                {
+                    b.HasOne("Application.Manager.Api.Persistence.AchievementRow", null)
+                        .WithMany()
+                        .HasForeignKey("AchievementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_achievement_texts_achievements");
                 });
 
             modelBuilder.Entity("Application.Manager.Api.Persistence.BossRow", b =>

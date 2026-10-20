@@ -58,11 +58,17 @@ public static class AccountsServiceCollectionExtensions
         else
             services.AddSingleton<IStatsStore>(provider =>
                 new FileStatsStore(configuration[StatsPathKey], provider.GetService<ILoggerFactory>()?.CreateLogger<FileStatsStore>()));
+        if (configuration.HasDatabase())
+            services.AddSingleton<IAchievementCatalog>(provider => new EfAchievementCatalog(
+                provider.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<SnakeDbContext>>(), provider.GetRequiredService<TimeProvider>()));
+        else
+            services.AddSingleton<IAchievementCatalog, CodeAchievementCatalog>();
         services.AddSingleton(provider => new AchievementService(
             provider.GetRequiredService<IAccountStore>(),
             provider.GetRequiredService<IStatsStore>(),
             provider.GetRequiredService<TimeProvider>(),
-            logger: provider.GetService<ILogger<AchievementService>>()));
+            logger: provider.GetService<ILogger<AchievementService>>(),
+            catalog: provider.GetRequiredService<IAchievementCatalog>()));
         return services;
     }
 }

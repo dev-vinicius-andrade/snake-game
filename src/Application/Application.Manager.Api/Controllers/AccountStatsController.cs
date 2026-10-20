@@ -56,6 +56,12 @@ public sealed class ProfileResponse
     };
 }
 
+public sealed class AchievementTextResponse
+{
+    public string Name { get; set; } = null!;
+    public string Description { get; set; } = null!;
+}
+
 public sealed class AchievementResponse
 {
     public string Id { get; set; } = null!;
@@ -65,13 +71,16 @@ public sealed class AchievementResponse
     public string Stat { get; set; } = null!;
     /// <summary>Unlocked when the stat is at least this.</summary>
     public long Threshold { get; set; }
+    /// <summary>The texts an administrator gave it, by language (<c>en</c>, <c>pt</c>). Empty for a built-in one: the site has those.</summary>
+    public IReadOnlyDictionary<string, AchievementTextResponse> Texts { get; set; } = new Dictionary<string, AchievementTextResponse>();
 
-    public static implicit operator AchievementResponse(AchievementDefinition definition) => new()
+    public static implicit operator AchievementResponse(AchievementEntry entry) => new()
     {
-        Id = definition.Id,
-        Icon = definition.Icon,
-        Stat = definition.Stat,
-        Threshold = definition.Threshold,
+        Id = entry.Id,
+        Icon = entry.Icon,
+        Stat = entry.Stat,
+        Threshold = entry.Threshold,
+        Texts = (entry.Texts ?? new Dictionary<string, AchievementText>()).ToDictionary(text => text.Key, text => new AchievementTextResponse { Name = text.Value.Name, Description = text.Value.Description }),
     };
 }
 
@@ -110,7 +119,7 @@ public sealed class AccountStatsController(AchievementService achievements, Acco
 
     [HttpGet("achievements")]
     [ProducesResponseType(typeof(List<AchievementResponse>), StatusCodes.Status200OK)]
-    public IActionResult ListAchievements() => Ok(achievements.Definitions.Select(definition => (AchievementResponse)definition).ToList());
+    public IActionResult ListAchievements() => Ok(achievements.Entries().Select(entry => (AchievementResponse)entry).ToList());
 
     private ObjectResult Refusal(string error) => StatusCode(StatusFor(error), new AccountErrorResponse { Error = error });
 

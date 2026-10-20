@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Application.Manager.Api.Persistence;
 
 /// <summary>
-/// Keeps the <c>achievements</c> table in step with the definitions in the code: a new definition is added, a changed one (icon, stat,
-/// threshold, place in the list) is updated, and one that was removed stays, because players may have unlocked it. Safe to run any number
-/// of times, on any number of manager instances.
+/// Puts the achievements of the code in the <c>achievements</c> table that are not there yet. Nothing already in the table is touched: from then
+/// on the table is the source, and an administrator may have changed it (docs/ACHIEVEMENTS.md). Safe to run any number of times, on any number
+/// of manager instances.
 /// </summary>
 public static class AchievementCatalog
 {
@@ -15,28 +15,16 @@ public static class AchievementCatalog
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(definitions);
         using var context = factory.CreateDbContext();
-        var rows = context.Achievements.ToDictionary(row => row.Id, StringComparer.Ordinal);
-        for (var order = 0; order < definitions.Count; order++)
-            Apply(context, rows, definitions[order], order);
+        var known = context.Achievements.Select(row => row.Id).ToHashSet(StringComparer.Ordinal);
+        var next = context.Achievements.Any() ? context.Achievements.Max(row => row.SortOrder) + 1 : 0;
+        foreach (var definition in definitions.Where(definition => !known.Contains(definition.Id)))
+            context.Achievements.Add(ToRow(definition, next++));
         if (context.ChangeTracker.HasChanges())
             Save(context);
     }
 
     internal static AchievementRow ToRow(AchievementDefinition definition, int order)
         => new() { Id = definition.Id, Icon = definition.Icon, Stat = definition.Stat, Threshold = definition.Threshold, SortOrder = order };
-
-    private static void Apply(SnakeDbContext context, Dictionary<string, AchievementRow> rows, AchievementDefinition definition, int order)
-    {
-        if (!rows.TryGetValue(definition.Id, out var row))
-        {
-            context.Achievements.Add(ToRow(definition, order));
-            return;
-        }
-        row.Icon = definition.Icon;
-        row.Stat = definition.Stat;
-        row.Threshold = definition.Threshold;
-        row.SortOrder = order;
-    }
 
     private static void Save(SnakeDbContext context)
     {
