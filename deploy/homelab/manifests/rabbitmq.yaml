@@ -42,8 +42,19 @@ spec:
     spec:
       securityContext:
         fsGroup: 999
+        # Only change the volume's permissions when its top directory is wrong, not on every start: the recursive change makes the Erlang
+        # cookie group-writable, and RabbitMQ then refuses to start ("Cookie file ... must be accessible by owner only").
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        # Makes the cookie private again if an earlier start left it group-accessible (what crashed the broker in a loop). Harmless when it is fine.
+        - name: private-erlang-cookie
+          image: docker.io/library/rabbitmq:3.13-management-alpine
+          command: ["sh", "-c", "[ ! -f /var/lib/rabbitmq/.erlang.cookie ] || chmod 600 /var/lib/rabbitmq/.erlang.cookie"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rabbitmq
       containers:
         - name: rabbitmq
           image: docker.io/library/rabbitmq:3.13-management-alpine
