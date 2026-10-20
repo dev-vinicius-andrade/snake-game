@@ -19,6 +19,11 @@ export default defineConfig({
     chunkSizeWarningLimit: 5000,
     minify: false,
   },
+  // The face model runs in a module worker (src/input/gaze/faceWorker.ts), which imports the MediaPipe library on demand: that needs the
+  // module format, not the default one that cannot split code.
+  worker: {
+    format: "es",
+  },
   plugins: [
     Icons({ compiler: "vue3" }),
     vue({
