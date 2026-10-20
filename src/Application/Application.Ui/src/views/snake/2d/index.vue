@@ -156,7 +156,11 @@ onBeforeUnmount(() => {
       :details="showDetails"
       @toggle-mouse-aim="toggleMouseAim"
       @toggle-details="showDetails = !showDetails"
-    />
+    >
+      <template #below-player>
+        <InviteBadge v-if="inviteCode" :code="inviteCode" />
+      </template>
+    </GameHud>
     <PerkList :perks="ownSnake?.perks ?? []" :tiers="ownSnake?.perkTiers" :catalog="perkCatalog.perks.value" />
     <AchievementToast :id="toasts.current.value" />
     <PrizeHint :compass="compass" />
@@ -164,7 +168,6 @@ onBeforeUnmount(() => {
     <BossHint :compass="boss" />
     <ZoneHint :warning="zone" />
     <TouchControls v-if="session.phase.value === 'playing'" @intent="session.handleIntent" />
-    <InviteBadge v-if="inviteCode" :code="inviteCode" />
     <EyeControlPanel
       v-if="showDetails || eye.phase.value === 'error'"
       :phase="eye.phase.value"

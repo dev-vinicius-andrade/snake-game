@@ -41,12 +41,16 @@ const controls = computed(() => [
 </script>
 
 <template>
-  <section class="hud-panel hud-player">
-    <div class="hud-name">{{ nickname }}</div>
-    <div class="hud-score">{{ getText({ key: "game.score" }) }}: {{ score }}</div>
-    <div v-if="ping !== null" class="hud-ping" :class="pingClass">{{ getText({ key: "game.ping" }) }} {{ ping }} ms</div>
-    <div v-if="connectionNotice" class="hud-notice">{{ connectionNotice }}</div>
-  </section>
+  <!-- Top left: the player panel, and under it whatever the screen adds (the invite of a private room), so they never overlap. -->
+  <div class="hud-left">
+    <section class="hud-panel hud-player">
+      <div class="hud-name">{{ nickname }}</div>
+      <div class="hud-score">{{ getText({ key: "game.score" }) }}: {{ score }}</div>
+      <div v-if="ping !== null" class="hud-ping" :class="pingClass">{{ getText({ key: "game.ping" }) }} {{ ping }} ms</div>
+      <div v-if="connectionNotice" class="hud-notice">{{ connectionNotice }}</div>
+    </section>
+    <slot name="below-player" />
+  </div>
 
   <section class="hud-panel hud-ranking">
     <div class="hud-title">{{ getText({ key: "game.leaderboard" }) }}</div>
@@ -89,9 +93,18 @@ const controls = computed(() => [
   border: 2px solid var(--snake-line);
   pointer-events: none;
 }
-.hud-player {
+.hud-left {
+  position: fixed;
+  z-index: 10;
   top: 8px;
   left: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.hud-left .hud-panel {
+  position: static;
 }
 .hud-ranking {
   top: 8px;

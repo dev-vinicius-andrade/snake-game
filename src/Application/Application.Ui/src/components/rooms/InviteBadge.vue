@@ -30,10 +30,6 @@ async function copy() {
 
 <style scoped>
 .invite {
-  position: fixed;
-  z-index: 10;
-  top: 76px;
-  left: 8px;
   padding: 8px 12px;
   color: #ffffff;
   font-family: monospace;
