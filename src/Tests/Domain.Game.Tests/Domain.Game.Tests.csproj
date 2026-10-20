@@ -20,6 +20,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\Shared\maze-vector.json" Link="maze-vector.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\Domain\Domain.Game\Domain.Game.csproj" />
   </ItemGroup>
 

@@ -26,6 +26,9 @@ public interface IGameState
     /// <summary>When the sugar rush that is going on ends (boosting costs no mass until then), or null while there is none.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     DateTimeOffset? SugarRushEndsAt { get; set; }
+    /// <summary>The maze that stands in the room, or null.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    Library.Commons.Game.Domain.Entities.WorldMaze? Maze { get; set; }
     /// <summary>The boss that stands in the room, or null.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     Library.Commons.Game.Domain.Entities.WorldBoss? Boss { get; set; }

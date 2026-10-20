@@ -34,6 +34,8 @@ internal record GameState:IGameState
     [JsonIgnore]
     public DateTimeOffset? SugarRushEndsAt { get; set; }
     [JsonIgnore]
+    public WorldMaze? Maze { get; set; }
+    [JsonIgnore]
     public WorldBoss? Boss { get; set; }
     [JsonIgnore]
     public WorldZone? Zone { get; set; }
