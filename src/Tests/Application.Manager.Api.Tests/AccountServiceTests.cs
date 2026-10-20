@@ -843,4 +843,140 @@ public sealed class AccountServiceTests
         Assert.Equal(AccountErrors.InvalidCredentials, service.LinkExternal(registered.Account.Id, "", "1").Error);
         Assert.Equal(AccountErrors.InvalidCredentials, service.LinkExternal(registered.Account.Id, "github", " ").Error);
     }
+
+    [Fact]
+    public void ChangeHandle_ToAFreeNameAndTag_MovesTheAccountThere_AndTheOldHandleIsFreeAgain()
+    {
+        var service = Service();
+        var registered = Registered(service, "Vini", 9291);
+
+        var result = service.ChangeHandle(registered.Token, "Rattler", 42);
+
+        Assert.True(result.Succeeded, result.Error);
+        Assert.Equal("Rattler#00042", service.Authenticate(registered.Token)!.Display);
+        Assert.Null(_store.Find("Vini", 9291));
+        Assert.Equal(registered.Account.Id, _store.Find("Rattler", 42)!.Id);
+    }
+
+    [Fact]
+    public void ChangeHandle_TheRecoveryPhraseSignsInToTheNewHandle_AndTheDeviceStaysSignedIn()
+    {
+        var service = Service();
+        var registered = Registered(service, "Vini", 9291, phrase: StrongPhrase);
+
+        service.ChangeHandle(registered.Token, "Rattler", 42);
+
+        Assert.True(service.Login("Rattler", 42, StrongPhrase, Ip).Succeeded);
+        Assert.False(service.Login("Vini", 9291, StrongPhrase, Ip).Succeeded);
+        Assert.NotNull(service.Authenticate(registered.Token));
+    }
+
+    [Fact]
+    public void ChangeHandle_ATakenNameAndTag_IsRefused_AndNothingChanges()
+    {
+        var service = Service();
+        var mine = Registered(service, "Ana", 1);
+        Registered(service, "Bob", 2);
+
+        var result = service.ChangeHandle(mine.Token, "bob", 2);
+
+        Assert.Equal(AccountErrors.NameTaken, result.Error);
+        Assert.Equal("Ana#00001", service.Authenticate(mine.Token)!.Display);
+    }
+
+    [Fact]
+    public void ChangeHandle_TheSameNameWithAnotherTagThatIsFree_IsAccepted()
+    {
+        var service = Service();
+        var mine = Registered(service, "Vini", 1);
+        Registered(service, "Vini", 2);
+
+        Assert.True(service.ChangeHandle(mine.Token, "Vini", 3).Succeeded);
+        Assert.Equal(AccountErrors.NameTaken, service.ChangeHandle(mine.Token, "Vini", 2).Error);
+    }
+
+    [Fact]
+    public void ChangeHandle_WithoutATag_PicksAFreeOne_AndKeepsTheOwnTagWhenOnlyTheNameChanges()
+    {
+        var service = Service(nextTag: _ => 777);
+        var mine = Registered(service, "Vini", 9291);
+
+        var renamed = service.ChangeHandle(mine.Token, "Rattler", null);
+        var sameName = service.ChangeHandle(mine.Token, "Rattler", null);
+
+        Assert.Equal(777, renamed.Value.Tag);
+        Assert.Equal(777, sameName.Value.Tag);
+    }
+
+    [Fact]
+    public void ChangeHandle_OnlyTheCaseOfTheOwnName_IsAccepted_AndSoIsChangingNothing()
+    {
+        var service = Service();
+        var mine = Registered(service, "Vini", 9291);
+
+        Assert.True(service.ChangeHandle(mine.Token, "VINI", 9291).Succeeded);
+        Assert.True(service.ChangeHandle(mine.Token, "VINI", 9291).Succeeded);
+        Assert.Equal("VINI", service.Authenticate(mine.Token)!.Username);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("a")]
+    [InlineData("Vini#12345")]
+    [InlineData("admin")]
+    public void ChangeHandle_ANameThatIsNotAllowed_IsRefused(string name)
+    {
+        var service = Service();
+        var mine = Registered(service, "Vini", 9291);
+
+        Assert.Equal(AccountErrors.InvalidUsername, service.ChangeHandle(mine.Token, name, 1).Error);
+        Assert.Equal("Vini#09291", service.Authenticate(mine.Token)!.Display);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(100_000)]
+    public void ChangeHandle_ATagOutOfRange_IsRefused(int tag)
+    {
+        var service = Service();
+        var mine = Registered(service, "Vini", 9291);
+
+        Assert.Equal(AccountErrors.InvalidTag, service.ChangeHandle(mine.Token, "Rattler", tag).Error);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("not-a-token")]
+    public void ChangeHandle_WithoutAnAccountToken_IsInvalidToken(string? token)
+        => Assert.Equal(AccountErrors.InvalidToken, Service().ChangeHandle(token, "Rattler", 1).Error);
+
+    [Fact]
+    public void ChangeHandle_ASocialAccount_CanChangeItsHandleToo_AndKeepsSigningInWithTheProvider()
+    {
+        var service = Service();
+        var first = service.SignInWithExternal("github", "583231", "octocat", "The Octocat", Ip).Value;
+
+        var result = service.ChangeHandle(first.Token, "Rattler", 5);
+
+        Assert.True(result.Succeeded, result.Error);
+        var again = service.SignInWithExternal("github", "583231", "octocat", "The Octocat", Ip).Value;
+        Assert.Equal(first.Account.Id, again.Account.Id);
+        Assert.Equal("Rattler", again.Account.Username);
+    }
+
+    [Fact]
+    public void ChangeHandle_TooManyTries_AreSlowedDown_PerAccount()
+    {
+        var service = Service();
+        var mine = Registered(service, "Vini", 9291);
+        var taken = Registered(service, "Taken", 1);
+        AccountResult<Account>? last = null;
+
+        for (var attempt = 0; attempt <= AccountThrottles.LookupOptions.FreeAttempts + 1; attempt++)
+            last = service.ChangeHandle(mine.Token, "Taken", 1);
+
+        Assert.Equal(AccountErrors.Throttled, last!.Error);
+        Assert.NotNull(taken);
+        Assert.True(service.ChangeHandle(taken.Token, "Other", 2).Succeeded);
+    }
 }

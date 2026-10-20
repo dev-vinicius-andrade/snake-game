@@ -18,6 +18,15 @@ public sealed class RegisterAccountRequest
     public string? DisplayName { get; set; }
 }
 
+public sealed class ChangeHandleRequest
+{
+    /// <summary>The new username: how the owner signs in, with the tag.</summary>
+    public string? Username { get; set; }
+
+    /// <summary>The tag wanted, 0 to 99999. Left out: the account keeps its tag if only the case of the name changes, else a free one is picked.</summary>
+    public int? Tag { get; set; }
+}
+
 public sealed class ChangeDisplayNameRequest
 {
     /// <summary>The name other players see; blank: back to the username.</summary>
@@ -172,6 +181,19 @@ public sealed class AccountsController(AccountService accounts, IRoleStore? role
         return Ok(response);
     }
 
+    /// <summary>Changes the username and tag the owner signs in with (<c>Name#09291</c>), if they are free.</summary>
+    [HttpPut("me/handle")]
+    [ProducesResponseType(typeof(AccountResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AccountErrorResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(AccountErrorResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(AccountErrorResponse), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(AccountErrorResponse), StatusCodes.Status429TooManyRequests)]
+    public IActionResult ChangeHandle([FromBody] ChangeHandleRequest request)
+    {
+        var result = accounts.ChangeHandle(BearerToken(), request.Username, request.Tag);
+        return result.Succeeded ? Ok((AccountResponse)result.Value) : Refusal(result.Error, result.RetryAfterSeconds);
+    }
+
     [HttpPut("me/display-name")]
     [ProducesResponseType(typeof(AccountResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(AccountErrorResponse), StatusCodes.Status400BadRequest)]
@@ -206,7 +228,7 @@ public sealed class AccountsController(AccountService accounts, IRoleStore? role
 
     private static int StatusFor(string error) => error switch
     {
-        AccountErrors.NoTagsLeft => StatusCodes.Status409Conflict,
+        AccountErrors.NoTagsLeft or AccountErrors.NameTaken => StatusCodes.Status409Conflict,
         AccountErrors.InvalidCredentials or AccountErrors.InvalidToken => StatusCodes.Status401Unauthorized,
         AccountErrors.Throttled => StatusCodes.Status429TooManyRequests,
         _ => StatusCodes.Status400BadRequest,

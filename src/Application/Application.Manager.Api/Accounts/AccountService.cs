@@ -230,6 +230,50 @@ public sealed class AccountService
         return changed is null ? AccountResult<Account>.Failure(AccountErrors.InvalidToken) : AccountResult<Account>.Success(changed);
     }
 
+    /// <summary>
+    /// Changes the username and tag of the account of <paramref name="token"/>, which is how the owner signs in (<c>Name#09291</c>). The new
+    /// username follows the registration rules. A tag that is asked for must be free for that name (<see cref="AccountErrors.NameTaken"/>
+    /// otherwise); without one the account keeps its tag when only the name's case changes, else gets a free one. The recovery phrase, the
+    /// devices that are signed in and the linked social accounts do not change, only what the owner types to sign in with the phrase. Every
+    /// try counts towards a throttle of its own for the account, so the names cannot be probed.
+    /// </summary>
+    public AccountResult<Account> ChangeHandle(string? token, string? username, int? tag)
+    {
+        var account = Authenticate(token);
+        if (account is null)
+            return AccountResult<Account>.Failure(AccountErrors.InvalidToken);
+        var throttleKey = "rename:" + account.Id;
+        if (_throttles.Lookup.RetryAfter(throttleKey) is TimeSpan wait)
+            return AccountResult<Account>.Throttled(wait);
+        _throttles.Lookup.Failed(throttleKey);
+        var name = UsernameRules.Validate(username, _filter);
+        if (!name.IsValid)
+            return AccountResult<Account>.Failure(name.Error);
+        if (tag is int wanted && !Tags.IsValid(wanted))
+            return AccountResult<Account>.Failure(AccountErrors.InvalidTag);
+        lock (_accountChanges)
+            return MoveHandle(account.Id, name.Username, tag);
+    }
+
+    private AccountResult<Account> MoveHandle(Guid id, string username, int? wantedTag)
+    {
+        var current = _store.Find(id);
+        if (current is null)
+            return AccountResult<Account>.Failure(AccountErrors.InvalidToken);
+        var sameName = string.Equals(UsernameRules.Key(current.Username), UsernameRules.Key(username), StringComparison.Ordinal);
+        var taken = _store.TagsOf(username).Where(other => !(sameName && other == current.Tag)).ToHashSet();
+        var newTag = wantedTag is int asked
+            ? (taken.Contains(asked) ? null : asked)
+            : sameName ? current.Tag : TagAllocator.Allocate(username, null, taken, _nextTag);
+        if (newTag is not int chosen)
+            return AccountResult<Account>.Failure(wantedTag is null ? AccountErrors.NoTagsLeft : AccountErrors.NameTaken);
+        var moved = current with { Username = username, Tag = chosen };
+        if (!_store.Update(moved))
+            return AccountResult<Account>.Failure(AccountErrors.NameTaken);
+        _logger?.LogInformation("Account {Old} is now {New}", current.Display, moved.Display);
+        return AccountResult<Account>.Success(moved);
+    }
+
     private sealed record CleanName(string? Name);
 
     /// <summary>Blank or missing: no display name (the username is shown). Otherwise it must pass the username rules.</summary>

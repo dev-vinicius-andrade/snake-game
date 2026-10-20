@@ -369,4 +369,32 @@ public sealed class AccountsControllerTests
         Assert.Equal(new[] { "user" }, plain);
         Assert.Equal(new[] { "user", "admin" }, admin);
     }
+
+    [Fact]
+    public void ChangeHandle_MovesTheAccount_AndAnswersWithTheNewHandle()
+    {
+        var token = Register("Vini", 9291).Token;
+
+        var result = Controller(authorization: $"Bearer {token}").ChangeHandle(new ChangeHandleRequest { Username = "Rattler", Tag = 42 });
+
+        var (status, body) = Read(result);
+        Assert.Equal(StatusCodes.Status200OK, status);
+        Assert.Equal("Rattler#00042", body.GetProperty("display").GetString());
+        Assert.Equal("Rattler", body.GetProperty("username").GetString());
+    }
+
+    [Fact]
+    public void ChangeHandle_ATakenHandle_Is409_AndANameThatIsNotAllowed_Is400_AndNoToken_Is401()
+    {
+        var token = Register("Vini", 9291).Token;
+        Register("Bob", 2);
+
+        var taken = Controller(authorization: $"Bearer {token}").ChangeHandle(new ChangeHandleRequest { Username = "Bob", Tag = 2 });
+        var bad = Controller(authorization: $"Bearer {token}").ChangeHandle(new ChangeHandleRequest { Username = "Vini#123" });
+        var anonymous = Controller().ChangeHandle(new ChangeHandleRequest { Username = "Rattler", Tag = 1 });
+
+        Assert.Equal(StatusCodes.Status409Conflict, Assert.IsAssignableFrom<ObjectResult>(taken).StatusCode);
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsAssignableFrom<ObjectResult>(bad).StatusCode);
+        Assert.Equal(StatusCodes.Status401Unauthorized, Assert.IsAssignableFrom<ObjectResult>(anonymous).StatusCode);
+    }
 }

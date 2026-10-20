@@ -10,6 +10,8 @@ public static class AccountErrors
     public const string InvalidTag = "invalidTag";
     public const string WeakPhrase = RecoveryPhrase.WeakPhrase;
     public const string NoTagsLeft = "noTagsLeft";
+    /// <summary>The username and tag asked for belong to another account.</summary>
+    public const string NameTaken = "nameTaken";
     public const string InvalidCredentials = "invalidCredentials";
     public const string InvalidToken = "invalidToken";
     public const string Throttled = "throttled";
