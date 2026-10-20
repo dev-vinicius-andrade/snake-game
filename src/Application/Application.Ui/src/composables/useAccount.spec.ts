@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ACCOUNT_TOKEN_STORAGE_KEY, AccountError, useAccount, type AccountHttp, type AccountStorage } from "./useAccount";
+import { ACCOUNT_TOKEN_STORAGE_KEY, AccountError, hasAccountToken, useAccount, type AccountHttp, type AccountStorage } from "./useAccount";
 
 function memoryStorage(initial: Record<string, string> = {}): AccountStorage & { data: Record<string, string> } {
   const data = { ...initial };
@@ -24,6 +24,18 @@ function setup(reply: (call: { method: string; url: string; body?: unknown; toke
   const account = useAccount({ managerUrl: "http://manager.test/", http, storage });
   return { account, request, storage };
 }
+
+describe("hasAccountToken", () => {
+  it("follows the device token: set by a sign in, cleared by a sign out, so any part of the page can show the profile button", async () => {
+    const { account } = setup((call) => (call.url.endsWith("/logout") ? { status: 204 } : { status: 201, data: registered }));
+
+    await account.register({ username: "Vini", tag: 9291 });
+    expect(hasAccountToken.value).toBe(true);
+
+    await account.logout();
+    expect(hasAccountToken.value).toBe(false);
+  });
+});
 
 describe("useAccount register", () => {
   it("posts, stores the token, signs in and returns the phrase to show once", async () => {

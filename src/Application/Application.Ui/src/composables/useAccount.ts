@@ -151,7 +151,14 @@ export function clearStoredAccountToken(storage: AccountStorage | undefined = de
   } catch {
     // Nothing to clear without storage.
   }
+  hasAccountToken.value = false;
 }
+
+/**
+ * Whether a device token is kept (the player is, or was, signed in). One answer for the whole page, set wherever the token is written, so
+ * a button that opens the profile can show up on every page, the game included, the moment someone signs in.
+ */
+export const hasAccountToken = shallowRef(readStoredAccountToken() !== null);
 
 /** True after the manager refused the stored token (a join or the profile said invalidToken); cleared by the next sign in. */
 export const tokenRejected = shallowRef(false);
@@ -206,6 +213,7 @@ export function useAccount(options: UseAccountOptions = {}) {
 
   function writeToken(value: string | null) {
     token = value;
+    hasAccountToken.value = value !== null;
     try {
       if (value) storage?.setItem(ACCOUNT_TOKEN_STORAGE_KEY, value);
       else storage?.removeItem(ACCOUNT_TOKEN_STORAGE_KEY);

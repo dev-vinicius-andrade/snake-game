@@ -1,3 +1,4 @@
+import { profileModal } from "./useProfileModal";
 import { shallowRef, watch } from "vue";
 import { InputArbiter } from "@/input/arbiter";
 import type { ControlIntent } from "@/input/intents";
@@ -74,7 +75,7 @@ export function useSnakeSession({ joiner, game, keyboardTarget, autoFire = () =>
       arbiter.noteKeyboard(intent, now());
       handleIntent(intent);
     },
-    enabled: () => phase.value === "playing",
+    enabled: () => phase.value === "playing" && !profileModal.open.value,
   });
 
   const gamepad = useGamepadControls({
@@ -83,7 +84,17 @@ export function useSnakeSession({ joiner, game, keyboardTarget, autoFire = () =>
       arbiter.noteKeyboard(intent, now());
       handleIntent(intent);
     },
-    enabled: () => phase.value === "playing",
+    enabled: () => phase.value === "playing" && !profileModal.open.value,
+  });
+
+  // The profile modal over the game: let go of what is held, so nothing keeps boosting or shooting behind it, and take the keys back after.
+  watch(profileModal.open, (open) => {
+    if (phase.value !== "playing") return;
+    if (open) {
+      if (boosting) handlers.boost({ type: "boost", active: false });
+      stopAutoFire();
+      keyboard.detach();
+    } else keyboard.attach();
   });
 
   watch(

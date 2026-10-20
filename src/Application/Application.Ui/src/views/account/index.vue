@@ -3,8 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { AccountError, useAccount } from "@/composables/useAccount";
 import { cleanUsername, formatDisplay, parseTag } from "@/game/accountName";
-import ChangeHandleForm from "@/components/account/ChangeHandleForm.vue";
-import LinkedAccounts from "@/components/account/LinkedAccounts.vue";
+import AccountSettings from "@/components/account/AccountSettings.vue";
 import SocialLoginButton from "@/components/account/SocialLoginButton.vue";
 import SocialPrivacyNote from "@/components/account/SocialPrivacyNote.vue";
 import { getText } from "@/helpers";
@@ -101,65 +100,10 @@ async function register() {
   }
 }
 
-// Signed in: the name other players see
-const newDisplayName = ref("");
-const linking = ref(false);
-const linkProblem = ref("");
-
-/** The manager makes the address of the provider's page (and keeps the state of the link); the browser then goes there. */
-async function link(provider: string) {
-  linking.value = true;
-  linkProblem.value = "";
-  try {
-    window.location.assign(await accounts.startLink(provider));
-  } catch (failure) {
-    if (!(failure instanceof AccountError)) throw failure;
-    linkProblem.value = getText({ key: `account.errors.${failure.code}` });
-    linking.value = false;
-  }
+/** The settings found no session (the token was refused): back to the sign in form. */
+function loginAgain() {
+  void accounts.loadMe();
 }
-
-/** A short message that says a change went through; the page was easy to leave wondering. */
-const toast = ref({ open: false, text: "" });
-const notify = (text: string) => (toast.value = { open: true, text });
-
-const handleSaved = ref(false);
-const handleProblem = ref("");
-const handleBusy = ref(false);
-
-async function saveHandle(username: string, tag: number | undefined) {
-  handleSaved.value = false;
-  handleProblem.value = "";
-  handleBusy.value = true;
-  try {
-    await accounts.changeHandle(username, tag);
-    handleSaved.value = true;
-    notify(getText({ key: "account.handleSaved" }));
-  } catch (failure) {
-    if (!(failure instanceof AccountError)) throw failure;
-    handleProblem.value = getText({ key: failure.code === "throttled" ? "account.errors.throttledNow" : `account.errors.${failure.code}` });
-  } finally {
-    handleBusy.value = false;
-  }
-}
-
-const displayNameSaved = ref(false);
-const displayNameProblem = ref("");
-
-async function saveDisplayName() {
-  displayNameSaved.value = false;
-  displayNameProblem.value = "";
-  try {
-    await accounts.changeDisplayName(newDisplayName.value);
-    displayNameSaved.value = true;
-    notify(getText({ key: "account.displayNameSaved" }));
-  } catch (failure) {
-    if (!(failure instanceof AccountError)) throw failure;
-    displayNameProblem.value = getText({ key: `account.errors.${failure.code}` });
-  }
-}
-
-watch(account, (current) => (newDisplayName.value = current?.displayName ?? ""), { immediate: true });
 
 async function login() {
   const tag = loginTagNumber.value;
@@ -230,35 +174,8 @@ onBeforeUnmount(() => clearTimeout(availabilityTimer));
 
           <!-- Signed in -->
           <template v-else-if="status === 'signedIn' && account">
-            <div>{{ getText({ key: "account.signedInAs" }) }}</div>
-            <div class="text-h5 my-2" data-test="signed-in-display">{{ account.display }}</div>
-            <div class="text-caption mb-4" data-test="handle-private">{{ getText({ key: "account.handlePrivate" }) }}</div>
-            <VForm class="mb-4" @submit.prevent="saveDisplayName">
-              <VTextField
-                v-model="newDisplayName"
-                :label="getText({ key: 'account.displayName' })"
-                :hint="getText({ key: 'account.displayNameHint' })"
-                :error-messages="displayNameProblem"
-                persistent-hint
-                maxlength="20"
-                autocomplete="nickname"
-                data-test="display-name"
-              />
-              <div v-if="displayNameSaved" class="text-success text-caption mt-1" role="status">{{ getText({ key: "account.displayNameSaved" }) }}</div>
-              <VBtn type="submit" size="small" variant="tonal" class="mt-2" data-test="save-display-name">{{ getText({ key: "account.displayNameSave" }) }}</VBtn>
-            </VForm>
-            <ChangeHandleForm
-              class="mb-4"
-              :username="account.username"
-              :tag="account.tag"
-              :busy="handleBusy"
-              :problem="handleProblem"
-              :saved="handleSaved"
-              @save="saveHandle"
-            />
-            <LinkedAccounts class="mb-4" :providers="accounts.providers.value" :linked="account.linked" :busy="linking" @link="link" />
-            <div v-if="linkProblem" class="text-error text-caption mb-4" role="alert" data-test="link-error">{{ linkProblem }}</div>
-            <VBtn variant="tonal" :to="{ name: 'profile' }" data-test="profile-link">{{ getText({ key: "profile.link" }) }}</VBtn>
+            <AccountSettings @sign-in="loginAgain" />
+            <VBtn variant="tonal" class="mt-4" :to="{ name: 'profile' }" data-test="profile-link">{{ getText({ key: "profile.link" }) }}</VBtn>
           </template>
 
           <!-- Guest -->
@@ -361,8 +278,7 @@ onBeforeUnmount(() => clearTimeout(availabilityTimer));
         </VCardActions>
       </VCard>
     </VCol>
-    <VSnackbar v-model="toast.open" color="success" :timeout="4000" location="bottom" data-test="toast">{{ toast.text }}</VSnackbar>
-</VRow>
+  </VRow>
 </template>
 
 <style scoped>

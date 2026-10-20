@@ -4,6 +4,8 @@ import { computed, onMounted, ref } from "vue";
 import GameplayEditor from "@/components/admin/GameplayEditor.vue";
 import RoomGameplayDialog from "@/components/admin/RoomGameplayDialog.vue";
 import RoomPerksDialog from "@/components/admin/RoomPerksDialog.vue";
+import ForbiddenPage from "@/components/ForbiddenPage.vue";
+import { adminAccess } from "@/composables/adminAccess";
 import { useAccount } from "@/composables/useAccount";
 import { useAdminGameplay } from "@/composables/useAdminGameplay";
 import { useAdminRooms, type AdminRoom } from "@/composables/useAdminRooms";
@@ -55,12 +57,20 @@ useIntervalFn(() => {
 }, REFRESH_MS);
 
 /** Signed in with an account that has the admin role: no key is needed. A key that was used in this tab is tried first. */
-const signedInNotAdmin = computed(() => accounts.status.value === "signedIn" && !accounts.account.value?.roles.includes("admin"));
+const accountSignedIn = computed(() => accounts.status.value === "signedIn");
+
+/** Until the page has found out who is there, it shows nothing about access: an admin must not see the forbidden page for a moment. */
+const checking = ref(true);
+const access = computed(() => adminAccess({ checking: checking.value, signedInToAdmin: signedIn.value }));
 
 onMounted(async () => {
-  if (admin.hasKey()) return void admin.refresh();
-  await accounts.loadMe();
-  if (accounts.account.value?.roles.includes("admin")) await admin.signInWithAccount();
+  try {
+    if (admin.hasKey()) return void (await admin.refresh());
+    await accounts.loadMe();
+    if (accounts.account.value?.roles.includes("admin")) await admin.signInWithAccount();
+  } finally {
+    checking.value = false;
+  }
 });
 </script>
 
@@ -70,17 +80,21 @@ onMounted(async () => {
       <VCol cols="12" md="10">
         <VCard :title="getText({ key: 'admin.title' })">
           <VCardText v-if="!signedIn">
-            <VTextField
-              v-model="keyInput"
-              type="password"
-              autocomplete="off"
-              :label="getText({ key: 'admin.adminKey' })"
-              variant="outlined"
-              @keyup.enter="signIn"
-            />
-            <div v-if="signedInNotAdmin" class="text-caption mb-2" data-test="not-admin">{{ getText({ key: "admin.notAdmin" }) }}</div>
-            <div v-if="errorText" class="text-error" role="alert">{{ errorText }}</div>
-            <VBtn color="primary" :disabled="!keyInput.trim()" @click="signIn">{{ getText({ key: "admin.signIn" }) }}</VBtn>
+            <div v-if="access === 'checking'" role="status" data-test="admin-checking">{{ getText({ key: "admin.checking" }) }}</div>
+            <ForbiddenPage v-else :signed-in="accountSignedIn">
+              <template #key>
+                <VTextField
+                  v-model="keyInput"
+                  type="password"
+                  autocomplete="off"
+                  :label="getText({ key: 'admin.adminKey' })"
+                  variant="outlined"
+                  @keyup.enter="signIn"
+                />
+                <div v-if="errorText" class="text-error" role="alert">{{ errorText }}</div>
+                <VBtn color="primary" :disabled="!keyInput.trim()" @click="signIn">{{ getText({ key: "admin.signIn" }) }}</VBtn>
+              </template>
+            </ForbiddenPage>
           </VCardText>
 
           <VTabs v-if="signedIn" v-model="tab">
