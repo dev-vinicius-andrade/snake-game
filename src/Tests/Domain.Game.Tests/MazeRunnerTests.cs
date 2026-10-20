@@ -108,6 +108,15 @@ public sealed class MazeRunnerTests
     }
 
     [Fact]
+    public void ThePrizeCarriesTheRewardOfTheSettings()
+    {
+        var reward = new PerkReward { ExtraLives = 1, TierSurgeMin = 2, TierSurgeMax = 2 };
+        Risen(Small(o => o with { PrizeReward = reward }));
+
+        Assert.Equal(reward, Prize!.Reward);
+    }
+
+    [Fact]
     public void TheWallsAreWhatTheGeneratorMakesFromTheSeed()
     {
         Risen();

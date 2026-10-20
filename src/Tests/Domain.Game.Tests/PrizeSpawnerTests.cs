@@ -1,3 +1,4 @@
+using Library.Commons.Game.Domain.Entities;
 using Domain.Game.Entities;
 using Domain.Game.Rules;
 using Domain.Game.Services;
@@ -256,6 +257,21 @@ public sealed class PrizeSpawnerTests
         Assert.Equal("magnet", prize.GrantsPerk);
         Assert.Equal("#ff00aa", prize.Color.FillColor);
         Assert.Equal("gift", prize.PrizeId);
+    }
+
+    [Fact]
+    public void Update_AKindWithARewardCarriesIt_AndOneWithoutCarriesNone()
+    {
+        AddPlayers(1);
+        var reward = new PerkReward { ExtraLives = 1, TierSurgeMin = 1, TierSurgeMax = 2, GrantsRandomPerk = true };
+        var spawner = SpawnerWith(Kind("gift") with { Reward = reward }, Kind("plain"));
+        spawner.Update(_state);
+
+        _time.Now = _time.Now.AddSeconds(60);
+        spawner.Update(_state);
+
+        Assert.Equal(reward, Prizes().Single(food => food.PrizeId == "gift").Reward);
+        Assert.Null(Prizes().Single(food => food.PrizeId == "plain").Reward);
     }
 
     [Fact]

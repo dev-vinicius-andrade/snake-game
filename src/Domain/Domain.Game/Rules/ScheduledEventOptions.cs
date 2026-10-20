@@ -1,3 +1,4 @@
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 
 namespace Domain.Game.Rules;
@@ -60,6 +61,9 @@ public sealed record BountyOptions : IScheduledEvent
 
     /// <summary>How many foods the kill counts for toward the perks (and their tiers) of the snake that does it.</summary>
     public int FoodsCredit { get; init; } = 10;
+
+    /// <summary>What else the snake that kills it gets: a random perk, extra lives, a tier surge, mass, a mend. Off by default.</summary>
+    public PerkReward Reward { get; init; } = new();
 
     /// <summary>Players needed in the room before one is set.</summary>
     public int MinPlayers { get; init; } = 3;
@@ -189,6 +193,9 @@ public sealed record MazeOptions : IScheduledEvent
 
     /// <summary>The id of a perk the snake that takes the prize gets. Empty: none.</summary>
     public string? PrizeGrantsPerk { get; init; }
+
+    /// <summary>What else the snake that takes the prize gets: a random perk, extra lives, a tier surge, mass, a mend. Off by default.</summary>
+    public PerkReward PrizeReward { get; init; } = new();
 
     /// <summary>How the prize looks: six hex digits such as #ffd23f.</summary>
     public string PrizeColor { get; init; } = "#ffd23f";

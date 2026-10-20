@@ -1,4 +1,5 @@
-﻿using Library.Commons.Game.Domain.Interfaces.Entities;
+﻿using Library.Commons.Game.Domain.Entities;
+using Library.Commons.Game.Domain.Interfaces.Entities;
 
 namespace Domain.Game.Rules;
 
@@ -207,6 +208,9 @@ public sealed record TurretOptions
 
     /// <summary>The id of a perk the snake that brings it down gets, whatever the foods it has eaten. Empty: none.</summary>
     public string? GrantsPerk { get; init; }
+
+    /// <summary>What else the snake that brings it down gets: a random perk, extra lives, a tier surge, mass, a mend. Off by default.</summary>
+    public PerkReward Reward { get; init; } = new();
 
     /// <summary>How many foods bringing it down counts for toward the perks (and their tiers) of the snake that does it.</summary>
     public int FoodsCredit { get; init; } = 15;

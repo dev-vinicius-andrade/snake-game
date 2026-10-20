@@ -73,7 +73,8 @@ public sealed class BountyRunner(WorldEventRules rules, EventSchedule schedule, 
         var living = gameState.Players.Values.Where(player => player.IsAlive).ToArray();
         if (living.Length == 0) return;
         var target = living[Math.Min((int)(Schedule.Next() * living.Length), living.Length - 1)];
-        gameState.Bounty = new WorldBounty(target.Guid, now.AddSeconds(options.Bounty.DurationSeconds), options.Bounty.RewardMass, options.Bounty.FoodsCredit);
+        gameState.Bounty = new WorldBounty(target.Guid, now.AddSeconds(options.Bounty.DurationSeconds), options.Bounty.RewardMass, options.Bounty.FoodsCredit,
+            options.Bounty.Reward.IsEmpty ? null : options.Bounty.Reward);
     }
 
     protected override bool IsOver(IGameState gameState)

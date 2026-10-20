@@ -98,6 +98,7 @@ public sealed class PrizeSpawner
             FoodsCredit = definition.FoodsCredit,
             PrizeId = definition.Id,
             GrantsPerk = string.IsNullOrWhiteSpace(definition.GrantsPerk) ? null : definition.GrantsPerk,
+            Reward = definition.Reward.IsEmpty ? null : definition.Reward,
         };
         gameState.Foods.Add(prize.Guid, prize);
     }

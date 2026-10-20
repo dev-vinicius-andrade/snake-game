@@ -276,6 +276,27 @@ public sealed class ScheduledEventRunnerTests
     }
 
     [Fact]
+    public void Bounty_CarriesTheRewardOfTheSettings()
+    {
+        var reward = new PerkReward { GrantsRandomPerk = true, Mend = true };
+        var runner = Bounties(Wanted with { Reward = reward });
+        runner.Update(_state);
+        Pass(runner.Update, 30);
+
+        Assert.Equal(reward, _state.Bounty!.Reward);
+    }
+
+    [Fact]
+    public void Bounty_WithNoReward_CarriesNone()
+    {
+        var runner = Bounties();
+        runner.Update(_state);
+        Pass(runner.Update, 30);
+
+        Assert.Null(_state.Bounty!.Reward);
+    }
+
+    [Fact]
     public void Bounty_NeverMarksADeadSnake()
     {
         var runner = Bounties();

@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using Library.Commons.Game.Domain.Entities;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Domain.Game.Rules;
@@ -51,10 +52,14 @@ public sealed record GameplayConfig
         _ = new WorldEventRules(WorldEvents);
     }
 
-    /// <summary>A prize can only give a perk that is in the list (the built-in set when no list was given).</summary>
+    /// <summary>A prize can only give a perk that is in the list (the built-in set when no list was given), and its rewards must be sane.</summary>
     private void EnsurePerksGrantedExist()
     {
         var known = (Perks.Perks.Count > 0 ? Perks.Perks : PerkOptions.BuiltIn).Select(perk => perk.Id).ToHashSet();
+        foreach (var prize in Prize.Definitions()) EnsureRewardValid($"Prize '{prize.Id}'", prize.Reward, known);
+        EnsureRewardValid("The turret", WorldEvents.Turret.Reward, known);
+        EnsureRewardValid("The bounty", WorldEvents.Bounty.Reward, known);
+        EnsureRewardValid("The maze prize", WorldEvents.Maze.PrizeReward, known);
         foreach (var prize in Prize.Definitions().Where(prize => !string.IsNullOrWhiteSpace(prize.GrantsPerk) && !known.Contains(prize.GrantsPerk!)))
             throw new ArgumentException($"Prize '{prize.Id}' gives the perk '{prize.GrantsPerk}', which does not exist.");
         var turretPerk = WorldEvents.Turret.GrantsPerk;
@@ -63,6 +68,13 @@ public sealed record GameplayConfig
         var mazePerk = WorldEvents.Maze.PrizeGrantsPerk;
         if (!string.IsNullOrWhiteSpace(mazePerk) && !known.Contains(mazePerk))
             throw new ArgumentException($"The maze prize gives the perk '{mazePerk}', which does not exist.");
+    }
+
+    private static void EnsureRewardValid(string owner, PerkReward reward, HashSet<string> known)
+    {
+        if (reward.Problem() is { } problem) throw new ArgumentException($"{owner}: {problem}.");
+        if (!string.IsNullOrWhiteSpace(reward.TierSurgePerk) && !known.Contains(reward.TierSurgePerk))
+            throw new ArgumentException($"{owner} lifts the perk '{reward.TierSurgePerk}', which does not exist.");
     }
 }
 

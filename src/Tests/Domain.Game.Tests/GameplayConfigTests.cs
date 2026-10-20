@@ -1,3 +1,4 @@
+using Library.Commons.Game.Domain.Entities;
 using Domain.Game.Rules;
 
 namespace Domain.Game.Tests;
@@ -382,6 +383,55 @@ public sealed class GameplayConfigTests
         };
 
         config.EnsureValid();
+    }
+
+    [Fact]
+    public void EnsureValid_ARewardThatLiftsAPerkNeedsThatPerkToExist()
+    {
+        var config = new GameplayConfig
+        {
+            Perks = new PerkOptions { Perks = [new() { Id = "real", Name = "Real", FoodsRequired = 5, Effect = PerkEffect.Magnet, Amount = 1 }] },
+            Prize = new PrizeOptions { Prizes = [new() { Id = "gift", Name = "Gift", Reward = new PerkReward { TierSurgeMin = 1, TierSurgeMax = 1, TierSurgePerk = "ghost" } }] }
+        };
+
+        var failure = Assert.Throws<ArgumentException>(config.EnsureValid);
+
+        Assert.Contains("ghost", failure.Message);
+    }
+
+    [Theory]
+    [InlineData(6, 0, 0, 0)]
+    [InlineData(-1, 0, 0, 0)]
+    [InlineData(0, 11, 0, 0)]
+    [InlineData(0, 0, 11, 0)]
+    [InlineData(0, 0, 0, 10001)]
+    public void EnsureValid_ARewardOutOfRange_IsRefused_WhereverItIsSet(int lives, int surgeMin, int surgeMax, long mass)
+    {
+        var reward = new PerkReward { ExtraLives = lives, TierSurgeMin = surgeMin, TierSurgeMax = surgeMax, BonusMass = mass };
+        var base_ = GameplayConfig.Defaults;
+
+        Assert.Throws<ArgumentException>((base_ with { Prize = new PrizeOptions { Prizes = [new() { Id = "gift", Name = "Gift", Reward = reward }] } }).EnsureValid);
+        Assert.Throws<ArgumentException>((base_ with { WorldEvents = base_.WorldEvents with { Turret = new TurretOptions { Reward = reward } } }).EnsureValid);
+        Assert.Throws<ArgumentException>((base_ with { WorldEvents = base_.WorldEvents with { Bounty = new BountyOptions { Reward = reward } } }).EnsureValid);
+        Assert.Throws<ArgumentException>((base_ with { WorldEvents = base_.WorldEvents with { Maze = new MazeOptions { PrizeReward = reward } } }).EnsureValid);
+    }
+
+    [Fact]
+    public void Json_RewardsAndTheNewPerkFieldsRoundTrip_AndOldJsonStillReads()
+    {
+        var config = GameplayConfig.Defaults with
+        {
+            Prize = new PrizeOptions { Prizes = [new() { Id = "gift", Name = "Gift", Reward = new PerkReward { ExtraLives = 1, TierSurgeMin = 1, TierSurgeMax = 3, TierSurgePerk = "magnet", Mend = true }}] },
+            Perks = GameplayConfig.Defaults.Perks with { ExtraLifeKeepShare = 0.25, ExtraLifeProtectSeconds = 5 }
+        };
+
+        var back = System.Text.Json.JsonSerializer.Deserialize<GameplayConfig>(System.Text.Json.JsonSerializer.Serialize(config, GameplayConfig.Json), GameplayConfig.Json)!;
+
+        Assert.Equal(config.Prize.Prizes[0].Reward, back.Prize.Prizes[0].Reward);
+        Assert.Equal((0.25, 5), (back.Perks.ExtraLifeKeepShare, back.Perks.ExtraLifeProtectSeconds));
+        var old = System.Text.Json.JsonSerializer.Deserialize<GameplayConfig>("{\"prize\":{\"prizes\":[{\"id\":\"x\",\"name\":\"X\",\"grantsPerk\":\"magnet\"}]}}", GameplayConfig.Json)!;
+        Assert.True(old.Prize.Prizes[0].Reward.IsEmpty);
+        old.EnsureValid();
     }
 
     [Fact]

@@ -82,6 +82,23 @@ public sealed class TurretRunnerTests
     }
 
     [Fact]
+    public void Update_TheTurretCarriesTheRewardOfTheSettings()
+    {
+        var reward = new PerkReward { ExtraLives = 2, BonusMass = 30 };
+        Appeared(Options(turret => turret with { Reward = reward }));
+
+        Assert.Equal(reward, _state.Boss!.Reward);
+    }
+
+    [Fact]
+    public void Update_WithNoReward_TheTurretCarriesNone()
+    {
+        Appeared();
+
+        Assert.Null(_state.Boss!.Reward);
+    }
+
+    [Fact]
     public void Update_WhenDue_PutsTheTurretInTheRoomWithWhatTheSettingsSay()
     {
         Appeared();
