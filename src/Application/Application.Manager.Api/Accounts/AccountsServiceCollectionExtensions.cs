@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
+using Application.Manager.Api.Accounts.OAuth;
+
 namespace Application.Manager.Api.Accounts;
 
 public static class AccountsServiceCollectionExtensions
@@ -30,6 +32,14 @@ public static class AccountsServiceCollectionExtensions
             provider.GetRequiredService<SecretHasher>(),
             provider.GetRequiredService<TimeProvider>(),
             provider.GetService<ILogger<AccountService>>()));
+        services.AddSingleton(configuration.GetSection(OAuthOptions.SectionName).Get<OAuthOptions>() ?? new OAuthOptions());
+        services.AddHttpClient<IOAuthClient, HttpOAuthClient>(client => client.Timeout = TimeSpan.FromSeconds(10));
+        services.AddSingleton(provider => new OAuthService(
+            provider.GetRequiredService<OAuthOptions>(),
+            provider.GetRequiredService<IOAuthClient>(),
+            provider.GetRequiredService<AccountService>(),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetService<ILogger<OAuthService>>()));
         services.AddSingleton<IStatsStore>(provider =>
             new FileStatsStore(configuration[StatsPathKey], provider.GetService<ILoggerFactory>()?.CreateLogger<FileStatsStore>()));
         services.AddSingleton(provider => new AchievementService(

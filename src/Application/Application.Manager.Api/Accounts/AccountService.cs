@@ -82,6 +82,58 @@ public sealed class AccountService
         return SignInDevice(account, normalizedPhrase);
     }
 
+    /// <summary>
+    /// Signs in a player who proved who they are to a social provider (GitHub, Discord, Google). The provider's id finds the account, which gets
+    /// a new device; a first time makes one, from the names the provider gave once they are cleaned to fit (the username falls back to the display
+    /// name, then to "Player"). Such an account has no recovery phrase, so a phrase never signs in to it. Only a new account counts towards the
+    /// per IP registration throttle.
+    /// </summary>
+    public AccountResult<SignIn> SignInWithExternal(string? provider, string? subject, string? usernameSuggestion, string? displayNameSuggestion, string? clientIp)
+    {
+        if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(subject))
+            return AccountResult<SignIn>.Failure(AccountErrors.InvalidCredentials);
+        for (var attempt = 0; attempt < AddAttempts; attempt++)
+        {
+            if (_store.FindByExternalLogin(provider, subject) is { } existing)
+                return AddDevice(existing);
+            var created = CreateExternalAccount(provider.Trim().ToLowerInvariant(), subject.Trim(), usernameSuggestion, displayNameSuggestion, clientIp);
+            if (created is not null)
+                return created;
+        }
+        return AccountResult<SignIn>.Failure(AccountErrors.NoTagsLeft);
+    }
+
+    /// <summary>The new account, a refusal, or null when the add lost a race and the caller should look again.</summary>
+    private AccountResult<SignIn>? CreateExternalAccount(string provider, string subject, string? usernameSuggestion, string? displayNameSuggestion, string? clientIp)
+    {
+        var throttleKey = RegistrationKey(clientIp);
+        if (_throttles.Registration.RetryAfter(throttleKey) is TimeSpan wait)
+            return AccountResult<SignIn>.Throttled(wait);
+        var displayName = UsernameSanitizer.Clean(displayNameSuggestion, _filter);
+        var username = UsernameSanitizer.Clean(usernameSuggestion, _filter) ?? displayName ?? FallbackUsername;
+        var login = new ExternalLogin(provider, subject, _time.GetUtcNow());
+        var (token, tokenHash) = DeviceTokens.Create();
+        var device = new DeviceToken(tokenHash, login.LinkedAt);
+        var request = new NewAccount(username, null, string.Empty, displayName == username ? null : displayName, login);
+        var attempt = TryAddWithFreeTag(request, Account.NoPhrase, device);
+        if (attempt.Added is null)
+            return attempt.IsFinal ? AccountResult<SignIn>.Failure(AccountErrors.NoTagsLeft) : null;
+        _throttles.Registration.Failed(throttleKey);
+        _logger?.LogInformation("Account {Display} made with {Provider}", attempt.Added.Display, provider);
+        return AccountResult<SignIn>.Success(new SignIn(attempt.Added, token));
+    }
+
+    private AccountResult<SignIn> AddDevice(Account account)
+    {
+        var (token, tokenHash) = DeviceTokens.Create();
+        var device = new DeviceToken(tokenHash, _time.GetUtcNow());
+        var signedIn = ChangeAccount(account.Id, current => current with { Devices = WithDevice(current.Devices, device) });
+        return signedIn is null ? AccountResult<SignIn>.Failure(AccountErrors.InvalidCredentials) : AccountResult<SignIn>.Success(new SignIn(signedIn, token));
+    }
+
+    /// <summary>The username of an account made from a social login that gave no name that fits.</summary>
+    private const string FallbackUsername = "Player";
+
     /// <summary>The account a device token belongs to, or null.</summary>
     public Account? Authenticate(string? token)
         => DeviceTokens.LooksLikeToken(token) ? _store.FindByDeviceTokenHash(DeviceTokens.Hash(token)) : null;
@@ -181,7 +233,8 @@ public sealed class AccountService
         var tag = TagAllocator.Allocate(request.Username, request.WantedTag, _store.TagsOf(request.Username), _nextTag);
         if (tag is not int free)
             return AddAttempt.NoTagsLeft;
-        var account = new Account(Guid.NewGuid(), request.Username, free, phraseHash, device.CreatedAt, [device], request.DisplayName);
+        var account = new Account(Guid.NewGuid(), request.Username, free, phraseHash, device.CreatedAt, [device], request.DisplayName,
+            request.Login is null ? null : [request.Login]);
         return _store.TryAdd(account) ? AddAttempt.Done(account) : AddAttempt.LostRace;
     }
 
@@ -260,7 +313,7 @@ public sealed class AccountService
 
     private static string LookupKey(string? clientIp) => "avail:" + (clientIp ?? UnknownIp);
 
-    private sealed record NewAccount(string Username, int? WantedTag, string Phrase, string? DisplayName = null);
+    private sealed record NewAccount(string Username, int? WantedTag, string Phrase, string? DisplayName = null, ExternalLogin? Login = null);
 
     private sealed record AddAttempt(Account? Added, bool IsFinal)
     {

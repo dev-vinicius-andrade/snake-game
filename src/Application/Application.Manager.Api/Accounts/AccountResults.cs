@@ -13,6 +13,10 @@ public static class AccountErrors
     public const string InvalidCredentials = "invalidCredentials";
     public const string InvalidToken = "invalidToken";
     public const string Throttled = "throttled";
+    public const string UnknownProvider = "unknownProvider";
+    public const string InvalidState = "invalidState";
+    public const string ProviderFailed = "providerFailed";
+    public const string InvalidTicket = "invalidTicket";
 }
 
 /// <summary>What an <see cref="AccountService"/> call gave: a value, or an error code (and, when throttled, how long to wait).</summary>

@@ -78,6 +78,9 @@ spec:
                 secretKeyRef:
                   name: {{ $secret.secretName }}
                   key: {{ $secret.key }}
+                  {{- if $secret.optional }}
+                  optional: true
+                  {{- end }}
             {{- end }}
           volumeMounts:
             - name: tmp

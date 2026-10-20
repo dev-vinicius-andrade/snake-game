@@ -586,4 +586,38 @@ public sealed class FileAccountStoreTests : IDisposable
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public void AnExternalLogin_CanBeFound_SurvivesAReload_AndBelongsToOneAccountOnly()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"accounts-{Guid.NewGuid():N}.json");
+        try
+        {
+            var login = new ExternalLogin("github", "583231", DateTimeOffset.UnixEpoch);
+            var first = new Account(Guid.NewGuid(), "octocat", 1, Account.NoPhrase, DateTimeOffset.UnixEpoch, [new DeviceToken("t1", DateTimeOffset.UnixEpoch)], null, [login]);
+            var second = new Account(Guid.NewGuid(), "other", 2, Account.NoPhrase, DateTimeOffset.UnixEpoch, [new DeviceToken("t2", DateTimeOffset.UnixEpoch)], null, [login]);
+            var store = new FileAccountStore(path);
+
+            Assert.True(store.TryAdd(first));
+            Assert.False(store.TryAdd(second));
+
+            Assert.Equal(first.Id, store.FindByExternalLogin("github", "583231")!.Id);
+            Assert.Equal(first.Id, store.FindByExternalLogin("GitHub", "583231")!.Id);
+            Assert.Null(store.FindByExternalLogin("discord", "583231"));
+            Assert.Equal(first.Id, new FileAccountStore(path).FindByExternalLogin("github", "583231")!.Id);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void ASocialAccountHasNoPhrase_ButIsStorable()
+    {
+        var store = new FileAccountStore(null);
+        var account = new Account(Guid.NewGuid(), "octocat", 1, Account.NoPhrase, DateTimeOffset.UnixEpoch, [new DeviceToken("t1", DateTimeOffset.UnixEpoch)]);
+
+        Assert.True(store.TryAdd(account));
+    }
 }

@@ -214,11 +214,22 @@ ADMIN_KEY=$(secret_value "$NS" snake-secrets admin-key); ADMIN_KEY=${ADMIN_KEY:-
 RABBIT_USER=$(secret_value "$INFRA_NS" rabbitmq-credentials username)
 RABBIT_PASSWORD=$(secret_value "$INFRA_NS" rabbitmq-credentials password)
 REDIS_PASSWORD=$(secret_value "$INFRA_NS" redis-credentials password)
+# Keys for signing in with a social account (docs/ACCOUNTS.md): from .env, else what the Secret already has. A provider with no keys is not offered.
+OAUTH_ARGS=()
+for provider in github discord google; do
+  upper=$(printf '%s' "$provider" | tr '[:lower:]' '[:upper:]')
+  for part in id secret; do
+    variable="OAUTH_${upper}_CLIENT_$(printf '%s' "$part" | tr '[:lower:]' '[:upper:]')"
+    value=${!variable:-$(secret_value "$NS" snake-secrets "oauth-$provider-$part")}
+    [ -z "$value" ] || OAUTH_ARGS+=("--from-literal=oauth-$provider-$part=$value")
+  done
+done
 kube create secret generic snake-secrets \
   --from-literal=api-key="$API_KEY" \
   --from-literal=admin-key="$ADMIN_KEY" \
   --from-literal=rabbitmq-url="amqp://$RABBIT_USER:$RABBIT_PASSWORD@rabbitmq.$INFRA_NS.svc.cluster.local:5672" \
   --from-literal=redis-password="$REDIS_PASSWORD" \
+  "${OAUTH_ARGS[@]}" \
   --dry-run=client -o yaml | kube apply -f -
 
 # ── Application (Helm, one chart for the three workloads) ─────────────────────
@@ -232,7 +243,9 @@ install() { # release name values-file tag host [extra helm args...]
     ${VERSION:+--set-string "appVersion=$VERSION"} "$@"
 }
 # Only the site is reached from outside; it passes /api and /game on, so the other two get no ingress of their own.
-install snake-manager snake-manager manager "$MANAGER_TAG" "" --set "ingress.enabled=false"
+install snake-manager snake-manager manager "$MANAGER_TAG" "" --set "ingress.enabled=false" \
+  --set-string "env.OAuth__PublicApiUrl=https://$UI_HOST/api" \
+  --set-string "env.OAuth__PublicUiUrl=https://$UI_HOST"
 install snake-game snake-game-server game-server "$GAME_TAG" "" --set "ingress.enabled=false" \
   --set-string "env.ServerConfiguration__Domain=$UI_HOST" \
   --set-string "env.ServerConfiguration__InternalUrl=$GAME_INTERNAL_URL" \

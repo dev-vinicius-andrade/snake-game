@@ -503,6 +503,8 @@ public sealed class AccountServiceTests
 
         public Account? Find(string username, int tag) => _inner.Find(username, tag);
 
+        public Account? FindByExternalLogin(string provider, string subject) => _inner.FindByExternalLogin(provider, subject);
+
         public Account? FindByDeviceTokenHash(string tokenHash) => _inner.FindByDeviceTokenHash(tokenHash);
 
         public IReadOnlySet<int> TagsOf(string username) => _inner.TagsOf(username);
@@ -593,4 +595,100 @@ public sealed class AccountServiceTests
     [InlineData("not-a-token")]
     public void ChangeDisplayName_WithoutAnAccountToken_IsInvalidToken(string? token)
         => Assert.Equal(AccountErrors.InvalidToken, Service().ChangeDisplayName(token, "Rattler").Error);
+
+    [Fact]
+    public void SignInWithExternal_AFirstTimeMakesAnAccountWithNoPhraseFromTheProviderNames()
+    {
+        var service = Service();
+
+        var result = service.SignInWithExternal("github", "583231", "octocat", "The Octocat", Ip);
+
+        Assert.True(result.Succeeded, result.Error);
+        var account = result.Value.Account;
+        Assert.Equal("octocat", account.Username);
+        Assert.Equal("The Octocat", account.PublicName);
+        Assert.True(Tags.IsValid(account.Tag));
+        Assert.Equal(Account.NoPhrase, account.PhraseHash);
+        Assert.Equal(new ExternalLogin("github", "583231", _time.GetUtcNow()), Assert.Single(account.Logins));
+        Assert.Equal(account.Id, service.Authenticate(result.Value.Token)?.Id);
+    }
+
+    [Fact]
+    public void SignInWithExternal_TheSameSocialAccountAgainIsTheSameAccount_OnANewDevice_WithTheNamesAsTheyWere()
+    {
+        var service = Service();
+        var first = service.SignInWithExternal("github", "583231", "octocat", "The Octocat", Ip).Value;
+        service.ChangeDisplayName(first.Token, "Rattler");
+
+        var second = service.SignInWithExternal("GitHub", "583231", "renamed-on-github", "Another Name", Ip).Value;
+
+        Assert.Equal(first.Account.Id, second.Account.Id);
+        Assert.NotEqual(first.Token, second.Token);
+        Assert.Equal("octocat", second.Account.Username);
+        Assert.Equal("Rattler", service.Authenticate(second.Token)!.PublicName);
+        Assert.Equal(first.Account.Id, service.Authenticate(first.Token)?.Id);
+    }
+
+    [Fact]
+    public void SignInWithExternal_TheSameIdOnAnotherProviderIsAnotherAccount()
+    {
+        var service = Service();
+
+        var github = service.SignInWithExternal("github", "42", "ana", "Ana", Ip).Value;
+        var discord = service.SignInWithExternal("discord", "42", "ana", "Ana", Ip).Value;
+
+        Assert.NotEqual(github.Account.Id, discord.Account.Id);
+        Assert.NotEqual(github.Account.Tag, discord.Account.Tag);
+    }
+
+    [Theory]
+    [InlineData(null, "João da Silva", "João da Silva", "João da Silva")]
+    [InlineData("😎😎", "Ana Souza", "Ana Souza", "Ana Souza")]
+    [InlineData("admin", null, "Player", "Player")]
+    [InlineData(null, null, "Player", "Player")]
+    [InlineData("octo#12345", "Octo", "octo12345", "Octo")]
+    public void SignInWithExternal_NamesThatDoNotFitAreCleanedOrReplaced(string? username, string? displayName, string expectedUsername, string expectedPublic)
+    {
+        var account = Service().SignInWithExternal("github", "1", username, displayName, Ip).Value.Account;
+
+        Assert.Equal(expectedUsername, account.Username);
+        Assert.Equal(expectedPublic, account.PublicName);
+    }
+
+    [Fact]
+    public void SignInWithExternal_ADisplayNameThatIsTheUsernameIsNotKeptTwice()
+    {
+        var account = Service().SignInWithExternal("github", "1", "octocat", "octocat", Ip).Value.Account;
+
+        Assert.Null(account.DisplayName);
+    }
+
+    [Fact]
+    public void SignInWithExternal_APhraseNeverSignsInASocialAccount()
+    {
+        var service = Service();
+        var account = service.SignInWithExternal("github", "1", "octocat", "Octo", Ip).Value.Account;
+
+        foreach (var phrase in new[] { Account.NoPhrase, "", "none", StrongPhrase })
+            Assert.Equal(AccountErrors.InvalidCredentials, service.Login("octocat", account.Tag, phrase, Ip).Error);
+    }
+
+    [Fact]
+    public void SignInWithExternal_ANewAccountCountsTowardsTheRegistrationThrottle_AReturningOneDoesNot()
+    {
+        var service = Service();
+        for (var index = 0; index < 11; index++)
+            Assert.True(service.SignInWithExternal("github", index.ToString(), "ana", "Ana", Ip).Succeeded);
+
+        Assert.Equal(AccountErrors.Throttled, service.SignInWithExternal("github", "new", "ana", "Ana", Ip).Error);
+        Assert.True(service.SignInWithExternal("github", "3", "ana", "Ana", Ip).Succeeded);
+    }
+
+    [Theory]
+    [InlineData(null, "1")]
+    [InlineData("", "1")]
+    [InlineData("github", null)]
+    [InlineData("github", " ")]
+    public void SignInWithExternal_WithoutAProviderAndAnId_IsRefused(string? provider, string? subject)
+        => Assert.Equal(AccountErrors.InvalidCredentials, Service().SignInWithExternal(provider, subject, "ana", "Ana", Ip).Error);
 }

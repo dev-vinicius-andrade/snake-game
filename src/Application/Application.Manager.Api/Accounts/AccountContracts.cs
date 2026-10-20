@@ -11,8 +11,15 @@ public sealed record Account(
     string PhraseHash,
     DateTimeOffset CreatedAt,
     IReadOnlyList<DeviceToken> Devices,
-    string? DisplayName = null)
+    string? DisplayName = null,
+    IReadOnlyList<ExternalLogin>? ExternalLogins = null)
 {
+    /// <summary>The "phrase hash" of an account that signs in with a social account and has no recovery phrase: nothing can match it.</summary>
+    public const string NoPhrase = "none";
+
+    /// <summary>The social accounts (GitHub, Discord, Google) that sign in to this account. Empty for an account with a phrase.</summary>
+    public IReadOnlyList<ExternalLogin> Logins => ExternalLogins ?? [];
+
     /// <summary>
     /// The name with its tag, Name#09291: how the owner signs in. It is **private**: it is never shown to other players, because with the
     /// tag anyone knows exactly which account to go after. Other players see <see cref="PublicName"/>.
@@ -22,6 +29,9 @@ public sealed record Account(
     /// <summary>The name other players see in the game and on the ranking. Not unique, and says nothing about the tag. Defaults to the username.</summary>
     public string PublicName => string.IsNullOrWhiteSpace(DisplayName) ? Username : DisplayName;
 }
+
+/// <summary>A social account linked to a game account: which provider, and who the provider says it is (its own id, not an email).</summary>
+public sealed record ExternalLogin(string Provider, string Subject, DateTimeOffset LinkedAt);
 
 /// <summary>A browser (or device) that is signed in. Only the hash of its secret is kept.</summary>
 public sealed record DeviceToken(string Hash, DateTimeOffset CreatedAt, string? Label = null);
@@ -33,6 +43,9 @@ public interface IAccountStore
 
     /// <summary>The account with this username (case does not matter) and tag, or null.</summary>
     Account? Find(string username, int tag);
+
+    /// <summary>The account linked to this social account (provider and the provider's id; the provider's case does not matter), or null.</summary>
+    Account? FindByExternalLogin(string provider, string subject);
 
     /// <summary>The account that has a device with this token hash, or null.</summary>
     Account? FindByDeviceTokenHash(string tokenHash);

@@ -39,6 +39,31 @@ secretEnv:
   AuthConfiguration__ApiKeys__0:
     secretName: snake-secrets
     key: api-key
+  # Sign in with a social account. A provider is offered only when both keys are set (see docs/ACCOUNTS.md); deploy.sh fills them from .env.
+  OAuth__Providers__github__ClientId:
+    secretName: snake-secrets
+    key: oauth-github-id
+    optional: true
+  OAuth__Providers__github__ClientSecret:
+    secretName: snake-secrets
+    key: oauth-github-secret
+    optional: true
+  OAuth__Providers__discord__ClientId:
+    secretName: snake-secrets
+    key: oauth-discord-id
+    optional: true
+  OAuth__Providers__discord__ClientSecret:
+    secretName: snake-secrets
+    key: oauth-discord-secret
+    optional: true
+  OAuth__Providers__google__ClientId:
+    secretName: snake-secrets
+    key: oauth-google-id
+    optional: true
+  OAuth__Providers__google__ClientSecret:
+    secretName: snake-secrets
+    key: oauth-google-secret
+    optional: true
   # Opens the admin api and the /admin page. Without it the admin api is closed to everyone.
   AuthConfiguration__AdminApiKeys__0:
     secretName: snake-secrets
