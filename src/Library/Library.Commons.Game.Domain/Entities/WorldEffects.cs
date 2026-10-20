@@ -31,9 +31,10 @@ public interface IMazeWalls
 /// <param name="Corridor">Blocks across a corridor.</param>
 /// <param name="Twistiness">0 to 100, how twisty the corridors are (it shaped the walls).</param>
 /// <param name="PrizeId">The food that is the prize at the end; the maze is over when it is gone.</param>
+/// <param name="WallMassLoss">Mass a snake loses when its head runs into a wall.</param>
 public sealed record WorldMaze(
     double X, double Y, int Columns, int Rows, int Corridor, int Twistiness, uint Seed, double Unit,
-    DateTimeOffset EndsAt, IMazeWalls Walls, Guid PrizeId)
+    DateTimeOffset EndsAt, IMazeWalls Walls, Guid PrizeId, long WallMassLoss)
 {
     /// <summary>When each snake last paid for touching a wall, so scraping along one is not charged every frame.</summary>
     public System.Collections.Concurrent.ConcurrentDictionary<Guid, DateTimeOffset> WallHits { get; } = new();

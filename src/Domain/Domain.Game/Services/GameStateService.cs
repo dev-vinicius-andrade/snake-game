@@ -208,6 +208,9 @@ public class GameStateService : IGameStateService
         if (newCurrentPosition.Y >= gameState.Room.Height)
             newCurrentPosition.Y = 0;
 
+        if (gameState.Maze is { } maze)
+            newCurrentPosition = HoldAtWalls(gameState, maze, player, newCurrentPosition, perks.Invulnerable);
+
         player.CurrentPosition = newCurrentPosition;
         MoveBody(gameState, player, newCurrentPosition);
         RegenerateBody(player, perks);
@@ -216,6 +219,56 @@ public class GameStateService : IGameStateService
 
         _playerService.Save(player);
     }
+    /// <summary>A snake that touches a wall pays at most this often, so scraping along one is not charged every frame.</summary>
+    private static readonly TimeSpan WallHitCooldown = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>
+    /// Keeps a head out of the walls of a maze: when the step would put it in one, it slides along the wall if it can, else stays where
+    /// it was, and the snake pays the maze's wall cost (mass that falls as food), but never more than it has: a wall cannot kill. A head
+    /// that is in a wall already (a snake that was there when the maze rose, or spawned there) may walk out, for free.
+    /// </summary>
+    private IPointAxis HoldAtWalls(IGameState gameState, WorldMaze maze, IPlayer player, IPointAxis wanted, bool invulnerable)
+    {
+        var size = _snakeConfiguration.Value.HeadSize;
+        var from = player.CurrentPosition;
+        if (!maze.BlocksSquare(wanted.X, wanted.Y, size) || maze.BlocksSquare(from.X, from.Y, size)) return wanted;
+
+        var allowed = _pointAxisServices.CreateWith(wanted);
+        allowed.X = from.X;
+        allowed.Y = from.Y;
+        var alongX = !maze.BlocksSquare(wanted.X, from.Y, size) ? Math.Abs(wanted.X - from.X) : -1;
+        var alongY = !maze.BlocksSquare(from.X, wanted.Y, size) ? Math.Abs(wanted.Y - from.Y) : -1;
+        if (alongX >= 0 && alongX >= alongY) allowed.X = wanted.X;
+        else if (alongY >= 0) allowed.Y = wanted.Y;
+
+        if (!invulnerable) PayForWall(gameState, maze, player, allowed);
+        return allowed;
+    }
+
+    private void PayForWall(IGameState gameState, WorldMaze maze, IPlayer player, IPointAxis at)
+    {
+        var now = _clock.GetUtcNow();
+        if (maze.WallHits.TryGetValue(player.Guid, out var last) && now - last < WallHitCooldown) return;
+        maze.WallHits[player.Guid] = now;
+        var lost = Math.Min(Math.Max(player.Score, 0), maze.WallMassLoss);
+        if (lost <= 0) return;
+        player.Score -= lost;
+        AddPellet(gameState, new PelletDrop(new Point(at.X, at.Y), lost), player.BackgroundColor);
+        TellLoss(gameState, player, lost);
+    }
+
+    /// <summary>Whether a shot that goes from one spot to another touches a wall on the way. It looks every half block, so no wall is jumped over.</summary>
+    private bool ShotHitsWall(WorldMaze maze, IPointAxis from, IPointAxis to)
+    {
+        var half = _snakeConfiguration.Value.HeadSize / 2.0;
+        var (fromX, fromY) = (from.X + half, from.Y + half);
+        var (dx, dy) = (to.X - from.X, to.Y - from.Y);
+        var steps = Math.Max(1, (int)Math.Ceiling(Math.Sqrt(dx * dx + dy * dy) / (maze.Unit / 2)));
+        for (var step = 1; step <= steps; step++)
+            if (maze.BlocksPoint(fromX + dx * step / steps, fromY + dy * step / steps)) return true;
+        return false;
+    }
+
     private void TurnTowardsTarget(IPlayer player)
     {
         var turned = _headingRules.Turn(player.Heading, player.TargetHeading, _headingRules.MaxTurn(_tickRateService.TickRate));
@@ -927,6 +980,12 @@ public class GameStateService : IGameStateService
             newCurrentPosition.X += movementPerTickX * _snakeConfiguration.Value.HeadSize;
             newCurrentPosition.Y += movementPerTickY * _snakeConfiguration.Value.HeadSize;
 
+
+            if (gameState.Maze is { } maze && ShotHitsWall(maze, obstacle.CurrentPosition, newCurrentPosition))
+            {
+                toRemove.Add(id);
+                continue;
+            }
 
             obstacle.CurrentPosition = newCurrentPosition;
             if (_obstacleService.IsOnEndPosition(obstacle))
