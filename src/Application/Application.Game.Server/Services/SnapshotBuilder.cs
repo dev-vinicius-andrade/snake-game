@@ -15,6 +15,7 @@ public static class SnapshotBuilder
     public static SnapshotEvent Build(IGameState gameState, DateTimeOffset? now = null)
     {
         ArgumentNullException.ThrowIfNull(gameState);
+        var at = now ?? DateTimeOffset.UtcNow;
         return new SnapshotEvent
         {
             Room = new SnapshotRoom { Guid = gameState.Room.Guid, Width = gameState.Room.Width, Height = gameState.Room.Height },
@@ -24,7 +25,31 @@ public static class SnapshotBuilder
             Strikes = ToStrikes(gameState, now ?? DateTimeOffset.UtcNow),
             Boss = ToBoss(gameState.Boss),
             Zone = ToZone(gameState.Zone, now ?? DateTimeOffset.UtcNow),
+            Mines = ToMines(gameState, at),
+            Bounty = ToBounty(gameState.Bounty, at),
+            Shower = MillisecondsLeft(gameState.FruitShowerEndsAt, at),
+            Rush = MillisecondsLeft(gameState.SugarRushEndsAt, at),
         };
+    }
+
+    private static int? MillisecondsLeft(DateTimeOffset? endsAt, DateTimeOffset now)
+        => endsAt is { } end ? (int)Math.Max(0, Math.Round((end - now).TotalMilliseconds)) : null;
+
+    private static SnapshotBounty? ToBounty(WorldBounty? bounty, DateTimeOffset now)
+        => bounty is null
+            ? null
+            : new SnapshotBounty { Guid = bounty.Target, T = (int)Math.Max(0, Math.Round((bounty.EndsAt - now).TotalMilliseconds)), M = bounty.RewardMass };
+
+    private static List<SnapshotMine>? ToMines(IGameState gameState, DateTimeOffset now)
+    {
+        if (gameState.Mines is not { IsEmpty: false }) return null;
+        return gameState.Mines.Values.Select(mine => new SnapshotMine
+        {
+            X = (int)Math.Round(mine.X),
+            Y = (int)Math.Round(mine.Y),
+            R = (int)Math.Round(mine.Radius),
+            T = (int)Math.Max(0, Math.Round((mine.ArmedAt - now).TotalMilliseconds)),
+        }).ToList();
     }
 
     private static SnapshotZone? ToZone(WorldZone? zone, DateTimeOffset now)

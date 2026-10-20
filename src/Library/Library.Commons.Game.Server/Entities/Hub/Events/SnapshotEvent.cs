@@ -33,6 +33,51 @@ public record SnapshotEvent
     /// <summary>The safe zone of the room. Left out while there is none.</summary>
     [JsonPropertyName("zone")]
     public SnapshotZone? Zone { get; set; }
+
+    /// <summary>Mines lying on the map. Left out while there are none.</summary>
+    [JsonPropertyName("mines")]
+    public List<SnapshotMine>? Mines { get; set; }
+
+    /// <summary>The snake that is wanted. Left out while none is.</summary>
+    [JsonPropertyName("bounty")]
+    public SnapshotBounty? Bounty { get; set; }
+
+    /// <summary>Milliseconds left of the fruit shower that is going on. Left out while there is none.</summary>
+    [JsonPropertyName("shower")]
+    public int? Shower { get; set; }
+
+    /// <summary>Milliseconds left of the sugar rush (boosting is free) that is going on. Left out while there is none.</summary>
+    [JsonPropertyName("rush")]
+    public int? Rush { get; set; }
+}
+
+/// <summary>A mine: the spot, how far its blast reaches, and the milliseconds until it is armed (0 once it is).</summary>
+public record SnapshotMine
+{
+    [JsonPropertyName("x")]
+    public int X { get; set; }
+
+    [JsonPropertyName("y")]
+    public int Y { get; set; }
+
+    [JsonPropertyName("r")]
+    public int R { get; set; }
+
+    [JsonPropertyName("t")]
+    public int T { get; set; }
+}
+
+/// <summary>The wanted snake (its guid in the list of snakes), the milliseconds the mark has left, and the mass the killer is paid.</summary>
+public record SnapshotBounty
+{
+    [JsonPropertyName("guid")]
+    public Guid Guid { get; set; }
+
+    [JsonPropertyName("t")]
+    public int T { get; set; }
+
+    [JsonPropertyName("m")]
+    public long M { get; set; }
 }
 
 /// <summary>The safe zone: the middle, how far it reaches now and at the end, the phase it is in and the milliseconds left in it.</summary>

@@ -31,6 +31,10 @@ public class GameWorkerService : BackgroundService
     private readonly WorldEventRunner _worldEvents;
     private readonly TurretRunner _turrets;
     private readonly ZoneRunner _zones;
+    private readonly FruitShowerRunner _fruitShowers;
+    private readonly BountyRunner _bounties;
+    private readonly MineFieldRunner _mines;
+    private readonly SugarRushRunner _sugarRushes;
     private readonly TimeProvider _time;
     private readonly ConcurrentDictionary<Guid, FixedTimestepClock> _clocks = new();
     /// <summary>What each room last heard as its ranking, and what each player last heard as their score: said again only when it changes.</summary>
@@ -49,8 +53,16 @@ public class GameWorkerService : BackgroundService
         WorldEventRunner worldEvents,
         TurretRunner turrets,
         ZoneRunner zones,
+        FruitShowerRunner fruitShowers,
+        BountyRunner bounties,
+        MineFieldRunner mines,
+        SugarRushRunner sugarRushes,
         TimeProvider time)
     {
+        _fruitShowers = fruitShowers;
+        _bounties = bounties;
+        _mines = mines;
+        _sugarRushes = sugarRushes;
         _worldEvents = worldEvents;
         _turrets = turrets;
         _zones = zones;
@@ -100,6 +112,10 @@ public class GameWorkerService : BackgroundService
             // kills are told and removed below, with the ones the simulation killed.
             var struck = _worldEvents.Update(gameState).Concat(_zones.Update(gameState)).ToList();
             _turrets.Update(gameState);
+            _fruitShowers.Update(gameState);
+            _bounties.Update(gameState);
+            _mines.Update(gameState);
+            _sugarRushes.Update(gameState);
             var diedPlayers = (await StepAsync(gameState, ticks, cancellationToken)).Concat(struck).ToList();
             await NotifyDamageAsync(gameState);
             await NotifyDiedAsync(diedPlayers);

@@ -348,4 +348,89 @@ public sealed class SnapshotBuilderTests
 
         Assert.True(bytes < 9_000, $"{bytes} bytes");
     }
+
+    private JsonElement JsonAt(DateTimeOffset now) => JsonDocument.Parse(JsonSerializer.Serialize(SnapshotBuilder.Build(_state, now), Options)).RootElement;
+
+    [Fact]
+    public void Build_NothingGoingOn_LeavesOutMinesBountyShowerAndRush()
+    {
+        var json = Json();
+
+        Assert.False(json.TryGetProperty("mines", out _));
+        Assert.False(json.TryGetProperty("bounty", out _));
+        Assert.False(json.TryGetProperty("shower", out _));
+        Assert.False(json.TryGetProperty("rush", out _));
+    }
+
+    [Fact]
+    public void Build_Mines_AreTheirSpotTheBlastAndTheMillisecondsToArming()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        var mines = new System.Collections.Concurrent.ConcurrentDictionary<Guid, WorldMine>();
+        var fresh = new WorldMine(Guid.NewGuid(), 100.4, 200.6, 60, 20, now.AddMilliseconds(1500));
+        var armed = new WorldMine(Guid.NewGuid(), 300, 400, 60, 20, now.AddMilliseconds(-10));
+        mines[fresh.Id] = fresh;
+        mines[armed.Id] = armed;
+        _state.Mines.Returns(mines);
+
+        var list = JsonAt(now).GetProperty("mines").EnumerateArray().ToList();
+
+        Assert.Equal(2, list.Count);
+        var unarmed = list.Single(mine => mine.GetProperty("x").GetInt32() == 100);
+        Assert.Equal((201, 60, 1500), (unarmed.GetProperty("y").GetInt32(), unarmed.GetProperty("r").GetInt32(), unarmed.GetProperty("t").GetInt32()));
+        Assert.Equal(0, list.Single(mine => mine.GetProperty("x").GetInt32() == 300).GetProperty("t").GetInt32());
+    }
+
+    [Fact]
+    public void Build_NoMinesLeftLeavesTheListOut()
+    {
+        _state.Mines.Returns(new System.Collections.Concurrent.ConcurrentDictionary<Guid, WorldMine>());
+
+        Assert.False(Json().TryGetProperty("mines", out _));
+    }
+
+    [Fact]
+    public void Build_ABounty_IsTheWantedSnakeTheTimeLeftAndTheReward()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        var target = Guid.NewGuid();
+        _state.Bounty.Returns(new WorldBounty(target, now.AddMilliseconds(61234), 250, 10));
+
+        var bounty = JsonAt(now).GetProperty("bounty");
+
+        Assert.Equal(target, bounty.GetProperty("guid").GetGuid());
+        Assert.Equal(61234, bounty.GetProperty("t").GetInt32());
+        Assert.Equal(250, bounty.GetProperty("m").GetInt64());
+    }
+
+    [Fact]
+    public void Build_ABountyPastItsTime_NeverSaysNegativeTime()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        _state.Bounty.Returns(new WorldBounty(Guid.NewGuid(), now.AddMilliseconds(-5), 1, 0));
+
+        Assert.Equal(0, JsonAt(now).GetProperty("bounty").GetProperty("t").GetInt32());
+    }
+
+    [Fact]
+    public void Build_AFruitShowerAndASugarRush_AreTheMillisecondsLeft()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        _state.FruitShowerEndsAt.Returns(now.AddMilliseconds(12000));
+        _state.SugarRushEndsAt.Returns(now.AddMilliseconds(29500));
+
+        var json = JsonAt(now);
+
+        Assert.Equal(12000, json.GetProperty("shower").GetInt32());
+        Assert.Equal(29500, json.GetProperty("rush").GetInt32());
+    }
+
+    [Fact]
+    public void Build_AShowerPastItsTime_NeverSaysNegativeTime()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        _state.FruitShowerEndsAt.Returns(now.AddMilliseconds(-9));
+
+        Assert.Equal(0, JsonAt(now).GetProperty("shower").GetInt32());
+    }
 }

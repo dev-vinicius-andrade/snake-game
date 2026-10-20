@@ -52,6 +52,10 @@ public sealed class RoomGameplayServiceTests
     [InlineData("meteors")]
     [InlineData("turret")]
     [InlineData("zone")]
+    [InlineData("fruitshower")]
+    [InlineData("bounty")]
+    [InlineData("mines")]
+    [InlineData("sugarrush")]
     public void Trigger_StartsTheEventTheAdminNamed(string kind)
     {
         _triggers.Trigger(_state, kind).Returns(TriggerResult.Started);
@@ -96,7 +100,11 @@ public sealed class EventTriggersTests
     {
         var gameStates = Substitute.For<IGameStateService>();
         var rules = new WorldEventRules(new WorldEventOptions());
-        var triggers = new EventTriggers(new WorldEventRunner(rules, gameStates, TimeProvider.System), new TurretRunner(rules, gameStates, TimeProvider.System), new ZoneRunner(rules, gameStates, TimeProvider.System));
+        var schedule = new EventSchedule();
+        var triggers = new EventTriggers(
+            new WorldEventRunner(rules, gameStates, TimeProvider.System), new TurretRunner(rules, gameStates, TimeProvider.System), new ZoneRunner(rules, gameStates, TimeProvider.System),
+            new FruitShowerRunner(rules, schedule, gameStates, TimeProvider.System), new BountyRunner(rules, schedule, TimeProvider.System),
+            new MineFieldRunner(rules, schedule, gameStates, TimeProvider.System), new SugarRushRunner(rules, schedule, TimeProvider.System));
         var room = Substitute.For<IRoom>();
         room.Guid.Returns(Guid.NewGuid());
         var state = Substitute.For<IGameState>();
@@ -108,5 +116,32 @@ public sealed class EventTriggersTests
         Assert.Equal(TriggerResult.NotNow, triggers.Trigger(state, "turret"));
         Assert.Equal(TriggerResult.NotNow, triggers.Trigger(state, "lightning"));
         Assert.Equal(TriggerResult.NotNow, triggers.Trigger(state, "meteors"));
+        Assert.Equal(TriggerResult.NotNow, triggers.Trigger(state, "fruitshower"));
+        Assert.Equal(TriggerResult.NotNow, triggers.Trigger(state, "bounty"));
+        Assert.Equal(TriggerResult.NotNow, triggers.Trigger(state, "mines"));
+        Assert.Equal(TriggerResult.NotNow, triggers.Trigger(state, "sugarrush"));
+        Assert.Equal(TriggerResult.UnknownEvent, triggers.Trigger(state, "earthquake"));
+    }
+
+    [Fact]
+    public void Trigger_StartsTheNewEventsInARoomWithPlayers()
+    {
+        var gameStates = Substitute.For<IGameStateService>();
+        var rules = new WorldEventRules(new WorldEventOptions());
+        var schedule = new EventSchedule();
+        var triggers = new EventTriggers(
+            new WorldEventRunner(rules, gameStates, TimeProvider.System), new TurretRunner(rules, gameStates, TimeProvider.System), new ZoneRunner(rules, gameStates, TimeProvider.System),
+            new FruitShowerRunner(rules, schedule, gameStates, TimeProvider.System), new BountyRunner(rules, schedule, TimeProvider.System),
+            new MineFieldRunner(rules, schedule, gameStates, TimeProvider.System), new SugarRushRunner(rules, schedule, TimeProvider.System));
+        var room = Substitute.For<IRoom>();
+        room.Guid.Returns(Guid.NewGuid());
+        var state = Substitute.For<IGameState>();
+        state.Room.Returns(room);
+        state.Players.Returns(new Dictionary<Guid, IPlayer> { [Guid.NewGuid()] = Substitute.For<IPlayer>() });
+
+        Assert.Equal(TriggerResult.Started, triggers.Trigger(state, "FruitShower"));
+        Assert.Equal(TriggerResult.Started, triggers.Trigger(state, "bounty"));
+        Assert.Equal(TriggerResult.Started, triggers.Trigger(state, "mines"));
+        Assert.Equal(TriggerResult.Started, triggers.Trigger(state, "sugarRush"));
     }
 }
