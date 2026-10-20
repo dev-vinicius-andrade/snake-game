@@ -28,6 +28,10 @@ public static class AccountsServiceCollectionExtensions
         else
             services.AddSingleton<IAccountStore>(provider =>
                 new FileAccountStore(configuration[StorePathKey], provider.GetService<ILoggerFactory>()?.CreateLogger<FileAccountStore>()));
+        if (configuration.HasDatabase())
+            services.AddSingleton<IRoleStore, EfRoleStore>();
+        else
+            services.AddSingleton<IRoleStore, MemoryRoleStore>();
         services.AddSingleton<IWordFilter>(SimpleWordFilter.Default);
         services.AddSingleton(_ => new RecoveryPhrase());
         services.AddSingleton(_ => new SecretHasher());

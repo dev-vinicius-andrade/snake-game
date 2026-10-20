@@ -31,6 +31,8 @@ not running. A store never answers "no such account" for a database it could not
 | `stats_heads` | one row per account with stats; `version` is a concurrency token | account |
 | `stat_values` | a counter total or a highest maximum, by key (`kind` 0 / 1) | account + kind + key |
 | `applied_reports` | the report ids already applied, with a sequence; only the newest 200 per account | account + report |
+| `roles` | the roles there are: `user` and `admin` (docs/ROLES.md) | name |
+| `account_roles` | which role an account has; only grants are stored, `user` is implied | account + role |
 | `achievements` | the catalog: id, icon, stat, threshold, sort order. Made from the definitions in the code when the manager starts (new ones added, changed ones updated, removed ones kept). The texts are in the client | id |
 | `unlocked_achievements` | which achievement, and when; points at `achievements` | account + achievement |
 

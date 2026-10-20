@@ -49,6 +49,10 @@ public sealed class SnakeDbContext(DbContextOptions<SnakeDbContext> options) : D
 
     public DbSet<WorldEventRoomRow> WorldEventRooms => Set<WorldEventRoomRow>();
 
+    public DbSet<RoleRow> Roles => Set<RoleRow>();
+
+    public DbSet<AccountRoleRow> AccountRoles => Set<AccountRoleRow>();
+
     public DbSet<AchievementRow> Achievements => Set<AchievementRow>();
 
     public DbSet<UnlockedAchievementRow> UnlockedAchievements => Set<UnlockedAchievementRow>();
@@ -119,6 +123,21 @@ public sealed class SnakeDbContext(DbContextOptions<SnakeDbContext> options) : D
             unlocked.HasKey(row => new { row.AccountId, row.AchievementId });
             unlocked.Property(row => row.AchievementId).HasMaxLength(MaxName);
             unlocked.HasOne<AchievementRow>().WithMany().HasForeignKey(row => row.AchievementId).OnDelete(DeleteBehavior.Restrict);
+        });
+        model.Entity<RoleRow>(role =>
+        {
+            role.ToTable("roles");
+            role.HasKey(row => row.Name);
+            role.Property(row => row.Name).HasMaxLength(32);
+            role.HasData(Application.Manager.Api.Accounts.Roles.All.Select(name => new RoleRow { Name = name }));
+        });
+        model.Entity<AccountRoleRow>(granted =>
+        {
+            granted.ToTable("account_roles");
+            granted.HasKey(row => new { row.AccountId, row.Role });
+            granted.Property(row => row.Role).HasMaxLength(32);
+            granted.HasOne<AccountRow>().WithMany().HasForeignKey(row => row.AccountId).OnDelete(DeleteBehavior.Cascade);
+            granted.HasOne<RoleRow>().WithMany().HasForeignKey(row => row.Role).OnDelete(DeleteBehavior.Restrict);
         });
         GameplayModel.Configure(model);
         UseSnakeCaseNames(model);

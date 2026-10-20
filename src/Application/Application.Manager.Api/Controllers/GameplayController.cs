@@ -38,7 +38,7 @@ public class GameplayController(IGameplayConfigStore store) : Controller
 /// <summary>The administrator's view of the gameplay config: read it and change it.</summary>
 [Route("admin/gameplay")]
 [ApiController]
-[AdminKeyAuth]
+[AdminAuth]
 public class AdminGameplayController(IGameplayConfigStore store) : Controller
 {
     /// <summary>The current config, the defaults to go back to, and the effects a perk can have.</summary>

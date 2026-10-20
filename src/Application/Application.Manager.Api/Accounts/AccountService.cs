@@ -174,6 +174,13 @@ public sealed class AccountService
     private const string FallbackUsername = "Player";
 
     /// <summary>The account a device token belongs to, or null.</summary>
+    /// <summary>The account with this id, or null.</summary>
+    public Account? Find(Guid id) => _store.Find(id);
+
+    /// <summary>The account with this username (any case) and tag, or null. For an administrator who names the player.</summary>
+    public Account? FindByHandle(string? username, int tag)
+        => string.IsNullOrWhiteSpace(username) || !Tags.IsValid(tag) ? null : _store.Find(UsernameRules.Normalize(username), tag);
+
     public Account? Authenticate(string? token)
         => DeviceTokens.LooksLikeToken(token) ? _store.FindByDeviceTokenHash(DeviceTokens.Hash(token)) : null;
 

@@ -85,6 +85,9 @@ public sealed class AccountResponse
     public string Display { get; set; } = null!;
     public string DisplayName { get; set; } = null!;
     public IReadOnlyList<string> Linked { get; set; } = [];
+
+    /// <summary>What the account can do: <c>user</c>, and <c>admin</c> when it was granted (docs/ROLES.md).</summary>
+    public IReadOnlyList<string> Roles { get; set; } = [Accounts.Roles.User];
     public DateTimeOffset CreatedAt { get; set; }
 
     /// <summary>The providers of the social accounts linked to an account, in order. Only their names: the ids are not even kept.</summary>
@@ -130,7 +133,7 @@ public sealed class AccountErrorResponse
 [ApiController]
 [AllowAnonymous]
 [Produces("application/json")]
-public sealed class AccountsController(AccountService accounts) : Controller
+public sealed class AccountsController(AccountService accounts, IRoleStore? roles = null) : Controller
 {
     private const string BearerScheme = "Bearer";
 
@@ -163,7 +166,10 @@ public sealed class AccountsController(AccountService accounts) : Controller
     public IActionResult Me()
     {
         var account = accounts.Authenticate(BearerToken());
-        return account is null ? Refusal(AccountErrors.InvalidToken) : Ok((AccountResponse)account);
+        if (account is null) return Refusal(AccountErrors.InvalidToken);
+        var response = (AccountResponse)account;
+        response.Roles = Roles.Effective(roles?.RolesOf(account.Id) ?? []);
+        return Ok(response);
     }
 
     [HttpPut("me/display-name")]

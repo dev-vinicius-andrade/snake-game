@@ -22,6 +22,26 @@ namespace Application.Manager.Api.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Application.Manager.Api.Persistence.AccountRoleRow", b =>
+                {
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<string>("Role")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("role");
+
+                    b.HasKey("AccountId", "Role")
+                        .HasName("pk_account_roles");
+
+                    b.HasIndex("Role")
+                        .HasDatabaseName("ix_account_roles_role");
+
+                    b.ToTable("account_roles", (string)null);
+                });
+
             modelBuilder.Entity("Application.Manager.Api.Persistence.AccountRow", b =>
                 {
                     b.Property<Guid>("Id")
@@ -620,6 +640,29 @@ namespace Application.Manager.Api.Persistence.Migrations
                     b.ToTable("prizes", (string)null);
                 });
 
+            modelBuilder.Entity("Application.Manager.Api.Persistence.RoleRow", b =>
+                {
+                    b.Property<string>("Name")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Name")
+                        .HasName("pk_roles");
+
+                    b.ToTable("roles", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Name = "user"
+                        },
+                        new
+                        {
+                            Name = "admin"
+                        });
+                });
+
             modelBuilder.Entity("Application.Manager.Api.Persistence.StatValueRow", b =>
                 {
                     b.Property<Guid>("AccountId")
@@ -764,6 +807,23 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .HasName("pk_world_event_zone");
 
                     b.ToTable("world_event_zone", (string)null);
+                });
+
+            modelBuilder.Entity("Application.Manager.Api.Persistence.AccountRoleRow", b =>
+                {
+                    b.HasOne("Application.Manager.Api.Persistence.AccountRow", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_account_roles_accounts");
+
+                    b.HasOne("Application.Manager.Api.Persistence.RoleRow", null)
+                        .WithMany()
+                        .HasForeignKey("Role")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_account_roles_roles");
                 });
 
             modelBuilder.Entity("Application.Manager.Api.Persistence.BossRow", b =>

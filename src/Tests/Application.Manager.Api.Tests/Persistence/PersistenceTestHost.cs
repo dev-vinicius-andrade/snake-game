@@ -29,6 +29,8 @@ public sealed class PersistenceTestHost : IDisposable
 
     public EfStatsStore Stats() => new(Factory);
 
+    public EfRoleStore Roles() => new(Factory);
+
     public void Dispose() => _keeper.Dispose();
 
     private sealed class OptionsFactory(DbContextOptions<SnakeDbContext> options) : IDbContextFactory<SnakeDbContext>

@@ -75,7 +75,7 @@ public class RoomsController(RoomCreationService creation, RoomRegistry registry
 
 [Route("admin/rooms")]
 [ApiController]
-[AdminKeyAuth]
+[AdminAuth]
 public class AdminRoomsController(RoomAdminService admin) : Controller
 {
     [HttpGet]

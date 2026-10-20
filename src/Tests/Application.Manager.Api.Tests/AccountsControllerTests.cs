@@ -89,7 +89,7 @@ public sealed class AccountsControllerTests
 
         var (meStatus, me) = Read(Controller(authorization: $"Bearer {secondToken}").Me());
         Assert.Equal(StatusCodes.Status200OK, meStatus);
-        Assert.Equal(new[] { "id", "username", "tag", "display", "displayName", "linked", "createdAt" }, me.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(new[] { "id", "username", "tag", "display", "displayName", "linked", "roles", "createdAt" }, me.EnumerateObject().Select(property => property.Name));
         Assert.Equal("Vini#09291", me.GetProperty("display").GetString());
         Assert.Equal(_time.GetUtcNow(), me.GetProperty("createdAt").GetDateTimeOffset());
 
@@ -351,5 +351,22 @@ public sealed class AccountsControllerTests
         var (_, body) = Read(Controller(authorization: $"Bearer {token}").Me());
 
         Assert.Empty(body.GetProperty("linked").EnumerateArray());
+    }
+
+    [Fact]
+    public void Me_ListsTheRolesOfTheAccount_AlwaysWithUser_AndAdminWhenGranted()
+    {
+        var registered = _service.Register("Vini", 9291, null, Ip).Value;
+        var roles = new MemoryRoleStore();
+        var http = new DefaultHttpContext();
+        http.Request.Headers.Authorization = $"Bearer {registered.Token}";
+        var controller = new AccountsController(_service, roles) { ControllerContext = new ControllerContext { HttpContext = http } };
+
+        var plain = Read(controller.Me()).Body.GetProperty("roles").EnumerateArray().Select(role => role.GetString()).ToList();
+        roles.Grant(registered.Account.Id, Roles.Admin);
+        var admin = Read(controller.Me()).Body.GetProperty("roles").EnumerateArray().Select(role => role.GetString()).ToList();
+
+        Assert.Equal(new[] { "user" }, plain);
+        Assert.Equal(new[] { "user", "admin" }, admin);
     }
 }
