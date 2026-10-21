@@ -48,6 +48,16 @@ public sealed class RoomGameplayTogglesTests
     }
 
     [Fact]
+    public void TheEventbusJson_CarriesTheTogglesToTheGameServer()
+    {
+        var gameplay = new RoomGameplay { Zone = FeaturePreset.Calm }.WithToggle("perk", "magnet", false).WithToggle("event", "maze", true);
+
+        var back = System.Text.Json.JsonSerializer.Deserialize<RoomGameplay>(System.Text.Json.JsonSerializer.Serialize(gameplay));
+
+        Assert.Equal(gameplay, back);
+    }
+
+    [Fact]
     public void TwoRooms_WithTheSameChoices_AreEqual()
     {
         Assert.Equal(new RoomGameplay().WithToggle("perk", "a", true), new RoomGameplay().WithToggle("perk", "a", true));
