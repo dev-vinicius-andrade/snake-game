@@ -2,8 +2,7 @@
 import { useIntervalFn } from "@vueuse/core";
 import { computed, onMounted, ref } from "vue";
 import GameplayEditor from "@/components/admin/GameplayEditor.vue";
-import RoomGameplayDialog from "@/components/admin/RoomGameplayDialog.vue";
-import RoomPerksDialog from "@/components/admin/RoomPerksDialog.vue";
+import RoomConfigDialog from "@/components/admin/RoomConfigDialog.vue";
 import ForbiddenPage from "@/components/ForbiddenPage.vue";
 import TopBar from "@/components/brand/TopBar.vue";
 import { adminAccess } from "@/composables/adminAccess";
@@ -17,11 +16,10 @@ import { getText } from "@/helpers";
 const REFRESH_MS = 5000;
 const admin = useAdminRooms();
 const accounts = useAccount();
-/** One gameplay editor for the Gameplay tab and for the perks of a room, so what is edited in one shows in the other. */
+/** One gameplay editor for the Gameplay tab and for the configuration of a room, which lists what the Gameplay tab made. */
 const gameplay = useAdminGameplay();
 const achievements = useAdminAchievements();
-const perksOf = ref<AdminRoom | null>(null);
-const gameplayOf = ref<AdminRoom | null>(null);
+const configOf = ref<AdminRoom | null>(null);
 const keyInput = ref("");
 const tab = ref<"rooms" | "gameplay" | "achievements">("rooms");
 const confirming = ref<AdminRoom | null>(null);
@@ -44,9 +42,9 @@ async function signIn() {
   keyInput.value = "";
 }
 
-async function openPerks(entry: AdminRoom) {
+async function openConfig(entry: AdminRoom) {
   if (!gameplay.draft.value) await gameplay.load();
-  perksOf.value = entry;
+  configOf.value = entry;
 }
 
 /** Leaves the admin page: the admin tools close, and so does the account the player was signed in with. */
@@ -135,7 +133,6 @@ onMounted(async () => {
                   <th>{{ getText({ key: "admin.colServer" }) }}</th>
                   <th />
                   <th />
-                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -145,8 +142,7 @@ onMounted(async () => {
                   <td>{{ playersOf(entry) }}</td>
                   <td>{{ ageOf(entry) }}</td>
                   <td>{{ entry.server }}</td>
-                  <td><VBtn size="small" @click="openPerks(entry)">{{ getText({ key: "admin.roomPerks" }) }}</VBtn></td>
-                  <td><VBtn size="small" data-room-gameplay @click="gameplayOf = entry">{{ getText({ key: "gameplayPicker.button" }) }}</VBtn></td>
+                  <td><VBtn size="small" data-room-config @click="openConfig(entry)">{{ getText({ key: "gameplayPicker.button" }) }}</VBtn></td>
                   <td><VBtn size="small" color="error" @click="confirming = entry">{{ getText({ key: "admin.delete" }) }}</VBtn></td>
                 </tr>
               </tbody>
@@ -160,8 +156,7 @@ onMounted(async () => {
       </VCol>
     </VRow>
 
-    <RoomPerksDialog :target="perksOf" :gameplay="gameplay" @close="perksOf = null" />
-    <RoomGameplayDialog :target="gameplayOf" :admin="admin" @close="gameplayOf = null" />
+    <RoomConfigDialog :target="configOf" :admin="admin" :gameplay="gameplay" @close="configOf = null" />
 
     <VDialog :model-value="confirming !== null" max-width="420" @update:model-value="confirming = null">
       <VCard :title="getText({ key: 'admin.delete' })">

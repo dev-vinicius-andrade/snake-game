@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import RoomGameplayPicker from "@/components/rooms/RoomGameplayPicker.vue";
+import RoomConfigPanel from "@/components/rooms/RoomConfigPanel.vue";
 import { useRoomCreation } from "@/composables/useRoomCreation";
+import { useRoomToggleCatalog } from "@/composables/useRoomToggleCatalog";
 import { choicesBody, defaultChoices } from "@/game/roomGameplay";
 import { getText } from "@/helpers";
 import { isValidInviteCode, normalizeInviteCode } from "@/game/invite";
@@ -12,7 +13,12 @@ const props = defineProps<{ disabled: boolean }>();
 
 const router = useRouter();
 const creation = useRoomCreation();
+/** What the administrator made, for the host to switch on or off in the new room. The host creates nothing. */
+const toggles = useRoomToggleCatalog();
 const dialog = ref(false);
+watch(dialog, (open) => {
+  if (open) void toggles.load();
+});
 const roomName = ref("");
 const maxPlayers = ref(0);
 const gameplay = ref(defaultChoices());
@@ -74,7 +80,7 @@ function close() {
     </div>
   </div>
 
-  <VDialog v-model="dialog" max-width="560" width="92vw" persistent>
+  <VDialog v-model="dialog" max-width="680" width="92vw" persistent scrollable>
     <VCard :title="getText({ key: 'rooms.createTitle' })">
       <VCardText class="dialog-body">
         <VTextField v-model="roomName" :label="getText({ key: 'rooms.name' })" maxlength="32" />
@@ -83,7 +89,7 @@ function close() {
           <VExpansionPanel>
             <VExpansionPanelTitle>{{ getText({ key: "gameplayPicker.title" }) }}</VExpansionPanelTitle>
             <VExpansionPanelText>
-              <RoomGameplayPicker v-model="gameplay" />
+              <RoomConfigPanel v-model="gameplay" :catalog="toggles.catalog.value" />
             </VExpansionPanelText>
           </VExpansionPanel>
         </VExpansionPanels>
