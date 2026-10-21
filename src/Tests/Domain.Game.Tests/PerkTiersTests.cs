@@ -135,12 +135,12 @@ public sealed class PerkTiersTests
     }
 
     [Fact]
-    public void Constructor_AtMostFiveTiersInAll_TheFirstIncluded()
+    public void Constructor_AtMostTenTiersInAll_TheFirstIncluded()
     {
-        var tiers = Enumerable.Range(1, 5).Select(index => new PerkTier { FoodsRequired = 6 + index, Multiplier = 1 + index / 10.0 }).ToArray();
+        var tiers = Enumerable.Range(1, 10).Select(index => new PerkTier { FoodsRequired = 6 + index, Multiplier = 1 + index / 10.0 }).ToArray();
 
         Assert.Throws<ArgumentException>(() => Rules(Magnet(tiers)));
-        Rules(Magnet(tiers.Take(4).ToArray()));
+        Rules(Magnet(tiers.Take(9).ToArray()));
     }
 
     [Fact]

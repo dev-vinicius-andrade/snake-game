@@ -238,4 +238,94 @@ public sealed class PerkRewardEffectsTests
 
         Assert.Empty(Rules(off).UnownedPerkIds(0));
     }
+
+    // Reward-only tiers: eating never reaches them, only a surge does.
+
+    /// <summary>Five eatable tiers (the perk and four more, at 10, 20, 30, 40 foods) and two reward-only ones.</summary>
+    private static PerkRules SevenTiers() => Rules(Perk("magnet", 5, PerkEffect.Magnet, 100, tiers:
+    [
+        new() { FoodsRequired = 10, Multiplier = 1.5 }, new() { FoodsRequired = 20, Multiplier = 2 }, new() { FoodsRequired = 30, Multiplier = 3 },
+        new() { FoodsRequired = 40, Multiplier = 4 },
+        new() { FoodsRequired = 50, Multiplier = 6, RewardOnly = true }, new() { FoodsRequired = 60, Multiplier = 9, RewardOnly = true }
+    ]));
+
+    [Fact]
+    public void RewardOnly_EatingNeverGoesPastTheLastEatableTier()
+    {
+        var rules = SevenTiers();
+
+        Assert.Equal([5], rules.TiersFor(40));
+        Assert.Equal([5], rules.TiersFor(100000));
+        Assert.Equal(400, rules.EffectsFor(100000).MagnetRadius);
+    }
+
+    [Theory]
+    [InlineData(1, 6, 600)]
+    [InlineData(2, 7, 900)]
+    [InlineData(5, 7, 900)]
+    public void RewardOnly_ASurgeFromTheLastEatableTierReachesThem_AndStopsAtTheLastOne(int surge, int tier, double radius)
+    {
+        var rules = SevenTiers();
+
+        Assert.Equal([tier], rules.TiersFor(40, surges: Surge(surge)));
+        Assert.Equal(radius, rules.EffectsFor(40, surges: Surge(surge)).MagnetRadius);
+    }
+
+    [Fact]
+    public void RewardOnly_ASurgeStillAddsToWhatFoodsGive_BeforeTheEnd()
+    {
+        var rules = SevenTiers();
+
+        Assert.Equal([4], rules.TiersFor(10, surges: Surge(2)));
+        Assert.Equal([7], rules.TiersFor(30, surges: Surge(9)));
+    }
+
+    [Fact]
+    public void RewardOnly_ThePerkCanStillBeLifted_UntilItIsAtTheLastTier()
+    {
+        var rules = SevenTiers();
+
+        Assert.Equal(["magnet"], rules.SurgeCandidates(40));
+        Assert.Equal(["magnet"], rules.SurgeCandidates(40, surges: Surge(1)));
+        Assert.Empty(rules.SurgeCandidates(40, surges: Surge(2)));
+        Assert.Equal(7, rules.TierCountOf("magnet"));
+    }
+
+    [Fact]
+    public void RewardOnly_APerkCanHaveTenTiers_AndNoMore()
+    {
+        PerkTier Step(int n) => new() { FoodsRequired = 10 * n, Multiplier = 1 + n / 10.0, RewardOnly = n > 4 };
+
+        Rules(Perk("m", 5, PerkEffect.Magnet, 1, tiers: Enumerable.Range(1, 9).Select(Step).ToList()));
+        Assert.Throws<ArgumentException>(() => Rules(Perk("m", 5, PerkEffect.Magnet, 1, tiers: Enumerable.Range(1, 10).Select(Step).ToList())));
+    }
+
+    [Fact]
+    public void RewardOnly_MustComeAfterEveryEatableTier()
+    {
+        var tiers = new List<PerkTier>
+        {
+            new() { FoodsRequired = 10, Multiplier = 2, RewardOnly = true }, new() { FoodsRequired = 20, Multiplier = 3 }
+        };
+
+        var failure = Assert.Throws<ArgumentException>(() => Rules(Perk("m", 5, PerkEffect.Magnet, 1, tiers: tiers)));
+        Assert.Contains("reward-only", failure.Message);
+    }
+
+    [Fact]
+    public void RewardOnly_OnlyRewardOnlyTiers_ArePerfectlyFine()
+    {
+        var rules = Rules(Perk("magnet", 5, PerkEffect.Magnet, 100, tiers: [new PerkTier { FoodsRequired = 10, Multiplier = 2, RewardOnly = true }]));
+
+        Assert.Equal([1], rules.TiersFor(1000));
+        Assert.Equal([2], rules.TiersFor(1000, surges: Surge(1)));
+    }
+
+    [Fact]
+    public void RewardOnly_ConfigWithoutTheFlag_ReadsAsEatable()
+    {
+        var json = System.Text.Json.JsonSerializer.Deserialize<PerkTier>("{\"foodsRequired\":9,\"multiplier\":2}", GameplayConfig.Json)!;
+
+        Assert.False(json.RewardOnly);
+    }
 }

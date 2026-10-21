@@ -242,14 +242,14 @@ public sealed class PerkRules
         => surges is not null && surges.TryGetValue(perk.Id, out var surge) ? Math.Max(0, surge) : 0;
 
     /// <summary>
-    /// The tier a perk is at, and what it multiplies its amounts by. The rule for surges: the tier is the one the foods give (the first for
-    /// a perk that was given with few foods) plus the tiers a reward added, but never past the last tier of the perk. So a surge is not lost
+    /// The tier a perk is at, and what it multiplies its amounts by. The rule for surges: the tier is the one the foods give (the highest
+    /// eatable tier reached; the first for a perk that was given with few foods; reward-only tiers are never reached by foods) plus the tiers a reward added, but never past the last tier of the perk. So a surge is not lost
     /// as foods go up, and a perk at its last tier is not lifted further.
     /// </summary>
     private static (int Number, double Multiplier) TierOf(PerkDefinition perk, int foodsEaten, int surge = 0)
     {
         var tiers = perk.TiersInOrder();
-        var reached = Math.Max(1, tiers.Count(tier => tier.FoodsRequired <= foodsEaten));
+        var reached = Math.Max(1, tiers.Count(tier => !tier.RewardOnly && tier.FoodsRequired <= foodsEaten));
         var number = Math.Min(tiers.Count, reached + Math.Max(0, surge));
         return (number, tiers[number - 1].Multiplier);
     }
@@ -403,6 +403,10 @@ public sealed class PerkRules
             if (!(tier.Multiplier > 0 && tier.Multiplier <= 10))
                 throw new ArgumentOutOfRangeException(nameof(perk), tier.Multiplier, $"Perk '{perk.Id}': a tier must multiply by more than 0 and at most 10.");
         }
+        var ordered = perk.Tiers.OrderBy(tier => tier.FoodsRequired).ToList();
+        var firstRewardOnly = ordered.FindIndex(tier => tier.RewardOnly);
+        if (firstRewardOnly >= 0 && ordered.Skip(firstRewardOnly).Any(tier => !tier.RewardOnly))
+            throw new ArgumentException($"Perk '{perk.Id}': a reward-only tier must come after every tier that foods can reach.", nameof(perk));
         if (perk.Tiers.Zip(perk.Tiers.Skip(1), (before, after) => after.FoodsRequired <= before.FoodsRequired).Any(notIncreasing => notIncreasing))
             throw new ArgumentException($"Perk '{perk.Id}': each tier must ask for more foods than the one before.", nameof(perk));
     }

@@ -24,6 +24,11 @@ public sealed record PerkTier
 {
     public int FoodsRequired { get; init; }
     public double Multiplier { get; init; } = 1;
+
+    /// <summary>
+    /// A tier that eating never reaches: only a reward's tier surge lifts a perk into it. It must come after every eatable tier of the perk.
+    /// </summary>
+    public bool RewardOnly { get; init; }
 }
 
 /// <summary>A reward a snake earns once it has eaten <see cref="FoodsRequired"/> foods in its life.</summary>
@@ -40,7 +45,7 @@ public sealed record PerkDefinition
     public List<PerkTier> Tiers { get; init; } = [];
 
     /// <summary>Most tiers a perk can have, the first included.</summary>
-    public const int MaxTiers = 5;
+    public const int MaxTiers = 10;
 
     /// <summary>The tiers of the perk with the first one, the perk itself, put in front, from the lowest to the highest.</summary>
     public IReadOnlyList<PerkTier> TiersInOrder()
