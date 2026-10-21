@@ -19,11 +19,13 @@ public sealed class GameplayApplier(PerkRules perks, PrizeRules prize, RoomLifet
         if (document is null || document.Revision == Revision) return false;
         try
         {
-            document.Config.EnsureValid();
-            perks.Reconfigure(document.Config.Perks);
-            prize.Reconfigure(document.Config.Prize);
-            roomLifetime.Reconfigure(document.Config.Rooms);
-            worldEvents.Reconfigure(document.Config.WorldEvents);
+            // The picks of each prize and event are not sent, only their ids: settle them from the catalog before the rules take them.
+            var config = document.Config.WithRewardsResolved();
+            config.EnsureValid();
+            perks.Reconfigure(config.Perks);
+            prize.Reconfigure(config.Prize);
+            roomLifetime.Reconfigure(config.Rooms);
+            worldEvents.Reconfigure(config.WorldEvents);
         }
         catch (ArgumentException exception)
         {

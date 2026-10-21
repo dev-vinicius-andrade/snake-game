@@ -38,6 +38,22 @@ public sealed class GameplayApplierTests
     }
 
     [Fact]
+    public void Apply_APrizeKeepsTheCatalogRewardsItPicked_SoARoomCanSwitchOneOff()
+    {
+        var config = Config() with
+        {
+            Rewards = [new() { Id = "life", Name = "Life", Reward = new() { ExtraLives = 1 } }, new() { Id = "mass", Name = "Mass", Reward = new() { BonusMass = 30 } }],
+            Prize = new PrizeOptions { Prizes = [new() { Id = "gift", Name = "Gift", RewardIds = ["life", "mass"] }] }
+        };
+
+        _applier.Apply(Document("r1", config));
+
+        var prize = _prize.Definitions.Single();
+        Assert.Equal(2, prize.PickedRewards.Count);
+        Assert.Equal((1, 30L), (prize.Reward.ExtraLives, prize.Reward.BonusMass));
+    }
+
+    [Fact]
     public void Apply_TheSameRevisionAgain_ChangesNothing()
     {
         _applier.Apply(Document("r1", Config(prizeValue: 77)));
