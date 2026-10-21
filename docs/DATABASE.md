@@ -79,6 +79,7 @@ With a database, the config the game servers run on (perks, prizes, world events
   made a saved config's extra lives keep no mass and protect nobody, so the migration sets them by hand). `reward_tier_surge_perk` has no
   foreign key to `perks` (the config check refuses a perk that does not exist when it is saved). Like the others, it is **ready but not applied**
   until you run it; new columns need no new grants, they are on tables the manager already uses.
+- The migration `RewardOnlyTiers` added `perk_tiers.reward_only` (bool). The generated default of **false** is the right one: every tier already saved stays eatable, so a saved config behaves exactly as before. Ready, **not applied**.
 - The migration `WorldEventMaze` added `world_event_maze` and wrote its default row the same way. Like the others, it is **ready but not
   applied** until you run it. Tables created by the admin database user must be usable by the manager's database user (see below).
 - The migration that added the fruit shower, bounty, mine field and sugar rush tables also wrote their default row, so a config saved before

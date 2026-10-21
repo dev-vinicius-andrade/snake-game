@@ -43,7 +43,7 @@ Built-in set: magnet (6 foods), swift (8), quick-shot (12), twin-shot (15), dash
 
 ## Tiers
 
-A perk can be **upgraded**. The perk as it is, is tier I. It can have up to four more tiers (II to V); each asks for more foods than
+A perk can be **upgraded**. The perk as it is, is tier I. It can have up to nine more tiers (II to X, ten in all); each asks for more foods than
 the one before and multiplies everything the perk does by its `multiplier`, counted from tier I:
 
 ```jsonc
@@ -65,6 +65,25 @@ the one before and multiplies everything the perk does by its `multiplier`, coun
 - Players see the tier as a numeral on the perk's icon, and the tooltip says what the perk does at that tier and the foods the next one asks for.
 - On the admin page, in the perk's panel: **Add a tier** gives it the next foods and strength to edit, **Remove tier** takes one away.
   A tier must ask for more foods than the perk and than the tier before it; the strength is above 0 and at most 10.
+
+### Reward-only tiers
+
+A tier can be marked `RewardOnly` (admin: the **Reward only** switch on the tier). Eating never reaches it; only a tier surge lifts a perk into it, so it can hold the strength that nothing but a rare reward should give. Its `Multiplier` works like any other tier's, and players see it as the next numeral on the icon.
+
+Rules (checked when the config is saved): the perk itself (tier I) is never reward-only, and reward-only tiers must come after every eatable tier (tiers are ordered by foods; a reward-only tier still needs more foods than the one before, the number only keeps the order). A perk has at most ten tiers in all.
+
+Example: a perk with 5 eatable tiers and 2 reward-only ones (7 in all).
+
+| Snake | Tier |
+| --- | --- |
+| At its 5th tier by eating, no surge, eats 100000 more foods | 5 (eating never goes past the last eatable tier) |
+| Same snake gets a surge of 1 | 6 |
+| Surge of 2 | 7 |
+| Surge of 5 | 7 (stops at the last tier) |
+| At its 3rd tier by eating, surge of 2 | 5 |
+| Same, but later eats up to the 5th | 7 (the surge stays on top) |
+
+The tooltip of a perk whose next tier is reward-only says so instead of asking for foods.
 
 ## Extra lives
 
@@ -123,7 +142,7 @@ A surge lifts a perk **beyond what the foods give**. The rule, one for all: the 
 
 > `min(last tier of the perk, tier the foods give + surge)`
 
-where the tier the foods give is the highest tier whose foods the snake has reached (the first for a perk that was given with few foods), and `surge` is the total tiers rewards added to that perk in this life. So a surge is not lost as the snake eats on (the foods tier keeps rising on top of it), a perk already at its last tier is not lifted further, a surge never gives a tier the perk does not have (a perk with one tier has nothing to lift), and a surge on a perk the snake does not own does nothing. A surge is kept per perk and capped at the perk's number of tiers minus one. It ends with the life.
+where the tier the foods give is the highest **eatable** tier whose foods the snake has reached (the first for a perk that was given with few foods; tiers marked reward-only are never counted), and `surge` is the total tiers rewards added to that perk in this life. So a surge is not lost as the snake eats on (the foods tier keeps rising on top of it), a perk already at its last tier is not lifted further, a surge never gives a tier the perk does not have (a perk with one tier has nothing to lift), and a surge on a perk the snake does not own does nothing. A surge is kept per perk and capped at the perk's number of tiers minus one. It ends with the life.
 
 ## More rewards and perks that came with this: why
 
