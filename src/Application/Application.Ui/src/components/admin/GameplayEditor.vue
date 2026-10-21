@@ -5,7 +5,9 @@ import GameIcon from "@/components/game/GameIcon.vue";
 import { getText } from "@/helpers";
 import { LASTING_ABILITY_EFFECTS, PERK_EFFECTS, PERK_ICON_CHOICES, RESISTANCE_TARGETS, perkIconOf, tierLabel } from "@/game/perkInfo";
 import { SCRIPT_TEMPLATES } from "@/game/scriptTemplates";
-import RewardFields from "./RewardFields.vue";
+import LegacyRooms from "./LegacyRooms.vue";
+import RewardPicker from "./RewardPicker.vue";
+import RewardsEditor from "./RewardsEditor.vue";
 import WorldEventsEditor from "./WorldEventsEditor.vue";
 import { hasAbility, rewardOnlyOutOfPlace } from "@/composables/useAdminGameplay";
 
@@ -16,8 +18,11 @@ const props = defineProps<{ gameplay: ReturnType<typeof useAdminGameplay> }>();
 const gameplay = props.gameplay;
 const draft = gameplay.draft;
 
-/** The part of the gameplay config on show. Each is its own tab, so nothing needs a long scroll. */
-type Section = "perks" | "prizes" | "events" | "rooms";
+/**
+ * The part of the gameplay config on show. Each is its own tab, so nothing needs a long scroll. This tab holds the defaults and the
+ * catalogs of what can exist (perks, rewards, prizes, world events); which of them a room has is chosen per room on the Rooms tab.
+ */
+type Section = "perks" | "rewards" | "prizes" | "events" | "rooms";
 const section = ref<Section>("perks");
 
 /** Perks start closed and open one at a time as wanted: indexes of the open ones. */
@@ -103,10 +108,12 @@ onMounted(() => {
 
     <VTabs v-model="section" density="compact" class="mb-4" show-arrows>
       <VTab value="perks">{{ getText({ key: "admin.gameplay.perksTitle" }) }}</VTab>
+      <VTab value="rewards" data-tab-rewards>{{ getText({ key: "admin.gameplay.rewardsTitle" }) }}</VTab>
       <VTab value="prizes">{{ getText({ key: "admin.gameplay.prizeTitle" }) }}</VTab>
       <VTab value="events">{{ getText({ key: "admin.gameplay.worldEventsTitle" }) }}</VTab>
       <VTab value="rooms">{{ getText({ key: "admin.gameplay.roomsTitle" }) }}</VTab>
     </VTabs>
+    <p class="defaults-note">{{ getText({ key: "admin.gameplay.defaultsNote" }) }}</p>
 
     <VCard v-show="section === 'perks'" variant="outlined" class="mb-4">
       <VCardTitle>{{ getText({ key: "admin.gameplay.perksTitle" }) }}</VCardTitle>
@@ -199,27 +206,7 @@ onMounted(() => {
           </div>
           <VBtn size="x-small" variant="text" class="mt-1" :disabled="(perk.tiers?.length ?? 0) >= 9" @click="gameplay.addTier(index)">{{ getText({ key: "admin.gameplay.addTier" }) }}</VBtn>
 
-          <VCombobox
-            v-model="perk.rooms"
-            multiple
-            chips
-            closable-chips
-            density="compact"
-            class="mt-2"
-            :label="getText({ key: 'admin.gameplay.rooms' })"
-            :hint="getText({ key: 'admin.gameplay.roomsHint' })"
-            persistent-hint
-          />
-          <VCombobox
-            v-model="perk.excludedRooms"
-            multiple
-            chips
-            closable-chips
-            density="compact"
-            class="mt-2"
-            :label="getText({ key: 'admin.gameplay.excludedRooms' })"
-            hide-details
-          />
+          <LegacyRooms :item="perk" @clear="gameplay.clearRoomLists(perk)" />
 
           <div class="field-grid">
             <VCombobox
@@ -272,7 +259,7 @@ onMounted(() => {
                   {{ getText({ key: "admin.gameplay.removeScript" }) }}
                 </VBtn>
               </div>
-              <div v-if="perk.rooms.length === 0" class="perk-script-warning" role="note">{{ getText({ key: "admin.gameplay.scriptOff" }) }}</div>
+              <div class="perk-script-warning" role="note">{{ getText({ key: "admin.gameplay.scriptOff" }) }}</div>
               <ScriptEditor :model-value="perk.script ?? ''" :label="getText({ key: 'admin.gameplay.scriptTitle' })" @update:model-value="perk.script = $event" />
               <div
                 v-if="checks[perk.id]"
@@ -291,6 +278,8 @@ onMounted(() => {
         <VBtn class="mt-2" size="small" @click="addPerk">{{ getText({ key: "admin.gameplay.addPerk" }) }}</VBtn>
       </VCardText>
     </VCard>
+
+    <RewardsEditor v-show="section === 'rewards'" :gameplay="gameplay" />
 
     <VCard v-show="section === 'prizes'" variant="outlined" class="mb-4">
       <VCardTitle>{{ getText({ key: "admin.gameplay.prizeTitle" }) }}</VCardTitle>
@@ -320,9 +309,8 @@ onMounted(() => {
               :label="getText({ key: 'admin.gameplay.prizeGrantsPerk' })"
             />
           </div>
-          <RewardFields :reward="kind.reward" :perks="gameplay.perkChoices.value" />
-          <VCombobox v-model="kind.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.prizeRooms' })" />
-          <VCombobox v-model="kind.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+          <RewardPicker v-model="kind.rewardIds" :rewards="gameplay.rewardChoices.value" class="mt-3" />
+          <LegacyRooms :item="kind" @clear="gameplay.clearRoomLists(kind)" />
           <VBtn size="small" variant="text" color="error" class="mt-1" :disabled="draft.prize.prizes.length <= 1" @click="gameplay.removePrize(index)">
             {{ getText({ key: "admin.gameplay.prizeRemove" }) }}
           </VBtn>
@@ -431,5 +419,10 @@ onMounted(() => {
 }
 .switch-field {
   flex: 0 0 auto !important;
+}
+.defaults-note {
+  margin: 0 0 12px;
+  font-size: 13px;
+  opacity: 0.75;
 }
 </style>

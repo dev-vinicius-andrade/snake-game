@@ -13,7 +13,8 @@ import type {
   useAdminGameplay,
 } from "@/composables/useAdminGameplay";
 import { getText } from "@/helpers";
-import RewardFields from "./RewardFields.vue";
+import LegacyRooms from "./LegacyRooms.vue";
+import RewardPicker from "./RewardPicker.vue";
 
 const props = defineProps<{ gameplay: ReturnType<typeof useAdminGameplay> }>();
 const gameplay = props.gameplay;
@@ -159,8 +160,7 @@ onMounted(() => {
               :label="getText({ key: `admin.gameplay.${field.label}` })"
             />
           </div>
-          <VCombobox v-model="draft.worldEvents.lightning.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.lightningRooms' })" />
-          <VCombobox v-model="draft.worldEvents.lightning.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+          <LegacyRooms :item="draft.worldEvents.lightning" @clear="gameplay.clearRoomLists(draft!.worldEvents.lightning)" />
         </div>
 
         <div class="event-card" :class="{ 'is-off': !draft.worldEvents.meteors.enabled }" data-event="meteors">
@@ -181,8 +181,7 @@ onMounted(() => {
               :label="getText({ key: `admin.gameplay.${field.label}` })"
             />
           </div>
-          <VCombobox v-model="draft.worldEvents.meteors.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.meteorRooms' })" />
-          <VCombobox v-model="draft.worldEvents.meteors.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+          <LegacyRooms :item="draft.worldEvents.meteors" @clear="gameplay.clearRoomLists(draft!.worldEvents.meteors)" />
         </div>
 
         <div class="event-card" :class="{ 'is-off': !draft.worldEvents.turret.enabled }" data-event="turret">
@@ -212,9 +211,8 @@ onMounted(() => {
               :label="getText({ key: 'admin.gameplay.turretGrantsPerk' })"
             />
           </div>
-          <RewardFields :reward="draft.worldEvents.turret.reward" :perks="gameplay.perkChoices.value" />
-          <VCombobox v-model="draft.worldEvents.turret.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.turretRooms' })" />
-          <VCombobox v-model="draft.worldEvents.turret.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+          <RewardPicker v-model="draft.worldEvents.turret.rewardIds" :rewards="gameplay.rewardChoices.value" class="mt-3" />
+          <LegacyRooms :item="draft.worldEvents.turret" @clear="gameplay.clearRoomLists(draft!.worldEvents.turret)" />
         </div>
 
         <div class="event-card" :class="{ 'is-off': !draft.worldEvents.zone.enabled }" data-event="zone">
@@ -235,8 +233,7 @@ onMounted(() => {
               :label="getText({ key: `admin.gameplay.${field.label}` })"
             />
           </div>
-          <VCombobox v-model="draft.worldEvents.zone.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.zoneRooms' })" />
-          <VCombobox v-model="draft.worldEvents.zone.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+          <LegacyRooms :item="draft.worldEvents.zone" @clear="gameplay.clearRoomLists(draft!.worldEvents.zone)" />
         </div>
 
         <div class="event-card" :class="{ 'is-off': !draft.worldEvents.fruitShower.enabled }" data-event="fruitShower">
@@ -257,8 +254,7 @@ onMounted(() => {
               :label="getText({ key: `admin.gameplay.${field.label}` })"
             />
           </div>
-          <VCombobox v-model="draft.worldEvents.fruitShower.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.showerRooms' })" />
-          <VCombobox v-model="draft.worldEvents.fruitShower.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+          <LegacyRooms :item="draft.worldEvents.fruitShower" @clear="gameplay.clearRoomLists(draft!.worldEvents.fruitShower)" />
         </div>
 
         <div class="event-card" :class="{ 'is-off': !draft.worldEvents.bounty.enabled }" data-event="bounty">
@@ -279,9 +275,8 @@ onMounted(() => {
               :label="getText({ key: `admin.gameplay.${field.label}` })"
             />
           </div>
-          <RewardFields :reward="draft.worldEvents.bounty.reward" :perks="gameplay.perkChoices.value" />
-          <VCombobox v-model="draft.worldEvents.bounty.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.bountyRooms' })" />
-          <VCombobox v-model="draft.worldEvents.bounty.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+          <RewardPicker v-model="draft.worldEvents.bounty.rewardIds" :rewards="gameplay.rewardChoices.value" class="mt-3" />
+          <LegacyRooms :item="draft.worldEvents.bounty" @clear="gameplay.clearRoomLists(draft!.worldEvents.bounty)" />
         </div>
 
         <div class="event-card" :class="{ 'is-off': !draft.worldEvents.mines.enabled }" data-event="mines">
@@ -302,8 +297,7 @@ onMounted(() => {
               :label="getText({ key: `admin.gameplay.${field.label}` })"
             />
           </div>
-          <VCombobox v-model="draft.worldEvents.mines.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.minesRooms' })" />
-          <VCombobox v-model="draft.worldEvents.mines.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+          <LegacyRooms :item="draft.worldEvents.mines" @clear="gameplay.clearRoomLists(draft!.worldEvents.mines)" />
         </div>
 
         <div class="event-card" :class="{ 'is-off': !draft.worldEvents.sugarRush.enabled }" data-event="sugarRush">
@@ -324,8 +318,7 @@ onMounted(() => {
               :label="getText({ key: `admin.gameplay.${field.label}` })"
             />
           </div>
-          <VCombobox v-model="draft.worldEvents.sugarRush.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.rushRooms' })" />
-          <VCombobox v-model="draft.worldEvents.sugarRush.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+          <LegacyRooms :item="draft.worldEvents.sugarRush" @clear="gameplay.clearRoomLists(draft!.worldEvents.sugarRush)" />
         </div>
 
         <div class="event-card" :class="{ 'is-off': !draft.worldEvents.maze.enabled }" data-event="maze">
@@ -356,9 +349,8 @@ onMounted(() => {
               :label="getText({ key: 'admin.gameplay.mazePrizeGrantsPerk' })"
             />
           </div>
-          <RewardFields :reward="draft.worldEvents.maze.prizeReward" :perks="gameplay.perkChoices.value" />
-          <VCombobox v-model="draft.worldEvents.maze.rooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.mazeRooms' })" />
-          <VCombobox v-model="draft.worldEvents.maze.excludedRooms" multiple chips closable-chips density="compact" class="mt-2" hide-details :label="getText({ key: 'admin.gameplay.excludedRooms' })" />
+          <RewardPicker v-model="draft.worldEvents.maze.rewardIds" :rewards="gameplay.rewardChoices.value" class="mt-3" />
+          <LegacyRooms :item="draft.worldEvents.maze" @clear="gameplay.clearRoomLists(draft!.worldEvents.maze)" />
         </div>
       </VCardText>
     </VCard>
