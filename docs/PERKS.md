@@ -123,7 +123,7 @@ Cues: the HUD shows each ability as a perk icon. **Ready** has a white border, *
 
 ## Rewards
 
-Beyond foods and mass, a prize, the turret, a bounty or the maze prize can give a **reward**. The perk they name (`GrantsPerk` / `PrizeGrantsPerk`) stays as it was; the reward adds, all of it optional and off by default, so a config from before rewards still works:
+Beyond foods and mass, a prize, the turret, a bounty or the maze prize can give **rewards**. Rewards are a **catalog**: an administrator makes them once, each with a name, and then every prize kind, the turret, the bounty and the maze **pick** the ones they give. A thing can pick several, and every one picked is given. The perk they name (`GrantsPerk` / `PrizeGrantsPerk`) stays as it was. A reward is all optional and off by default:
 
 | Field | What it does |
 | --- | --- |
@@ -134,7 +134,13 @@ Beyond foods and mass, a prize, the turret, a bounty or the maze prize can give 
 | `BonusMass` | Mass given at once, 0 to 10000. |
 | `Mend` | Heals the whole body. |
 
-Where it is set: `Reward` on every prize kind and on the turret and the bounty, `PrizeReward` on the maze. On the admin page it is the **Reward** box of each. The order of giving: the named perk, mass, lives, mend, the random perk, then the tier surge (so a surge can lift the perk that was just given).
+The catalog is `Rewards` in the gameplay config (`{ "id": "life", "name": "Extra life", "reward": { "extraLives": 1 } }`); a prize kind, the turret, the bounty and the maze list the ids they give in `RewardIds`. Saving is refused when an id is missing, repeated or a reward is out of range. On the admin page the catalog is the **Rewards** tab of **Gameplay** (make, name, delete; deleting a reward takes it out of everything that picked it), and each prize, the turret, the bounty and the maze have a **Rewards it gives** picker.
+
+Several rewards are given together: lives and mass add up (lives still stop at 5), the random perk and the mend join, and two tier surges are both given (the second as a reward of its own, `PerkReward.Alongside`). The order of giving: the named perk, mass, lives, mend, the random perk, then the tier surge (so a surge can lift the perk that was just given).
+
+A room can switch a reward off for itself (see [Perks, prizes, rewards and events per room](#perks-prizes-rewards-and-events-per-room)): a prize picked there then gives the rewards it picked, but that one.
+
+**Before the catalog**, a prize, the turret, the bounty and the maze each carried their own reward (`Reward`, `PrizeReward`). Nothing is lost: when a config like that is saved or read, each of them that gave something becomes a catalog entry (`prize-<id>-reward`, `turret-reward`, `bounty-reward`, `maze-reward`) that it picks, and the migration `RewardsCatalog` does the same for the database (see [DATABASE.md](DATABASE.md)). The resolved reward is still sent to game servers as `Reward` next to `RewardIds`, so an older game server keeps working; editors never send it back.
 
 ### Tier surges
 
@@ -162,18 +168,16 @@ the `@iconify-json/game-icons` dev dependency). To offer another icon in the adm
 and commit both files. A perk may also be given any Material Design Icons name (`mdi-skull`), typed; a name that is neither, or a game icon
 that does not ship, is shown as a star. The server checks the shape of the name only.
 
-## Perks per room
+## Perks, prizes, rewards and events per room
 
-A perk works in every room unless it says otherwise, and a perk with a script works in no room until it names some. Three ways to
-say it, all on the admin page:
+The administrator **creates** things (perks, rewards, prizes, world events) and the defaults (the Gameplay tab); a room only **toggles** them. A perk, a prize, a reward or a world event is on in a room by default as the administrator set it (`Enabled`), and every room can switch single ones **on or off for itself**. A perk with a script is the one thing that starts **off** in every room: it works in a room only once that room switches it on. A thing the administrator disabled stays off everywhere: a room cannot bring it back. The master switches (perks, prizes, world events) stay global too.
 
-- **Gameplay tab, each perk:** *Only in these rooms* (the perk works only there) and *Not in these rooms* (it works everywhere
-  but there). A room is named by its invite code, its name or its id; the case does not matter. *Not in these rooms* wins.
-- **Rooms tab, the Perks button of a room:** tick the perks that work in that room. It writes into the same two lists: a perk
-  with a script gets the room in *Only in these rooms*, and an ordinary perk is switched off in a room by naming it in *Not in
-  these rooms*.
-- Rooms are forgotten when the game server restarts. A private room is named by its invite code, a public one by its id, so a
-  perk list that names a room that no longer exists does nothing until that room is back.
+- **Rooms tab, the Configure button of a room (admin):** one dialog with the perks, prizes, rewards and world events the administrator made. Each is *Default*, *On* or *Off* for that room, with a note of what default means there; the storms and the turret also have a strength (calm, on, wild), and there are master choices for all perks and all prizes. The same dialog can start an event in the room right now.
+- **Create private room (anyone):** the same panel. A host only chooses among what exists (`GET /gameplay/toggles`, public, no scripts, no room names); the manager takes at most 64 single choices, and a choice for something that does not exist does nothing.
+- On the wire a room's choices are one map: the features (`perks`, `prizes`, `lightning`, `meteors`, `turret`, `zone`: `inherit`, `off`, `calm`, `normal`, `wild`) and the single things as `kind:id` to `on` or `off` (`perk:magnet`, `prize:gold`, `reward:life`, `event:maze`; the events are `lightning`, `meteors`, `turret`, `zone`, `fruit_shower`, `bounty`, `mine_field`, `sugar_rush`, `maze`). See [WORLD_EVENTS.md](WORLD_EVENTS.md#gameplay-per-room).
+- Rooms are forgotten when the game server restarts, and so are their choices: a room is configured for as long as it lives.
+
+**The old room lists.** Perks, prizes and events used to carry *Only in these rooms* / *Not in these rooms* lists (`Rooms`, `ExcludedRooms`; a room is named by its invite code, its name or its id). The editors do not show them any more, but **they are still obeyed** for a room that made no choice about that thing, so nothing runs somewhere else than it did: the room's own toggle beats the lists, the lists beat the default. A thing that still has a list shows an *old room list* note on the Gameplay tab and in the room dialog (where the default already follows the list), and a button to forget the lists once rooms have been configured. A list that names a room that no longer exists does nothing.
 
 ## Editing it while the game runs (admin page)
 
@@ -191,8 +195,9 @@ and every game server applies it within a few seconds; no restart, and players a
   goes back to the built-in defaults.
 - Players see their perks as icons with tooltips; the names and effects come from `GET /gameplay/perks` (public, with no scripts and no room names).
 - A perk can have several effects and a script: see [PERK_SCRIPTS.md](PERK_SCRIPTS.md), which also says how to give a perk an icon and a description.
-- Each perk has a **Perk on** switch. A perk that is off stays in the list but nobody gets it, not even from a prize; the per-room dialog shows it as off.
-- The **Private rooms** card sets how long private rooms live: minutes an empty one stays open (`emptyPrivateRoomMinutes`, default 10) and the longest any private room lives (`maxPrivateRoomMinutes`, 0 is no limit). See [ROOMS.md](ROOMS.md).
+- Each perk has a **Perk on** switch. A perk that is off stays in the list but nobody gets it, not even from a prize; the room dialog shows it as off.
+- The **Gameplay** tab is the defaults and what only the administrator can create: the perks and their settings, the **Rewards** catalog, the prizes, the world events and the boss, and the private room timeouts. It does not say which rooms have what; that is done per room on the **Rooms** tab.
+- The **Private room timeouts** card sets how long private rooms live: minutes an empty one stays open (`emptyPrivateRoomMinutes`, default 10) and the longest any private room lives (`maxPrivateRoomMinutes`, 0 is no limit). See [ROOMS.md](ROOMS.md).
 
 - The **World events** card sets lightning, the first world event. See [WORLD_EVENTS.md](WORLD_EVENTS.md).
 
@@ -210,8 +215,8 @@ Fields of a kind (`PrizeConfiguration:Prizes`):
 | `Enabled` | true | Turn this kind off with `false`. |
 | `Color` | #ffd23f | Hex colour of the prize on the map. |
 | `GrantsPerk` | none | Perk id given to the snake that eats it. |
-| `Reward` | nothing | A random perk, lives, a tier surge, mass or a mend: see [Rewards](#rewards). |
-| `Rooms`, `ExcludedRooms` | all | Rooms the kind appears in (code, name or id); exclusions win. |
+| `RewardIds` | none | The catalog rewards it gives, all of them: see [Rewards](#rewards). |
+| `Rooms`, `ExcludedRooms` | all | **Old room lists**, no longer edited: see [the old room lists](#perks-prizes-rewards-and-events-per-room). A room switches a prize on or off for itself. |
 | `SpawnIntervalSeconds` | 60 | From a prize being taken or lost to the next one. |
 | `LifetimeSeconds` | 45 | How long an untaken prize stays. |
 | `Value` | 20 | Mass gained by eating it. |

@@ -51,9 +51,12 @@ With a database, the config the game servers run on (perks, prizes, world events
 | `perks` | id, name, foods required, enabled, icon, description, **script**, sort order, **cooldown and duration in seconds** (cooldown abilities) |
 | `perk_effects` | what a perk does, in order: effect name, amount and, for event resistance, the **target** event (null: all) |
 | `perk_tiers` | the steps up of a perk: foods required and multiplier |
-| `perk_rooms` | the rooms a perk is for, or (`is_excluded`) not for |
+| `perk_rooms` | the **old room list** of a perk: rooms it is for, or (`is_excluded`) not for. Still read, no longer edited: a room is configured on the Rooms page, in the room itself |
+| `rewards` | the reward catalog: id, name, and what it gives (`grants_random_perk`, `extra_lives`, `tier_surge_min`, `tier_surge_max`, `tier_surge_perk`, `bonus_mass`, `mend`), sort order |
 | `prizes` | the kinds of prize: timing, value, foods credit, colour, **the perk it gives** (a link to `perks`) |
-| `prize_rooms` | the same for prizes |
+| `prize_rooms` | the same old room list for prizes |
+| `prize_rewards` | the rewards a prize gives, in order (`prize_id`, `position`, `reward_id`, a link to `rewards`) |
+| `world_event_rewards` | the rewards the boss (`event = turret`), the `bounty` and the `maze` prize give, in order (a link to `rewards`) |
 | `world_event_lightning` | the lightning storms (one row) |
 | `world_event_meteors` | the meteor rain (one row) |
 | `world_event_zone` | the shrinking zone (one row) |
@@ -63,7 +66,7 @@ With a database, the config the game servers run on (perks, prizes, world events
 | `world_event_sugar_rush` | the sugar rush, free boost for a while (one row) |
 | `world_event_maze` | the maze: size in cells, corridor width, twistiness, wall mass loss, fruit share and the prize (mass, foods credit, colour, **the perk it gives**, a link to `perks`) (one row) |
 | `bosses` | the boss: today the turret (`id = turret`), with its hit points, volleys, reward and **the perk it gives** (a link to `perks`). A new kind of boss is a new row |
-| `world_event_rooms` | the rooms an event or the boss is for, or not for (`event` is `lightning`, `meteors`, `zone`, `fruit_shower`, `bounty`, `mine_field`, `sugar_rush`, `maze` or `turret`; no foreign key, so a new event needs no schema change) |
+| `world_event_rooms` | the **old room list** of an event or the boss: rooms it is for, or not for (`event` is `lightning`, `meteors`, `zone`, `fruit_shower`, `bounty`, `mine_field`, `sugar_rush`, `maze` or `turret`; no foreign key, so a new event needs no schema change) |
 
 - A save replaces every row in **one transaction**, so the tables always hold one whole config. `gameplay_settings.revision` changes with each
   save: game servers apply a revision they have not seen. The manager looks at the revision again every 5 seconds, so a change made on
@@ -71,7 +74,8 @@ With a database, the config the game servers run on (perks, prizes, world events
 - A prize, the boss or the maze prize can only give a perk that is in `perks` (the database refuses anything else).
 - The first time the manager runs on an **empty** database it fills the tables from the old `gameplay.json` when that file is there, else from the defaults.
 - The built-in perks, which an empty list stands for, are written out as rows, so they can be edited like any other.
-- The migration `PerkRewards` added the **reward columns** to `prizes`, `bosses`, `world_event_bounty` and `world_event_maze`
+- The migration `RewardsCatalog` makes rewards a catalog: it creates `rewards`, `prize_rewards` and `world_event_rewards`, **copies every reward that was embedded** in a prize, the boss, the bounty or the maze into the catalog (only those that give something; ids `prize-<id>-reward`, `turret-reward`, `bounty-reward`, `maze-reward`, names like `Gold reward`) and links the owner to it, and then drops the `reward_*` columns the migration below added. Nothing is lost and no default changes: the copy runs before the drop, in the same migration. `Down` adds the columns back and copies the first reward of each owner into them. It is a hand-edited migration (the generated one only created tables and dropped columns): the SQL between is the data copy. Ready, **not applied**: run `dotnet dotnet-ef database update --project src/Application/Application.Manager.Api` before a manager that has this change goes live (an old manager reads the dropped columns). The room lists stay in their tables: rooms are runtime objects, so the lists keep working as they did and are only forgotten on request (the admin page has a button). The only `AddColumn<bool>` calls are in `Down` and carry `defaultValue: false`; in `Up`, `rewards.mend` and `rewards.grants_random_perk` are plain `boolean` columns of a new table, filled by the copy.
+- The migration `PerkRewards` added the **reward columns** to `prizes`, `bosses`, `world_event_bounty` and `world_event_maze` (the migration above moved them to `rewards`)
   (`reward_random_perk`, `reward_extra_lives`, `reward_tier_surge_min`, `reward_tier_surge_max`, `reward_tier_surge_perk`, `reward_bonus_mass`,
   `reward_mend`), `cooldown_seconds` and `duration_seconds` to `perks`, `target` to `perk_effects`, and `extra_life_keep_share` and
   `extra_life_protect_seconds` to `gameplay_settings`. Every new column has a default that keeps the config as it was: rewards off, no

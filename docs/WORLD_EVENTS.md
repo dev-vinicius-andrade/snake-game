@@ -94,7 +94,7 @@ and the edges of the screen glow red.
 Four more events, all timed by one pure scheduler (`EventSchedule`) and run alike (`ScheduledEventRunner`). Each comes every
 `minIntervalSeconds` to `maxIntervalSeconds` in a room with at least `minPlayers` players, has `rooms` and `excludedRooms` like the
 others, and can be started by an administrator on request (`fruitshower`, `bounty`, `mines`, `sugarrush`; the number of players is
-ignored then). They have no calm/wild room choice yet: a room can only leave them out with `excludedRooms`.
+ignored then). They have no calm/wild room choice yet: a room switches them on or off (`event:fruit_shower`, ...), see [Gameplay per room](#gameplay-per-room). Their `rooms` and `excludedRooms` are the old room lists, still obeyed where a room made no choice, no longer edited.
 
 - **Fruit shower** (a good thing). For `durationSeconds` (20) fruit falls at random spots, `fruitsPerSecond` (8) of it, through the
   food generator (`IGameStateService.GenerateFood`), so it is ordinary food that stays until eaten. It ignores the room's food limit.
@@ -215,7 +215,7 @@ r, k, v, s, u, t }` (corner, cells across and down, blocks across a corridor, tw
 
 ## Rewards
 
-The turret, the bounty and the maze prize can give a **reward** besides mass and foods (a random perk, extra lives, a tier surge, bonus mass, a mend), set as `reward` on the turret and the bounty and `prizeReward` on the maze, and in a **Reward** box on the admin page. Off by default; see [PERKS.md](PERKS.md#rewards) for the fields and the tier surge rule. The turret gives it to the snake that lands the last shot, the bounty to the killer of the wanted snake (a snake saved by an extra life is not killed, so the bounty stays), the maze to the snake that takes the prize.
+The turret, the bounty and the maze prize can give a **reward** besides mass and foods (a random perk, extra lives, a tier surge, bonus mass, a mend), picked from the reward catalog: `rewardIds` on the turret, the bounty and the maze, and a **Rewards it gives** picker on the admin page (the rewards themselves are made in the **Rewards** tab). None picked by default, and several can be picked, all of them given; see [PERKS.md](PERKS.md#rewards) for the fields, the catalog and the tier surge rule. The turret gives it to the snake that lands the last shot, the bounty to the killer of the wanted snake (a snake saved by an extra life is not killed, so the bounty stays), the maze to the snake that takes the prize.
 
 ## Resisting events
 
@@ -229,7 +229,10 @@ bringing the turret down for its own `foodsCredit` (15). Foods are what perks an
 ## Gameplay per room
 
 Everything above is the default every room inherits, set by the administrator. **A room can change it for itself**, and whoever makes
-a private room picks this when making it (the **Gameplay** panel of the **Create private room** dialog). Each feature has a choice:
+a private room picks this when making it (the **Gameplay** panel of the **Create private room** dialog). The administrator **creates** the
+events and sets their numbers; a room only **toggles** them and, for the storms and the boss, sets how strong they are.
+
+Each feature has a choice:
 
 | Choice | Meaning |
 | --- | --- |
@@ -244,15 +247,24 @@ numbers of the administrator, never a set of numbers of its own, so changing the
 each preset does to the numbers is in `WorldEventPresets`; the results are always kept inside what the settings accept (a wild storm
 never has more than 40 strikes).
 
-An administrator can change the choices of any room later, and **start an event in it right now**, from **Gameplay** in the row of
+**On or off, one thing at a time.** Besides the six features above, a room switches each **world event** (`lightning`, `meteors`, `turret`,
+`zone`, `fruit_shower`, `bounty`, `mine_field`, `sugar_rush`, `maze`), and each single **perk**, **prize** and **reward**, on or off for itself:
+`event:maze`, `perk:magnet`, `prize:gold`, `reward:life` to `on` or `off` (a thing that is not in the map follows the default). The admin page and the
+create dialog show these as *Default / On / Off* rows with the strength of the storms and the boss beside them. A thing the administrator disabled
+stays off for these toggles (the older *On* of lightning, meteors, turret and zone above still switches the event on, as it always did), and the master switch of world events stays global. In the game server, `RoomNames.Allows` is the one place that reads the toggle,
+and where a room made no choice the old `rooms` / `excludedRooms` lists of the event still decide (see [PERKS.md](PERKS.md#perks-prizes-rewards-and-events-per-room)).
+A reward switched off in a room is left out of what the prizes and events picked when they appear there.
+
+An administrator can change the choices of any room later, and **start an event in it right now**, from **Configure** in the row of
 the room in the admin rooms list (for trying an event out, or livening a quiet room up). Starting works when the event is on in the room,
 somebody is in it, and one of the kind is not already going; a turret or a zone started this way ignores the number of players it
 asks for. The manager keeps what a room chose with the room (it comes back in the heartbeat of the game server), and passes changes on to
 the game server, which applies them at once.
 
 ```
-POST /rooms                          { id, name?, maxPlayers, gameplay?: { turret: "off", lightning: "wild", ... } }   (host)
-PUT  /admin/rooms/{id}/gameplay      { turret: "off", ... }                              (admin key; only what differs from the default)
+POST /rooms                          { id, name?, maxPlayers, gameplay?: { turret: "off", lightning: "wild", "perk:magnet": "off", "event:maze": "on", ... } }   (host)
+PUT  /admin/rooms/{id}/gameplay      { turret: "off", "reward:life": "off", ... }          (admin key; only what differs from the default)
+GET  /gameplay/toggles               what a room can switch: perks, prizes, rewards, events, with whether each is on by default (public)
 POST /admin/rooms/{id}/events/{kind}  kind: lightning | meteors | turret | zone | fruitshower | bounty | mines | sugarrush | maze         (admin key; 204, 409 not now, 404, 502)
 ```
 
@@ -310,7 +322,7 @@ The turret has its own section, with the same room switches:
   "minPlayers": 2,                   // players needed in the room before it appears
   "rewardMass": 60,                  // food dropped where it falls, 0 to 1000
   "grantsPerk": "magnet",            // optional: a perk of the list given to the snake that brings it down
-  "reward": { "extraLives": 1, "tierSurgeMin": 1, "tierSurgeMax": 2, "bonusMass": 0, "mend": false, "grantsRandomPerk": false },  // optional, see PERKS.md
+  "rewardIds": ["life"],             // catalog rewards it gives, see PERKS.md
   "rooms": [], "excludedRooms": []
 }
 ```

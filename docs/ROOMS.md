@@ -12,9 +12,12 @@
 
 ## Gameplay of a room
 
-The dialog also has a **Gameplay** panel: for each of perks, prizes, lightning, meteors, the turret boss and the shrinking safe zone the
-host can keep the default, switch it off or (for the world events) make it calm or wild. It is sent with the room and kept with it.
-An administrator can change it later from **Gameplay** in the rooms list. See [WORLD_EVENTS.md](WORLD_EVENTS.md#gameplay-per-room).
+The dialog also has a **Gameplay** panel: the perks, prizes, rewards and world events **the administrator made**, each *Default*, *On* or *Off* for
+this room, the storms and the turret boss with a strength (calm, on, wild), and all perks or all prizes at once. The host only
+switches what exists; creating or editing a perk, a prize, a reward or an event is for administrators (the Gameplay tab). It is sent
+with the room and kept with it. An administrator can change it later from **Configure** in the rooms list: one dialog for the whole
+room, which can also start an event in it. See [WORLD_EVENTS.md](WORLD_EVENTS.md#gameplay-per-room) and
+[PERKS.md](PERKS.md#perks-prizes-rewards-and-events-per-room).
 
 ## Wire
 
@@ -35,8 +38,8 @@ Join requests for a room another server owns are requeued until the owner takes 
 ## Administration
 
 - Page: `/admin` in the Vue app. Sign in with an admin key (kept in `sessionStorage`, gone when the tab closes).
-  Lists all rooms (name, code, players, age, game server) and deletes them. Refreshes every 5 s.
-- API: `GET /admin/rooms`, `DELETE /admin/rooms/{id}`, header `X-Admin-Key`.
+  Lists all rooms (name, code, players, age, game server), deletes them and, with **Configure**, sets what each has of the perks, prizes, rewards and world events the administrator made (the **Gameplay** tab holds the defaults and the catalogs those are made in). Refreshes every 5 s.
+- API: `GET /admin/rooms`, `DELETE /admin/rooms/{id}`, `PUT /admin/rooms/{id}/gameplay`, header `X-Admin-Key`.
 - Keys: `AuthConfiguration:AdminApiKeys` of the manager. **Empty by default, which closes the admin API to everyone.**
   Set it with an environment variable, never commit a real key:
 
