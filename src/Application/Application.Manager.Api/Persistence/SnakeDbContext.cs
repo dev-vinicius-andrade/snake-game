@@ -40,6 +40,12 @@ public sealed class SnakeDbContext(DbContextOptions<SnakeDbContext> options) : D
 
     public DbSet<PrizeRoomRow> PrizeRooms => Set<PrizeRoomRow>();
 
+    public DbSet<RewardRow> Rewards => Set<RewardRow>();
+
+    public DbSet<PrizeRewardRow> PrizeRewards => Set<PrizeRewardRow>();
+
+    public DbSet<WorldEventRewardRow> WorldEventRewards => Set<WorldEventRewardRow>();
+
     public DbSet<LightningEventRow> LightningEvents => Set<LightningEventRow>();
 
     public DbSet<MeteorEventRow> MeteorEvents => Set<MeteorEventRow>();

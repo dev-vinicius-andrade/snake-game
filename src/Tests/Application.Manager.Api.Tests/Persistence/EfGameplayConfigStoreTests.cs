@@ -127,12 +127,14 @@ public sealed class EfGameplayConfigStoreTests : IDisposable
         var perk = context.Perks.Single(row => row.Id == "stormproof");
         Assert.Equal((30, 4), (perk.CooldownSeconds, perk.DurationSeconds));
         Assert.Equal(["zone", null], context.PerkEffects.Where(row => row.PerkId == "stormproof").OrderBy(row => row.Position).Take(2).Select(row => row.Target).ToArray());
-        var prize = context.Prizes.Single();
-        Assert.Equal((true, 2, 1, 3, "scripted", 90L, true),
-            (prize.RewardRandomPerk, prize.RewardExtraLives, prize.RewardTierSurgeMin, prize.RewardTierSurgeMax, prize.RewardTierSurgePerk, prize.RewardBonusMass, prize.RewardMend));
-        Assert.Equal(1, context.Bosses.Single().RewardExtraLives);
-        Assert.Equal(12L, context.BountyEvents.Single().RewardBonusMass);
-        Assert.Equal(3, context.MazeEvents.Single().RewardExtraLives);
+        // The rewards written inside a prize, the boss, the bounty and the maze are in the catalog now, and each points at its own.
+        var gold = context.Rewards.Single(row => row.Id == "prize-gold-reward");
+        Assert.Equal((true, 2, 1, 3, "scripted", 90L, true), (gold.GrantsRandomPerk, gold.ExtraLives, gold.TierSurgeMin, gold.TierSurgeMax, gold.TierSurgePerk, gold.BonusMass, gold.Mend));
+        Assert.Equal(["prize-gold-reward"], context.PrizeRewards.Where(row => row.PrizeId == "gold").Select(row => row.RewardId).ToArray());
+        Assert.Equal(1, context.Rewards.Single(row => row.Id == "turret-reward").ExtraLives);
+        Assert.Equal(12L, context.Rewards.Single(row => row.Id == "bounty-reward").BonusMass);
+        Assert.Equal(3, context.Rewards.Single(row => row.Id == "maze-reward").ExtraLives);
+        Assert.Equal(["bounty", "maze", "turret"], context.WorldEventRewards.Select(row => row.Event).OrderBy(name => name).ToArray());
     }
 
     [Fact]
@@ -142,10 +144,70 @@ public sealed class EfGameplayConfigStoreTests : IDisposable
 
         var back = Store().Current.Config;
 
+        Assert.Empty(back.Rewards);
         Assert.True(back.Prize.Prizes.All(prize => prize.Reward.IsEmpty));
         Assert.True(back.WorldEvents.Turret.Reward.IsEmpty);
         Assert.True(back.WorldEvents.Bounty.Reward.IsEmpty);
         Assert.True(back.WorldEvents.Maze.PrizeReward.IsEmpty);
+    }
+
+    [Fact]
+    public void Update_APrizeAndTheEventsThatPickSeveralRewards_KeepThemInOrder_AndGiveThemAll()
+    {
+        var config = GameplayConfig.Defaults with
+        {
+            Rewards =
+            [
+                new RewardDefinition { Id = "life", Name = "Life", Reward = new PerkReward { ExtraLives = 1 } },
+                new RewardDefinition { Id = "mass", Name = "Mass", Reward = new PerkReward { BonusMass = 70 } },
+                new RewardDefinition { Id = "spare", Name = "Spare", Reward = new PerkReward { Mend = true } },
+            ],
+            Prize = new PrizeOptions { Prizes = [new PrizeDefinition { Id = "gift", Name = "Gift", RewardIds = ["mass", "life"] }] },
+            WorldEvents = GameplayConfig.Defaults.WorldEvents with
+            {
+                Turret = new TurretOptions { RewardIds = ["life", "mass"] }, Bounty = new BountyOptions { RewardIds = ["spare"] }, Maze = new MazeOptions { RewardIds = ["mass", "spare", "life"] }
+            },
+        };
+
+        Store().Update(config);
+        var back = Store().Current.Config;
+
+        Assert.Equal(["life", "mass", "spare"], back.Rewards.Select(reward => reward.Id));
+        Assert.Equal(["mass", "life"], back.Prize.Prizes.Single().RewardIds);
+        Assert.Equal((1, 70L), (back.Prize.Prizes.Single().Reward.ExtraLives, back.Prize.Prizes.Single().Reward.BonusMass));
+        Assert.Equal(["life", "mass"], back.WorldEvents.Turret.RewardIds);
+        Assert.Equal(["mass", "spare", "life"], back.WorldEvents.Maze.RewardIds);
+        Assert.True(back.WorldEvents.Bounty.Reward.Mend);
+        using var context = _host.Factory.CreateDbContext();
+        Assert.Equal(3, context.Rewards.Count());
+        Assert.Equal(2, context.PrizeRewards.Count());
+        Assert.Equal(6, context.WorldEventRewards.Count());
+    }
+
+    [Fact]
+    public void Update_ARewardTakenOutOfTheCatalog_LeavesNoRowsBehind()
+    {
+        var store = Store();
+        store.Update(GameplayConfig.Defaults with { Rewards = [new RewardDefinition { Id = "life", Name = "Life", Reward = new PerkReward { ExtraLives = 1 } }] });
+
+        store.Update(GameplayConfig.Defaults);
+
+        using var context = _host.Factory.CreateDbContext();
+        Assert.Empty(context.Rewards);
+        Assert.Empty(context.PrizeRewards);
+        Assert.Empty(context.WorldEventRewards);
+    }
+
+    [Fact]
+    public void Update_APickThatIsNotInTheCatalog_IsRefusedAndNothingChanges()
+    {
+        var store = Store();
+        var before = store.Current;
+        var config = GameplayConfig.Defaults with { Prize = new PrizeOptions { Prizes = [new PrizeDefinition { Id = "gift", Name = "Gift", RewardIds = ["ghost"] }] } };
+
+        Assert.ThrowsAny<ArgumentException>(() => store.Update(config));
+
+        Assert.Equal(before.Revision, Store().Current.Revision);
     }
 
     [Fact]

@@ -20,6 +20,9 @@ internal static class GameplayConfigMapper
     /// <summary>Empties every gameplay table, children before parents, so what is added next can reuse the same keys.</summary>
     public static void Clear(SnakeDbContext context)
     {
+        context.WorldEventRewards.ExecuteDelete();
+        context.PrizeRewards.ExecuteDelete();
+        context.Rewards.ExecuteDelete();
         context.WorldEventRooms.ExecuteDelete();
         context.PerkRooms.ExecuteDelete();
         context.PerkTiers.ExecuteDelete();
@@ -57,9 +60,24 @@ internal static class GameplayConfigMapper
             MaxPrivateRoomMinutes = config.Rooms.MaxPrivateRoomMinutes,
             WorldEventsEnabled = config.WorldEvents.Enabled,
         });
+        AddRewards(context, config.Rewards);
         AddPerks(context, config.Perks.Perks);
         AddPrizes(context, config.Prize.Prizes);
         AddEvents(context, config.WorldEvents);
+    }
+
+    private static void AddRewards(SnakeDbContext context, List<RewardDefinition> rewards)
+    {
+        for (var order = 0; order < rewards.Count; order++)
+        {
+            var (id, name, reward) = (rewards[order].Id, rewards[order].Name, rewards[order].Reward);
+            context.Rewards.Add(new RewardRow
+            {
+                Id = id, Name = name, GrantsRandomPerk = reward.GrantsRandomPerk, ExtraLives = reward.ExtraLives, TierSurgeMin = reward.TierSurgeMin,
+                TierSurgeMax = reward.TierSurgeMax, TierSurgePerk = NullIfBlank(reward.TierSurgePerk), BonusMass = reward.BonusMass, Mend = reward.Mend,
+                SortOrder = order,
+            });
+        }
     }
 
     private static void AddPerks(SnakeDbContext context, List<PerkDefinition> perks)
@@ -93,8 +111,8 @@ internal static class GameplayConfigMapper
                 LifetimeSeconds = prize.LifetimeSeconds, Value = prize.Value, FoodsCredit = prize.FoodsCredit, MinPlayers = prize.MinPlayers,
                 GrantsPerk = NullIfBlank(prize.GrantsPerk), Color = prize.Color, SortOrder = order,
             };
-            WriteReward(row, prize.Reward);
             context.Prizes.Add(row);
+            context.PrizeRewards.AddRange(prize.RewardIds.Select((rewardId, position) => new PrizeRewardRow { PrizeId = prize.Id, Position = position, RewardId = rewardId }));
             context.PrizeRooms.AddRange(Rooms(prize.Rooms, prize.ExcludedRooms, (room, excluded, position) =>
                 new PrizeRoomRow { PrizeId = prize.Id, IsExcluded = excluded, Position = position, Room = room }));
         }
@@ -128,8 +146,8 @@ internal static class GameplayConfigMapper
             Arms = turret.Arms, SpinDegrees = turret.SpinDegrees, ShotSpeed = turret.ShotSpeed, MinPlayers = turret.MinPlayers,
             RewardMass = turret.RewardMass, GrantsPerk = NullIfBlank(turret.GrantsPerk), FoodsCredit = turret.FoodsCredit,
         };
-        WriteReward(boss, turret.Reward);
         context.Bosses.Add(boss);
+        context.WorldEventRewards.AddRange(EventRewards(Turret, turret.RewardIds));
         context.WorldEventRooms.AddRange(EventRooms(Lightning, lightning.Rooms, lightning.ExcludedRooms));
         context.WorldEventRooms.AddRange(EventRooms(Meteors, meteors.Rooms, meteors.ExcludedRooms));
         context.WorldEventRooms.AddRange(EventRooms(Zone, zone.Rooms, zone.ExcludedRooms));
@@ -150,8 +168,8 @@ internal static class GameplayConfigMapper
             Enabled = bounty.Enabled, MinIntervalSeconds = bounty.MinIntervalSeconds, MaxIntervalSeconds = bounty.MaxIntervalSeconds,
             DurationSeconds = bounty.DurationSeconds, RewardMass = bounty.RewardMass, FoodsCredit = bounty.FoodsCredit, MinPlayers = bounty.MinPlayers,
         };
-        WriteReward(bountyRow, bounty.Reward);
         context.BountyEvents.Add(bountyRow);
+        context.WorldEventRewards.AddRange(EventRewards(Bounty, bounty.RewardIds));
         context.MineFieldEvents.Add(new MineFieldEventRow
         {
             Enabled = mines.Enabled, MinIntervalSeconds = mines.MinIntervalSeconds, MaxIntervalSeconds = mines.MaxIntervalSeconds, MinMines = mines.MinMines,
@@ -179,8 +197,8 @@ internal static class GameplayConfigMapper
             PrizeMass = maze.PrizeMass, PrizeFoodsCredit = maze.PrizeFoodsCredit, PrizeGrantsPerk = NullIfBlank(maze.PrizeGrantsPerk),
             PrizeColor = maze.PrizeColor,
         };
-        WriteReward(row, maze.PrizeReward);
         context.MazeEvents.Add(row);
+        context.WorldEventRewards.AddRange(EventRewards(Maze, maze.RewardIds));
         context.WorldEventRooms.AddRange(EventRooms(Maze, maze.Rooms, maze.ExcludedRooms));
     }
 
@@ -191,14 +209,34 @@ internal static class GameplayConfigMapper
         if (settings is null)
             return null;
         var rooms = context.WorldEventRooms.AsNoTracking().ToList();
+        var rewards = ReadRewards(context);
         var config = new GameplayConfig
         {
+            Rewards = rewards.Catalog,
             Perks = ReadPerks(context, settings),
-            Prize = ReadPrizes(context, settings),
+            Prize = ReadPrizes(context, settings, rewards.PrizeIds),
             Rooms = new RoomLifetimeOptions { EmptyPrivateRoomMinutes = settings.EmptyPrivateRoomMinutes, MaxPrivateRoomMinutes = settings.MaxPrivateRoomMinutes },
-            WorldEvents = ReadEvents(context, settings, rooms),
-        };
+            WorldEvents = ReadEvents(context, settings, rooms, rewards.EventIds),
+        }.WithRewardsResolved();
         return new GameplayDocument(settings.Revision, config);
+    }
+
+    private sealed record RewardRows(List<RewardDefinition> Catalog, ILookup<string, string> PrizeIds, ILookup<string, string> EventIds);
+
+    private static RewardRows ReadRewards(SnakeDbContext context)
+    {
+        var catalog = context.Rewards.AsNoTracking().OrderBy(row => row.SortOrder).ToList().Select(row => new RewardDefinition
+        {
+            Id = row.Id, Name = row.Name,
+            Reward = new PerkReward
+            {
+                GrantsRandomPerk = row.GrantsRandomPerk, ExtraLives = row.ExtraLives, TierSurgeMin = row.TierSurgeMin, TierSurgeMax = row.TierSurgeMax,
+                TierSurgePerk = row.TierSurgePerk, BonusMass = row.BonusMass, Mend = row.Mend,
+            },
+        }).ToList();
+        var prizeIds = context.PrizeRewards.AsNoTracking().OrderBy(row => row.Position).ToList().ToLookup(row => row.PrizeId, row => row.RewardId);
+        var eventIds = context.WorldEventRewards.AsNoTracking().OrderBy(row => row.Position).ToList().ToLookup(row => row.Event, row => row.RewardId);
+        return new RewardRows(catalog, prizeIds, eventIds);
     }
 
     public static string? ReadRevision(SnakeDbContext context) => context.GameplaySettings.AsNoTracking().Select(row => row.Revision).SingleOrDefault();
@@ -225,21 +263,21 @@ internal static class GameplayConfigMapper
         };
     }
 
-    private static PrizeOptions ReadPrizes(SnakeDbContext context, GameplaySettingsRow settings)
+    private static PrizeOptions ReadPrizes(SnakeDbContext context, GameplaySettingsRow settings, ILookup<string, string> rewardIds)
     {
         var rooms = context.PrizeRooms.AsNoTracking().OrderBy(row => row.Position).ToLookup(row => row.PrizeId);
         var prizes = context.Prizes.AsNoTracking().OrderBy(row => row.SortOrder).ToList().Select(row => new PrizeDefinition
         {
             Id = row.Id, Name = row.Name, Enabled = row.Enabled, SpawnIntervalSeconds = row.SpawnIntervalSeconds, LifetimeSeconds = row.LifetimeSeconds,
             Value = row.Value, FoodsCredit = row.FoodsCredit, MinPlayers = row.MinPlayers, GrantsPerk = row.GrantsPerk, Color = row.Color,
-            Reward = ReadReward(row),
+            RewardIds = rewardIds[row.Id].ToList(),
             Rooms = rooms[row.Id].Where(room => !room.IsExcluded).Select(room => room.Room).ToList(),
             ExcludedRooms = rooms[row.Id].Where(room => room.IsExcluded).Select(room => room.Room).ToList(),
         }).ToList();
         return new PrizeOptions { Enabled = settings.PrizesEnabled, Prizes = prizes };
     }
 
-    private static WorldEventOptions ReadEvents(SnakeDbContext context, GameplaySettingsRow settings, List<WorldEventRoomRow> rooms)
+    private static WorldEventOptions ReadEvents(SnakeDbContext context, GameplaySettingsRow settings, List<WorldEventRoomRow> rooms, ILookup<string, string> rewardIds)
     {
         var lightning = context.LightningEvents.AsNoTracking().Single();
         var meteors = context.MeteorEvents.AsNoTracking().Single();
@@ -266,7 +304,7 @@ internal static class GameplayConfigMapper
                 Enabled = turret.Enabled, MinIntervalSeconds = turret.MinIntervalSeconds, MaxIntervalSeconds = turret.MaxIntervalSeconds, LifetimeSeconds = turret.LifetimeSeconds,
                 HitPoints = turret.HitPoints, Size = turret.Size, FireIntervalMilliseconds = turret.FireIntervalMilliseconds, Arms = turret.Arms,
                 SpinDegrees = turret.SpinDegrees, ShotSpeed = turret.ShotSpeed, MinPlayers = turret.MinPlayers, RewardMass = turret.RewardMass,
-                GrantsPerk = turret.GrantsPerk, FoodsCredit = turret.FoodsCredit, Reward = ReadReward(turret),
+                GrantsPerk = turret.GrantsPerk, FoodsCredit = turret.FoodsCredit, RewardIds = rewardIds[Turret].ToList(),
                 Rooms = RoomsOf(rooms, Turret, excluded: false), ExcludedRooms = RoomsOf(rooms, Turret, excluded: true),
             },
             Zone = new ZoneOptions
@@ -277,10 +315,10 @@ internal static class GameplayConfigMapper
                 Rooms = RoomsOf(rooms, Zone, excluded: false), ExcludedRooms = RoomsOf(rooms, Zone, excluded: true),
             },
             FruitShower = ReadFruitShower(context, rooms),
-            Bounty = ReadBounty(context, rooms),
+            Bounty = ReadBounty(context, rooms, rewardIds[Bounty].ToList()),
             Mines = ReadMineField(context, rooms),
             SugarRush = ReadSugarRush(context, rooms),
-            Maze = ReadMaze(context, rooms),
+            Maze = ReadMaze(context, rooms, rewardIds[Maze].ToList()),
         };
     }
 
@@ -299,7 +337,7 @@ internal static class GameplayConfigMapper
         };
     }
 
-    private static BountyOptions ReadBounty(SnakeDbContext context, List<WorldEventRoomRow> rooms)
+    private static BountyOptions ReadBounty(SnakeDbContext context, List<WorldEventRoomRow> rooms, List<string> rewardIds)
     {
         var row = context.BountyEvents.AsNoTracking().SingleOrDefault();
         if (row is null)
@@ -307,7 +345,7 @@ internal static class GameplayConfigMapper
         return new BountyOptions
         {
             Enabled = row.Enabled, MinIntervalSeconds = row.MinIntervalSeconds, MaxIntervalSeconds = row.MaxIntervalSeconds, DurationSeconds = row.DurationSeconds,
-            RewardMass = row.RewardMass, FoodsCredit = row.FoodsCredit, MinPlayers = row.MinPlayers, Reward = ReadReward(row),
+            RewardMass = row.RewardMass, FoodsCredit = row.FoodsCredit, MinPlayers = row.MinPlayers, RewardIds = rewardIds,
             Rooms = RoomsOf(rooms, Bounty, excluded: false), ExcludedRooms = RoomsOf(rooms, Bounty, excluded: true),
         };
     }
@@ -325,7 +363,7 @@ internal static class GameplayConfigMapper
         };
     }
 
-    private static MazeOptions ReadMaze(SnakeDbContext context, List<WorldEventRoomRow> rooms)
+    private static MazeOptions ReadMaze(SnakeDbContext context, List<WorldEventRoomRow> rooms, List<string> rewardIds)
     {
         var row = context.MazeEvents.AsNoTracking().SingleOrDefault();
         if (row is null)
@@ -335,7 +373,7 @@ internal static class GameplayConfigMapper
             Enabled = row.Enabled, MinIntervalSeconds = row.MinIntervalSeconds, MaxIntervalSeconds = row.MaxIntervalSeconds, DurationSeconds = row.DurationSeconds,
             Columns = row.Columns, Rows = row.Rows, CorridorHeads = row.CorridorHeads, Twistiness = row.Twistiness, WallMassLoss = row.WallMassLoss,
             FoodPercent = row.FoodPercent, MinPlayers = row.MinPlayers, PrizeMass = row.PrizeMass, PrizeFoodsCredit = row.PrizeFoodsCredit,
-            PrizeGrantsPerk = row.PrizeGrantsPerk, PrizeColor = row.PrizeColor, PrizeReward = ReadReward(row),
+            PrizeGrantsPerk = row.PrizeGrantsPerk, PrizeColor = row.PrizeColor, RewardIds = rewardIds,
             Rooms = RoomsOf(rooms, Maze, excluded: false), ExcludedRooms = RoomsOf(rooms, Maze, excluded: true),
         };
     }
@@ -362,22 +400,8 @@ internal static class GameplayConfigMapper
     private static IEnumerable<TRow> Rooms<TRow>(List<string> allowed, List<string> excluded, Func<string, bool, int, TRow> make)
         => allowed.Select((room, position) => make(room, false, position)).Concat(excluded.Select((room, position) => make(room, true, position)));
 
-    private static void WriteReward(IRewardColumns row, PerkReward reward)
-    {
-        row.RewardRandomPerk = reward.GrantsRandomPerk;
-        row.RewardExtraLives = reward.ExtraLives;
-        row.RewardTierSurgeMin = reward.TierSurgeMin;
-        row.RewardTierSurgeMax = reward.TierSurgeMax;
-        row.RewardTierSurgePerk = NullIfBlank(reward.TierSurgePerk);
-        row.RewardBonusMass = reward.BonusMass;
-        row.RewardMend = reward.Mend;
-    }
-
-    private static PerkReward ReadReward(IRewardColumns row) => new()
-    {
-        GrantsRandomPerk = row.RewardRandomPerk, ExtraLives = row.RewardExtraLives, TierSurgeMin = row.RewardTierSurgeMin,
-        TierSurgeMax = row.RewardTierSurgeMax, TierSurgePerk = row.RewardTierSurgePerk, BonusMass = row.RewardBonusMass, Mend = row.RewardMend,
-    };
+    private static IEnumerable<WorldEventRewardRow> EventRewards(string kind, List<string> rewardIds)
+        => rewardIds.Select((rewardId, position) => new WorldEventRewardRow { Event = kind, Position = position, RewardId = rewardId });
 
     private static string? NullIfBlank(string? text) => string.IsNullOrWhiteSpace(text) ? null : text;
 }

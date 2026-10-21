@@ -54,7 +54,6 @@ internal static class GameplayModel
             prize.Property(row => row.Id).HasMaxLength(SnakeDbContext.MaxName);
             prize.Property(row => row.Name).HasMaxLength(SnakeDbContext.MaxName).IsRequired();
             prize.Property(row => row.GrantsPerk).HasMaxLength(SnakeDbContext.MaxName);
-            prize.Property(row => row.RewardTierSurgePerk).HasMaxLength(SnakeDbContext.MaxName);
             prize.Property(row => row.Color).HasMaxLength(16).IsRequired();
             prize.HasOne<PerkRow>().WithMany().HasForeignKey(row => row.GrantsPerk).OnDelete(DeleteBehavior.Restrict);
         });
@@ -65,6 +64,31 @@ internal static class GameplayModel
             room.Property(row => row.PrizeId).HasMaxLength(SnakeDbContext.MaxName);
             room.Property(row => row.Room).HasMaxLength(SnakeDbContext.MaxName * 2).IsRequired();
             room.HasOne<PrizeRow>().WithMany().HasForeignKey(row => row.PrizeId).OnDelete(DeleteBehavior.Cascade);
+        });
+        model.Entity<RewardRow>(reward =>
+        {
+            reward.ToTable("rewards");
+            reward.HasKey(row => row.Id);
+            reward.Property(row => row.Id).HasMaxLength(SnakeDbContext.MaxName);
+            reward.Property(row => row.Name).HasMaxLength(SnakeDbContext.MaxName).IsRequired();
+            reward.Property(row => row.TierSurgePerk).HasMaxLength(SnakeDbContext.MaxName);
+        });
+        model.Entity<PrizeRewardRow>(link =>
+        {
+            link.ToTable("prize_rewards");
+            link.HasKey(row => new { row.PrizeId, row.Position });
+            link.Property(row => row.PrizeId).HasMaxLength(SnakeDbContext.MaxName);
+            link.Property(row => row.RewardId).HasMaxLength(SnakeDbContext.MaxName).IsRequired();
+            link.HasOne<PrizeRow>().WithMany().HasForeignKey(row => row.PrizeId).OnDelete(DeleteBehavior.Cascade);
+            link.HasOne<RewardRow>().WithMany().HasForeignKey(row => row.RewardId).OnDelete(DeleteBehavior.Restrict);
+        });
+        model.Entity<WorldEventRewardRow>(link =>
+        {
+            link.ToTable("world_event_rewards");
+            link.HasKey(row => new { row.Event, row.Position });
+            link.Property(row => row.Event).HasMaxLength(32);
+            link.Property(row => row.RewardId).HasMaxLength(SnakeDbContext.MaxName).IsRequired();
+            link.HasOne<RewardRow>().WithMany().HasForeignKey(row => row.RewardId).OnDelete(DeleteBehavior.Restrict);
         });
         model.Entity<LightningEventRow>(lightning =>
         {
@@ -86,14 +110,12 @@ internal static class GameplayModel
         });
         SingleRow<FruitShowerEventRow>(model, "world_event_fruit_shower");
         SingleRow<BountyEventRow>(model, "world_event_bounty");
-        model.Entity<BountyEventRow>(bounty => bounty.Property(row => row.RewardTierSurgePerk).HasMaxLength(SnakeDbContext.MaxName));
         SingleRow<MineFieldEventRow>(model, "world_event_mine_field");
         SingleRow<SugarRushEventRow>(model, "world_event_sugar_rush");
         SingleRow<MazeEventRow>(model, "world_event_maze");
         model.Entity<MazeEventRow>(maze =>
         {
             maze.Property(row => row.PrizeGrantsPerk).HasMaxLength(SnakeDbContext.MaxName);
-            maze.Property(row => row.RewardTierSurgePerk).HasMaxLength(SnakeDbContext.MaxName);
             maze.Property(row => row.PrizeColor).HasMaxLength(7).IsRequired();
             maze.HasOne<PerkRow>().WithMany().HasForeignKey(row => row.PrizeGrantsPerk).OnDelete(DeleteBehavior.Restrict);
         });
@@ -103,7 +125,6 @@ internal static class GameplayModel
             boss.HasKey(row => row.Id);
             boss.Property(row => row.Id).HasMaxLength(SnakeDbContext.MaxName);
             boss.Property(row => row.GrantsPerk).HasMaxLength(SnakeDbContext.MaxName);
-            boss.Property(row => row.RewardTierSurgePerk).HasMaxLength(SnakeDbContext.MaxName);
             boss.HasOne<PerkRow>().WithMany().HasForeignKey(row => row.GrantsPerk).OnDelete(DeleteBehavior.Restrict);
         });
         model.Entity<WorldEventRoomRow>(room =>

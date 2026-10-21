@@ -89,9 +89,14 @@ public sealed record GameplayConfig
 
     private static string AddToCatalog(List<RewardDefinition> catalog, string id, string name, PerkReward reward)
     {
+        id = id.Length > MaxRewardIdLength ? id[..MaxRewardIdLength] : id;
         var unique = id;
-        for (var suffix = 2; catalog.Any(existing => SameId(existing.Id, unique)); suffix++) unique = $"{id}-{suffix}";
-        catalog.Add(new RewardDefinition { Id = unique, Name = name, Reward = reward });
+        for (var suffix = 2; catalog.Any(existing => SameId(existing.Id, unique)); suffix++)
+        {
+            var tail = $"-{suffix}";
+            unique = id[..Math.Min(id.Length, MaxRewardIdLength - tail.Length)] + tail;
+        }
+        catalog.Add(new RewardDefinition { Id = unique, Name = name.Length > 64 ? name[..64] : name, Reward = reward });
         return unique;
     }
 
