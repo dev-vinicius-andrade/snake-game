@@ -30,12 +30,13 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
         color: "#ffd23f",
         rooms: [],
         excludedRooms: [],
-        reward: { ...EMPTY_REWARD },
+        rewardIds: [],
         ...overrides,
       },
     ],
   },
   rooms: { emptyPrivateRoomMinutes: 10, maxPrivateRoomMinutes: 0 },
+  rewards: [],
   worldEvents: {
     enabled: true,
     lightning: {
@@ -78,7 +79,7 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
       minPlayers: 1,
       rewardMass: 60,
       foodsCredit: 15,
-      reward: { ...EMPTY_REWARD },
+      rewardIds: [],
       rooms: [],
       excludedRooms: [],
     },
@@ -113,7 +114,7 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
       durationSeconds: 90,
       rewardMass: 150,
       foodsCredit: 10,
-      reward: { ...EMPTY_REWARD },
+      rewardIds: [],
       minPlayers: 3,
       rooms: [],
       excludedRooms: [],
@@ -154,7 +155,7 @@ const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
       minPlayers: 2,
       prizeMass: 200,
       prizeFoodsCredit: 20,
-      prizeReward: { ...EMPTY_REWARD },
+      rewardIds: [],
       prizeColor: "#ffd23f",
       rooms: [],
       excludedRooms: [],
@@ -1051,10 +1052,11 @@ describe("useAdminGameplay rewards and cooldown perks", () => {
       delete perk.cooldownSeconds;
       delete perk.durationSeconds;
     }
-    delete old.prize.prizes[0].reward;
-    delete old.worldEvents.turret.reward;
-    delete old.worldEvents.bounty.reward;
-    delete old.worldEvents.maze.prizeReward;
+    delete old.rewards;
+    delete old.prize.prizes[0].rewardIds;
+    delete old.worldEvents.turret.rewardIds;
+    delete old.worldEvents.bounty.rewardIds;
+    delete old.worldEvents.maze.rewardIds;
     return old as GameplayConfig;
   }
 
@@ -1068,40 +1070,125 @@ describe("useAdminGameplay rewards and cooldown perks", () => {
     expect(draft).toEqual(config());
     expect(draft.perks.extraLifeKeepShare).toBe(0.5);
     expect(draft.perks.extraLifeProtectSeconds).toBe(3);
-    expect(draft.prize.prizes[0].reward).toEqual(EMPTY_REWARD);
+    expect(draft.rewards).toEqual([]);
+    expect(draft.prize.prizes[0].rewardIds).toEqual([]);
     expect(gameplay.dirty.value).toBe(false);
   });
 
-  it("keeps the reward the server sent and fills in the fields it left out", async () => {
-    const withReward = structuredClone(config()) as any;
-    withReward.prize.prizes[0].reward = { extraLives: 2, tierSurgeMin: 1, tierSurgeMax: 3, tierSurgePerk: "magnet" };
-    withReward.worldEvents.turret.reward = { mend: true };
-    http.get.mockResolvedValue({ ...payload, current: { revision: "r1", config: withReward } });
+  it("keeps the catalog the server sent, with the fields of each reward it left out filled in, and what each one picked", async () => {
+    const withCatalog = structuredClone(config()) as any;
+    withCatalog.rewards = [
+      { id: "life", name: "Life", reward: { extraLives: 2, tierSurgeMin: 1, tierSurgeMax: 3, tierSurgePerk: "magnet" } },
+      { id: "mend", name: "Mend", reward: { mend: true } },
+    ];
+    withCatalog.prize.prizes[0].rewardIds = ["life", "mend"];
+    withCatalog.worldEvents.turret.rewardIds = ["mend"];
+    http.get.mockResolvedValue({ ...payload, current: { revision: "r1", config: withCatalog } });
     const gameplay = create();
 
     await gameplay.load();
 
     const draft = gameplay.draft.value!;
-    expect(draft.prize.prizes[0].reward).toEqual({ ...EMPTY_REWARD, extraLives: 2, tierSurgeMin: 1, tierSurgeMax: 3, tierSurgePerk: "magnet" });
-    expect(draft.worldEvents.turret.reward).toEqual({ ...EMPTY_REWARD, mend: true });
+    expect(draft.rewards[0]).toEqual({ id: "life", name: "Life", reward: { ...EMPTY_REWARD, extraLives: 2, tierSurgeMin: 1, tierSurgeMax: 3, tierSurgePerk: "magnet" } });
+    expect(draft.rewards[1].reward).toEqual({ ...EMPTY_REWARD, mend: true });
+    expect(draft.prize.prizes[0].rewardIds).toEqual(["life", "mend"]);
+    expect(draft.worldEvents.turret.rewardIds).toEqual(["mend"]);
+  });
+
+  it("does not hold on to the reward the server worked out for a prize, so a pick taken away stays away", async () => {
+    const resolved = structuredClone(config()) as any;
+    resolved.rewards = [{ id: "mend", name: "Mend", reward: { mend: true } }];
+    resolved.prize.prizes[0].rewardIds = ["mend"];
+    resolved.prize.prizes[0].reward = { mend: true };
+    resolved.worldEvents.maze.prizeReward = { mend: true };
+    http.get.mockResolvedValue({ ...payload, current: { revision: "r1", config: resolved } });
+    const gameplay = create();
+    await gameplay.load();
+    expect("reward" in gameplay.draft.value!.prize.prizes[0]).toBe(false);
+    expect("prizeReward" in gameplay.draft.value!.worldEvents.maze).toBe(false);
+
+    gameplay.draft.value!.prize.prizes[0].rewardIds = [];
+    await gameplay.save();
+
+    const sent = http.put.mock.calls[0][2] as any;
+    expect(sent.prize.prizes[0].rewardIds).toEqual([]);
+    expect("reward" in sent.prize.prizes[0]).toBe(false);
+    expect("prizeReward" in sent.worldEvents.maze).toBe(false);
+  });
+
+  it("adds a reward with a free id, an empty reward and a name, and picks it nowhere", async () => {
+    const gameplay = create();
+    await gameplay.load();
+
+    gameplay.addReward();
+    gameplay.addReward();
+
+    const [first, second] = gameplay.draft.value!.rewards;
+    expect(first.id).not.toBe(second.id);
+    expect(first.name).not.toBe("");
+    expect(first.reward).toEqual(EMPTY_REWARD);
+    first.reward.extraLives = 3;
+    expect(second.reward.extraLives).toBe(0);
+    expect(gameplay.rewardChoices.value.map((choice) => choice.id)).toEqual([first.id, second.id]);
+  });
+
+  it("takes a deleted reward out of everything that picked it", async () => {
+    const gameplay = create();
+    await gameplay.load();
+    gameplay.addReward();
+    gameplay.addReward();
+    const [keep, drop] = gameplay.draft.value!.rewards.map((reward) => reward.id);
+    const draft = gameplay.draft.value!;
+    draft.prize.prizes[0].rewardIds = [keep, drop];
+    draft.worldEvents.turret.rewardIds = [drop];
+    draft.worldEvents.bounty.rewardIds = [drop, keep];
+    draft.worldEvents.maze.rewardIds = [drop];
+
+    gameplay.removeReward(1);
+
+    expect(draft.rewards.map((reward) => reward.id)).toEqual([keep]);
+    expect(draft.prize.prizes[0].rewardIds).toEqual([keep]);
+    expect(draft.worldEvents.turret.rewardIds).toEqual([]);
+    expect(draft.worldEvents.bounty.rewardIds).toEqual([keep]);
+    expect(draft.worldEvents.maze.rewardIds).toEqual([]);
   });
 
   it("sends a reward without a blank perk to lift, and trims the one it has", async () => {
     const gameplay = create();
     await gameplay.load();
-    const draft = gameplay.draft.value!;
-    draft.prize.prizes[0].reward.tierSurgePerk = "  ";
-    draft.worldEvents.turret.reward.tierSurgePerk = " magnet ";
-    draft.worldEvents.bounty.reward.tierSurgePerk = "";
-    draft.worldEvents.maze.prizeReward.tierSurgePerk = "twin";
+    gameplay.addReward();
+    gameplay.addReward();
+    gameplay.addReward();
+    const [blank, padded, kept] = gameplay.draft.value!.rewards;
+    blank.reward.tierSurgePerk = "  ";
+    padded.reward.tierSurgePerk = " magnet ";
+    kept.reward.tierSurgePerk = "twin";
+    padded.name = " Padded ";
 
     await gameplay.save();
 
-    const sent = http.put.mock.calls[0][2] as GameplayConfig;
-    expect("tierSurgePerk" in sent.prize.prizes[0].reward).toBe(false);
-    expect(sent.worldEvents.turret.reward.tierSurgePerk).toBe("magnet");
-    expect("tierSurgePerk" in sent.worldEvents.bounty.reward).toBe(false);
-    expect(sent.worldEvents.maze.prizeReward.tierSurgePerk).toBe("twin");
+    const sent = (http.put.mock.calls[0][2] as GameplayConfig).rewards;
+    expect("tierSurgePerk" in sent[0].reward).toBe(false);
+    expect(sent[1].reward.tierSurgePerk).toBe("magnet");
+    expect(sent[1].name).toBe("Padded");
+    expect(sent[2].reward.tierSurgePerk).toBe("twin");
+  });
+
+  it("clears the old room lists of a perk, a prize or an event, and nothing else of it", async () => {
+    const gameplay = create();
+    await gameplay.load();
+    const draft = gameplay.draft.value!;
+    draft.perks.perks[0].rooms = ["ABC234"];
+    draft.worldEvents.maze.excludedRooms = ["lobby"];
+    draft.prize.prizes[0].rooms = ["x"];
+
+    gameplay.clearRoomLists(draft.perks.perks[0]);
+    gameplay.clearRoomLists(draft.worldEvents.maze);
+    gameplay.clearRoomLists(draft.prize.prizes[0]);
+
+    expect(draft.perks.perks[0]).toMatchObject({ id: "magnet", rooms: [], excludedRooms: [] });
+    expect(draft.worldEvents.maze.excludedRooms).toEqual([]);
+    expect(draft.prize.prizes[0].rooms).toEqual([]);
   });
 
   it("sends the target of an event resistance, and none for any other effect or a blank one", async () => {
@@ -1144,17 +1231,16 @@ describe("useAdminGameplay rewards and cooldown perks", () => {
     expect([plain.cooldownSeconds, plain.durationSeconds]).toEqual([0, 0]);
   });
 
-  it("gives a new prize an empty reward of its own", async () => {
+  it("gives a new prize no reward picked", async () => {
     const gameplay = create();
     await gameplay.load();
 
     gameplay.addPrize();
     gameplay.addPrize();
     const [, first, second] = [null, ...gameplay.draft.value!.prize.prizes];
-    first!.reward.extraLives = 3;
+    first!.rewardIds.push("x");
 
-    expect(second!.reward.extraLives).toBe(0);
-    expect(EMPTY_REWARD.extraLives).toBe(0);
+    expect(second!.rewardIds).toEqual([]);
   });
 });
 

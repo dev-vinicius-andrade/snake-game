@@ -1,7 +1,58 @@
 import { describe, expect, it } from "vitest";
 import en from "@/locales/messages/en";
 import pt from "@/locales/messages/pt";
-import { GAMEPLAY_FEATURES, choicesBody, defaultChoices, isDefaultChoices, parseChoices, presetsOf } from "./roomGameplay";
+import { GAMEPLAY_FEATURES, INTENSITY_PRESETS, choicesBody, defaultChoices, isDefaultChoices, parseChoices, presetsOf, toggleKey, toggleOf, withToggle } from "./roomGameplay";
+
+describe("toggles of single things", () => {
+  it("are named kind and id, like the server reads them", () => {
+    expect(toggleKey("perk", "magnet")).toBe("perk:magnet");
+  });
+
+  it("follow the default until the room chooses", () => {
+    expect(toggleOf(defaultChoices(), "perk", "magnet")).toBe("inherit");
+  });
+
+  it("switch a thing on or off, and back to the default by removing the choice", () => {
+    const off = withToggle(defaultChoices(), "perk", "magnet", "off");
+    const on = withToggle(off, "event", "maze", "on");
+
+    expect(toggleOf(on, "perk", "magnet")).toBe("off");
+    expect(toggleOf(on, "event", "maze")).toBe("on");
+    expect(isDefaultChoices(on)).toBe(false);
+    const back = withToggle(withToggle(on, "perk", "magnet", "inherit"), "event", "maze", "inherit");
+    expect(isDefaultChoices(back)).toBe(true);
+    expect("perk:magnet" in back).toBe(false);
+  });
+
+  it("do not change the choices they are given", () => {
+    const original = defaultChoices();
+
+    withToggle(original, "prize", "gold", "off");
+
+    expect(isDefaultChoices(original)).toBe(true);
+  });
+
+  it("are sent with the rest of what differs, as on and off", () => {
+    const choices = withToggle(withToggle({ ...defaultChoices(), zone: "calm" }, "reward", "life", "off"), "prize", "gold", "on");
+
+    expect(choicesBody(choices)).toEqual({ zone: "calm", "reward:life": "off", "prize:gold": "on" });
+  });
+
+  it("are read back from what the manager says a room does, and only the sane ones", () => {
+    const choices = parseChoices({ zone: "off", "perk:magnet": "off", "event:maze": "on", "ghost:x": "on", "perk:y": "maybe", "perk:": "on" });
+
+    expect(toggleOf(choices, "perk", "magnet")).toBe("off");
+    expect(toggleOf(choices, "event", "maze")).toBe("on");
+    expect("ghost:x" in choices).toBe(false);
+    expect("perk:y" in choices).toBe(false);
+    expect("perk:" in choices).toBe(false);
+    expect(choices.zone).toBe("off");
+  });
+
+  it("leave the intensity of an event to the presets that are not off", () => {
+    expect(INTENSITY_PRESETS).toEqual(["inherit", "calm", "normal", "wild"]);
+  });
+});
 
 describe("GAMEPLAY_FEATURES", () => {
   it("are the six the game server knows, in the order they are shown", () => {

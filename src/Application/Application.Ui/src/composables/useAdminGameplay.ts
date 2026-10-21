@@ -15,7 +15,7 @@ export interface PerkEffectEntry {
 }
 
 /**
- * What else a prize, the turret, a bounty or the maze prize gives: a random perk, extra lives, a tier surge (a perk the snake has lifted by
+ * A reward of the catalog: what a prize, the boss, a bounty or the maze prize can give besides mass and foods credit: a random perk, extra lives, a tier surge (a perk the snake has lifted by
  * some tiers beyond what its foods give), mass, a mend. Everything off gives nothing.
  */
 export interface RewardConfig {
@@ -33,6 +33,13 @@ export interface RewardConfig {
   mend: boolean;
 }
 
+/** A reward with a name, kept in the catalog. Prizes, the turret, the bounty and the maze pick from the catalog by `id` and give every one they picked. */
+export interface RewardEntry {
+  id: string;
+  name: string;
+  reward: RewardConfig;
+}
+
 /** Nothing given. What a reward is when a config from before rewards says nothing. */
 export const EMPTY_REWARD: RewardConfig = { grantsRandomPerk: false, extraLives: 0, tierSurgeMin: 0, tierSurgeMax: 0, bonusMass: 0, mend: false };
 
@@ -45,6 +52,15 @@ function cleanReward(reward: RewardConfig): RewardConfig {
   else copy.tierSurgePerk = copy.tierSurgePerk.trim();
   return copy;
 }
+
+/** Anything that may still carry the room lists of before rooms had a configuration of their own. They keep working, but are not edited any more. */
+export interface HasRoomLists {
+  rooms: string[];
+  excludedRooms: string[];
+}
+
+/** Whether an old room list is still in force on a perk, a prize or an event. */
+export const hasRoomLists = (item: HasRoomLists): boolean => item.rooms.length > 0 || item.excludedRooms.length > 0;
 
 /** Whether the perk has a cooldown ability (shield burst, dash, heal pulse, vacuum burst), so it needs a cooldown. */
 export const hasAbility = (perk: Pick<PerkDefinition, "effects">): boolean => perk.effects.some((entry) => isAbilityEffect(entry.effect));
@@ -82,11 +98,11 @@ export interface PerkDefinition {
   durationSeconds?: number;
   /** Everything the perk does. Empty only for a perk whose script does it. */
   effects: PerkEffectEntry[];
-  /** Invite codes, names or ids of the rooms the perk works in. Empty: every room (a perk with a script: none). */
+  /** The old list of rooms the perk works in (invite codes, names or ids). Still obeyed where a room made no choice, never edited: a room is configured on the Rooms page. */
   rooms: string[];
-  /** Rooms the perk does not work in, even where `rooms` would allow it. */
+  /** The old list of rooms the perk does not work in. */
   excludedRooms: string[];
-  /** JavaScript for logic the effects cannot say. The perk is off everywhere until it names rooms. */
+  /** JavaScript for logic the effects cannot say. The perk is off in every room until a room switches it on. */
   script?: string;
 }
 
@@ -146,8 +162,10 @@ export interface TurretConfig {
   foodsCredit: number;
   /** The id of a perk the snake that brings it down gets. Empty: none. */
   grantsPerk?: string | null;
-  /** What else the snake that brings it down gets. */
-  reward: RewardConfig;
+  /** The ids of the catalog rewards the snake that brings it down gets, all of them. */
+  rewardIds: string[];
+  /** Worked out by the server from `rewardIds`; never edited and never sent back. */
+  reward?: RewardConfig;
   rooms: string[];
   excludedRooms: string[];
 }
@@ -199,8 +217,10 @@ export interface BountyConfig extends WorldEventConfigBase {
   rewardMass: number;
   /** How many foods the kill counts for toward perks (and tiers), 0 to 1000. */
   foodsCredit: number;
-  /** What else the snake that kills the wanted one gets. */
-  reward: RewardConfig;
+  /** The ids of the catalog rewards the snake that kills the wanted one gets, all of them. */
+  rewardIds: string[];
+  /** Worked out by the server from `rewardIds`; never edited and never sent back. */
+  reward?: RewardConfig;
 }
 
 /** Mines: laid round the room, each armed after a moment, they stay until a snake touches one and it blows up. */
@@ -243,8 +263,10 @@ export interface MazeConfig extends WorldEventConfigBase {
   prizeFoodsCredit: number;
   /** A perk of the list the snake that takes the prize gets. Left out: none. */
   prizeGrantsPerk?: string | null;
-  /** What else the snake that takes the prize gets. */
-  prizeReward: RewardConfig;
+  /** The ids of the catalog rewards the snake that takes the prize gets, all of them. */
+  rewardIds: string[];
+  /** Worked out by the server from `rewardIds`; never edited and never sent back. */
+  prizeReward?: RewardConfig;
   /** Six hex digits such as #ffd23f. */
   prizeColor: string;
 }
@@ -267,6 +289,8 @@ export interface GameplayConfig {
     enabled: boolean;
     prizes: PrizeDefinition[];
   };
+  /** The reward catalog: created here, picked by prizes, the turret, the bounty and the maze. */
+  rewards: RewardEntry[];
   /** How long private rooms live. */
   rooms: {
     /** Minutes a private room may stay empty before it is closed. */
@@ -302,8 +326,10 @@ export interface PrizeDefinition {
   minPlayers: number;
   /** The id of a perk the snake gets, whatever the foods it has eaten. Empty: none. */
   grantsPerk?: string | null;
-  /** What else the snake that eats it gets: a random perk, lives, a tier surge, mass, a mend. */
-  reward: RewardConfig;
+  /** The ids of the catalog rewards the snake that eats it gets, all of them. */
+  rewardIds: string[];
+  /** Worked out by the server from `rewardIds`; never edited and never sent back. */
+  reward?: RewardConfig;
   /** Six hex digits, for example #ffd23f. */
   color: string;
   rooms: string[];
@@ -413,7 +439,7 @@ const DEFAULT_TURRET: TurretConfig = {
   minPlayers: 1,
   rewardMass: 60,
   foodsCredit: 15,
-  reward: { ...EMPTY_REWARD },
+  rewardIds: [],
   rooms: [],
   excludedRooms: [],
 };
@@ -454,7 +480,7 @@ const DEFAULT_BOUNTY: BountyConfig = {
   durationSeconds: 90,
   rewardMass: 150,
   foodsCredit: 10,
-  reward: { ...EMPTY_REWARD },
+  rewardIds: [],
   minPlayers: 3,
   rooms: [],
   excludedRooms: [],
@@ -501,7 +527,7 @@ const DEFAULT_MAZE: MazeConfig = {
   minPlayers: 2,
   prizeMass: 200,
   prizeFoodsCredit: 20,
-  prizeReward: { ...EMPTY_REWARD },
+  rewardIds: [],
   prizeColor: "#ffd23f",
   rooms: [],
   excludedRooms: [],
@@ -530,7 +556,7 @@ const DEFAULT_PRIZE: PrizeDefinition = {
   value: 20,
   foodsCredit: 8,
   minPlayers: 2,
-  reward: { ...EMPTY_REWARD },
+  rewardIds: [],
   color: "#ffd23f",
   rooms: [],
   excludedRooms: [],
@@ -645,13 +671,18 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     events.mines = { ...DEFAULT_MINES, ...events.mines };
     events.sugarRush = { ...DEFAULT_SUGAR_RUSH, ...events.sugarRush };
     events.maze = { ...DEFAULT_MAZE, ...events.maze };
-    events.turret.reward = completeReward(events.turret.reward);
-    events.bounty.reward = completeReward(events.bounty.reward);
-    events.maze.prizeReward = completeReward(events.maze.prizeReward);
+    // The reward a prize or event gives is worked out by the server from what it picked: only the picks are kept, so one taken away stays away.
+    delete events.turret.reward;
+    delete events.bounty.reward;
+    delete events.maze.prizeReward;
+    events.turret.rewardIds ??= [];
+    events.bounty.rewardIds ??= [];
+    events.maze.rewardIds ??= [];
     for (const event of eventsOf(events)) {
       event.rooms ??= [];
       event.excludedRooms ??= [];
     }
+    copy.rewards = (copy.rewards ?? []).map((entry) => ({ ...entry, reward: completeReward(entry.reward) }));
     return copy;
   }
 
@@ -675,10 +706,11 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     old.prizes = old.prizes.map((kind) => ({
       ...DEFAULT_PRIZE,
       ...kind,
-      reward: completeReward(kind.reward),
+      rewardIds: kind.rewardIds ?? [],
       rooms: kind.rooms ?? [],
       excludedRooms: kind.excludedRooms ?? [],
     }));
+    for (const kind of old.prizes) delete kind.reward;
   }
 
   function take(document: GameplayDocument) {
@@ -731,8 +763,9 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
       kind.rooms = kind.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       kind.excludedRooms = kind.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       if (!kind.grantsPerk?.trim()) delete kind.grantsPerk;
-      kind.reward = cleanReward(kind.reward);
+      delete kind.reward;
     }
+    body.rewards = body.rewards.map((entry) => ({ ...entry, name: entry.name.trim(), id: entry.id.trim(), reward: cleanReward(entry.reward) }));
     for (const event of eventsOf(body.worldEvents)) {
       event.rooms = event.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       event.excludedRooms = event.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
@@ -740,12 +773,12 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     const turret = body.worldEvents.turret;
     if (!turret.grantsPerk?.trim()) delete turret.grantsPerk;
     else turret.grantsPerk = turret.grantsPerk.trim();
-    turret.reward = cleanReward(turret.reward);
-    body.worldEvents.bounty.reward = cleanReward(body.worldEvents.bounty.reward);
+    delete turret.reward;
+    delete body.worldEvents.bounty.reward;
     const maze = body.worldEvents.maze;
     if (!maze.prizeGrantsPerk?.trim()) delete maze.prizeGrantsPerk;
     else maze.prizeGrantsPerk = maze.prizeGrantsPerk.trim();
-    maze.prizeReward = cleanReward(maze.prizeReward);
+    delete maze.prizeReward;
     try {
       take(await http.put(url, adminKey, body));
       status.value = "saved";
@@ -787,6 +820,33 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
   function removePrize(index: number) {
     const prizes = draft.value?.prize.prizes;
     if (prizes && prizes.length > 1) prizes.splice(index, 1);
+  }
+
+  /** The rewards of the catalog, by id and name, for the prizes and events that pick from them. */
+  const rewardChoices = computed(() => (draft.value?.rewards ?? []).map((entry) => ({ id: entry.id, name: entry.name || entry.id })));
+
+  function addReward() {
+    if (!draft.value) return;
+    const rewards = draft.value.rewards;
+    let number = rewards.length + 1;
+    while (rewards.some((entry) => entry.id === `reward-${number}`)) number++;
+    rewards.push({ id: `reward-${number}`, name: "New reward", reward: { ...EMPTY_REWARD } });
+  }
+
+  /** Takes a reward out of the catalog, and out of every prize and event that picked it. */
+  function removeReward(index: number) {
+    const config = draft.value;
+    const gone = config?.rewards[index];
+    if (!config || !gone) return;
+    config.rewards.splice(index, 1);
+    const owners = [...config.prize.prizes, config.worldEvents.turret, config.worldEvents.bounty, config.worldEvents.maze];
+    for (const owner of owners) owner.rewardIds = owner.rewardIds.filter((id) => id !== gone.id);
+  }
+
+  /** Drops the old room lists of a perk, a prize or an event: a room is configured on the Rooms page now. */
+  function clearRoomLists(item: HasRoomLists) {
+    item.rooms = [];
+    item.excludedRooms = [];
   }
 
   /** The perks a prize can give, by id and name. */
@@ -848,5 +908,5 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     draft.value?.perks.perks.splice(index, 1);
   }
 
-  return { status, error, draft, saved, effects, revision, dirty, load, save, useDefaults, revert, addPerk, removePerk, addEffect, removeEffect, addTier, removeTier, addScript, removeScript, checkScript, addPrize, removePrize, perkChoices };
+  return { status, error, draft, saved, effects, revision, dirty, load, save, useDefaults, revert, addPerk, removePerk, addEffect, removeEffect, addTier, removeTier, addScript, removeScript, checkScript, addPrize, removePrize, perkChoices, rewardChoices, addReward, removeReward, clearRoomLists };
 }
