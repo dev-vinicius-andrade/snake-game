@@ -76,7 +76,7 @@ internal static class GameplayConfigMapper
             context.PerkEffects.AddRange(perk.Effects.Select((effect, position) =>
                 new PerkEffectRow { PerkId = perk.Id, Position = position, Effect = effect.Effect.ToString(), Amount = effect.Amount, Target = NullIfBlank(effect.Target) }));
             context.PerkTiers.AddRange(perk.Tiers.Select((tier, position) =>
-                new PerkTierRow { PerkId = perk.Id, Position = position, FoodsRequired = tier.FoodsRequired, Multiplier = tier.Multiplier }));
+                new PerkTierRow { PerkId = perk.Id, Position = position, FoodsRequired = tier.FoodsRequired, Multiplier = tier.Multiplier, RewardOnly = tier.RewardOnly }));
             context.PerkRooms.AddRange(Rooms(perk.Rooms, perk.ExcludedRooms, (room, excluded, position) =>
                 new PerkRoomRow { PerkId = perk.Id, IsExcluded = excluded, Position = position, Room = room }));
         }
@@ -213,7 +213,7 @@ internal static class GameplayConfigMapper
             Id = row.Id, Name = row.Name, FoodsRequired = row.FoodsRequired, Enabled = row.Enabled, Icon = row.Icon, Description = row.Description, Script = row.Script,
             CooldownSeconds = row.CooldownSeconds, DurationSeconds = row.DurationSeconds,
             Effects = effects[row.Id].Select(effect => new PerkEffectEntry { Effect = Enum.Parse<PerkEffect>(effect.Effect), Amount = effect.Amount, Target = effect.Target }).ToList(),
-            Tiers = tiers[row.Id].Select(tier => new PerkTier { FoodsRequired = tier.FoodsRequired, Multiplier = tier.Multiplier }).ToList(),
+            Tiers = tiers[row.Id].Select(tier => new PerkTier { FoodsRequired = tier.FoodsRequired, Multiplier = tier.Multiplier, RewardOnly = tier.RewardOnly }).ToList(),
             Rooms = rooms[row.Id].Where(room => !room.IsExcluded).Select(room => room.Room).ToList(),
             ExcludedRooms = rooms[row.Id].Where(room => room.IsExcluded).Select(room => room.Room).ToList(),
         }).ToList();

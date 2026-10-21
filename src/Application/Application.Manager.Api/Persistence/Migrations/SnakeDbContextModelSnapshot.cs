@@ -890,6 +890,10 @@ namespace Application.Manager.Api.Persistence.Migrations
                         .HasColumnType("double precision")
                         .HasColumnName("multiplier");
 
+                    b.Property<bool>("RewardOnly")
+                        .HasColumnType("boolean")
+                        .HasColumnName("reward_only");
+
                     b.HasKey("PerkId", "Position")
                         .HasName("pk_perk_tiers");
 

@@ -101,6 +101,9 @@ public sealed class PerkTierRow
     public int FoodsRequired { get; set; }
 
     public double Multiplier { get; set; }
+
+    /// <summary>A tier that eating never reaches; only a reward's tier surge does. False for every tier saved before it existed.</summary>
+    public bool RewardOnly { get; set; }
 }
 
 /// <summary>A room a perk is for (or, with <see cref="IsExcluded"/>, not for), by invite code, name or id.</summary>

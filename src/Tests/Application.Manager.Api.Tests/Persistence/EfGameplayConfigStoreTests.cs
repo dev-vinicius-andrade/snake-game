@@ -34,7 +34,7 @@ public sealed class EfGameplayConfigStoreTests : IDisposable
                     Id = "scripted", Name = "Scripted", FoodsRequired = 7, Icon = "mdi-shield", Description = "Does a thing.",
                     Script = "function onTick(ctx) { }",
                     Effects = [new PerkEffectEntry { Effect = PerkEffect.Armor, Amount = 0.2 }, new PerkEffectEntry { Effect = PerkEffect.Magnet, Amount = 40 }],
-                    Tiers = [new PerkTier { FoodsRequired = 20, Multiplier = 1.5 }, new PerkTier { FoodsRequired = 40, Multiplier = 2 }],
+                    Tiers = [new PerkTier { FoodsRequired = 20, Multiplier = 1.5 }, new PerkTier { FoodsRequired = 40, Multiplier = 2 }, new PerkTier { FoodsRequired = 60, Multiplier = 5, RewardOnly = true }],
                     Rooms = ["lobby", "AB12"], ExcludedRooms = ["quiet"],
                 },
                 new PerkDefinition

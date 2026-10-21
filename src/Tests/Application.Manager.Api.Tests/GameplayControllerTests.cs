@@ -67,4 +67,21 @@ public sealed class GameplayControllerTests
         Assert.Equal((30, 4), (perk.GetProperty("cooldownSeconds").GetInt32(), perk.GetProperty("durationSeconds").GetInt32()));
         Assert.Equal("zone", perk.GetProperty("effects")[1].GetProperty("target").GetString());
     }
+
+    [Fact]
+    public void Perks_ARewardOnlyTierIsMarkedAsSo()
+    {
+        var config = GameplayConfig.Defaults with
+        {
+            Perks = new PerkOptions
+            {
+                Perks = [new PerkDefinition { Id = "m", Name = "M", FoodsRequired = 3, Effect = PerkEffect.Magnet, Amount = 10, Tiers = [new PerkTier { FoodsRequired = 9, Multiplier = 1.5 }, new PerkTier { FoodsRequired = 20, Multiplier = 4, RewardOnly = true }] }]
+            }
+        };
+
+        var tiers = PerksFor(config).EnumerateArray().Single().GetProperty("tiers").EnumerateArray().ToList();
+
+        Assert.False(tiers[0].GetProperty("rewardOnly").GetBoolean());
+        Assert.True(tiers[1].GetProperty("rewardOnly").GetBoolean());
+    }
 }
