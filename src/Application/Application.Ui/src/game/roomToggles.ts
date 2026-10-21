@@ -59,14 +59,14 @@ const hasLists = (item: HasRoomLists) => item.rooms.length > 0 || item.excludedR
  * What a room can switch, from the whole config (the admin page has it). With the room, "on by default" is what the room does today with no
  * choice of its own, old room lists included, so the toggles start from what really runs there.
  */
-export function catalogFromConfig(config: GameplayConfig, room: RoomRef | null): RoomToggleCatalog {
+export function catalogFromConfig(config: GameplayConfig, place: RoomRef | null): RoomToggleCatalog {
   const events = EVENT_TOGGLES.map((event): EventToggleItem => {
     const settings = config.worldEvents[event.key] as { enabled: boolean } & HasRoomLists;
     return {
       id: event.id,
       name: event.id,
       intensity: event.intensity,
-      onByDefault: settings.enabled && (room === null || listsAllow(settings, room, false)),
+      onByDefault: settings.enabled && (place === null || listsAllow(settings, place, false)),
       legacy: hasLists(settings),
     };
   });
@@ -77,13 +77,13 @@ export function catalogFromConfig(config: GameplayConfig, room: RoomRef | null):
     perks: config.perks.perks.map((perk) => ({
       id: perk.id,
       name: perk.name || perk.id,
-      onByDefault: room === null ? perk.enabled && !perk.script?.trim() : perkWorksInRoom(perk, room),
+      onByDefault: place === null ? perk.enabled && !perk.script?.trim() : perkWorksInRoom(perk, place),
       legacy: hasLists(perk),
     })),
     prizes: config.prize.prizes.map((prize) => ({
       id: prize.id,
       name: prize.name || prize.id,
-      onByDefault: prize.enabled && (room === null || listsAllow(prize, room, false)),
+      onByDefault: prize.enabled && (place === null || listsAllow(prize, place, false)),
       legacy: hasLists(prize),
     })),
     rewards: (config.rewards ?? []).map((reward) => ({ id: reward.id, name: reward.name || reward.id, onByDefault: true, legacy: false })),
