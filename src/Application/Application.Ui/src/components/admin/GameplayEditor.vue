@@ -7,7 +7,7 @@ import { LASTING_ABILITY_EFFECTS, PERK_EFFECTS, PERK_ICON_CHOICES, RESISTANCE_TA
 import { SCRIPT_TEMPLATES } from "@/game/scriptTemplates";
 import RewardFields from "./RewardFields.vue";
 import WorldEventsEditor from "./WorldEventsEditor.vue";
-import { hasAbility } from "@/composables/useAdminGameplay";
+import { hasAbility, rewardOnlyOutOfPlace } from "@/composables/useAdminGameplay";
 
 /** The code editor is big, so it is loaded only when a script is opened. */
 const ScriptEditor = defineAsyncComponent(() => import("./ScriptEditor.vue"));
@@ -191,9 +191,13 @@ onMounted(() => {
             <strong class="perk-tier-name">{{ tierName(tierIndex) }}</strong>
             <VTextField v-model.number="tier.foodsRequired" type="number" density="compact" hide-details :label="getText({ key: 'admin.gameplay.tierFoods' })" />
             <VTextField v-model.number="tier.multiplier" type="number" step="0.1" density="compact" hide-details :label="getText({ key: 'admin.gameplay.tierMultiplier' })" />
+            <VSwitch v-model="tier.rewardOnly" color="primary" density="compact" hide-details :label="getText({ key: 'admin.gameplay.tierRewardOnly' })" class="switch-field" />
             <VBtn size="small" variant="text" @click="gameplay.removeTier(index, tierIndex)">{{ getText({ key: "admin.gameplay.removeTier" }) }}</VBtn>
           </div>
-          <VBtn size="x-small" variant="text" class="mt-1" :disabled="(perk.tiers?.length ?? 0) >= 4" @click="gameplay.addTier(index)">{{ getText({ key: "admin.gameplay.addTier" }) }}</VBtn>
+          <div v-if="rewardOnlyOutOfPlace(perk.tiers)" class="text-error perk-help" role="alert" data-tier-problem>
+            {{ getText({ key: "admin.gameplay.tierRewardOnlyProblem" }) }}
+          </div>
+          <VBtn size="x-small" variant="text" class="mt-1" :disabled="(perk.tiers?.length ?? 0) >= 9" @click="gameplay.addTier(index)">{{ getText({ key: "admin.gameplay.addTier" }) }}</VBtn>
 
           <VCombobox
             v-model="perk.rooms"

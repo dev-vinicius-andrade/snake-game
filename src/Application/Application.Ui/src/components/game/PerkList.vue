@@ -51,7 +51,7 @@ function describe(id: string, index: number): Shown {
   const tier = props.tiers?.[index] ?? 1;
   const cooldown = cooldownOf(id);
   if (!perk) return { id, icon: perkIcon(""), title: perkLabel(id), lines: [], badge: tier > 1 ? tierLabel(tier) : "", cooldown };
-  const { multiplier, nextFoods } = tierInfo(perk, tier);
+  const { multiplier, nextFoods, nextRewardOnly } = tierInfo(perk, tier);
   const hasTiers = perk.tiers.length > 0;
   return {
     id,
@@ -72,6 +72,7 @@ function describe(id: string, index: number): Shown {
         })
       ),
       ...(nextFoods === null ? [] : [getText({ key: "game.perkNextTier", params: { foods: nextFoods } })]),
+      ...(nextRewardOnly ? [getText({ key: "game.perkRewardTier" })] : []),
       ...cooldownLine(cooldown),
     ],
     badge: tier > 1 ? tierLabel(tier) : "",

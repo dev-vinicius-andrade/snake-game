@@ -109,15 +109,17 @@ export function perkParams(perk: PerkLike, multiplier = 1) {
 
 interface Tiered {
   foodsRequired: number;
-  tiers?: Array<{ foodsRequired: number; multiplier: number }>;
+  tiers?: Array<{ foodsRequired: number; multiplier: number; rewardOnly?: boolean }>;
 }
 
 /** The roman numeral of a tier, for the badge on a perk. */
-export const tierLabel = (tier: number): string => ["I", "II", "III", "IV", "V"][tier - 1] ?? String(tier);
+export const tierLabel = (tier: number): string => ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][tier - 1] ?? String(tier);
 
 /** What a tier of a perk multiplies its amounts by (1 for the first) and how many foods the next tier asks for (null at the top). */
-export function tierInfo(perk: Tiered, tier: number): { multiplier: number; nextFoods: number | null } {
+export function tierInfo(perk: Tiered, tier: number): { multiplier: number; nextFoods: number | null; nextRewardOnly: boolean } {
   const steps = [...(perk.tiers ?? [])].sort((first, second) => first.foodsRequired - second.foodsRequired);
   const at = Math.min(Math.max(tier, 1), steps.length + 1);
-  return { multiplier: at === 1 ? 1 : steps[at - 2].multiplier, nextFoods: steps[at - 1]?.foodsRequired ?? null };
+  const next = steps[at - 1];
+  // A tier that only a reward gives has no foods to eat toward.
+  return { multiplier: at === 1 ? 1 : steps[at - 2].multiplier, nextFoods: next && !next.rewardOnly ? next.foodsRequired : null, nextRewardOnly: next?.rewardOnly === true };
 }

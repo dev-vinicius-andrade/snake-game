@@ -13,6 +13,8 @@ export interface CatalogEffect {
 export interface CatalogTier {
   foodsRequired: number;
   multiplier: number;
+  /** A tier eating never reaches: only a reward lifts a perk into it. */
+  rewardOnly?: boolean;
 }
 
 export interface CatalogPerk {

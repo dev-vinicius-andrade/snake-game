@@ -53,6 +53,15 @@ export const hasAbility = (perk: Pick<PerkDefinition, "effects">): boolean => pe
 export interface PerkTierConfig {
   foodsRequired: number;
   multiplier: number;
+  /** A tier eating never reaches: only a reward's tier surge lifts a perk into it. It must come after every eatable tier. */
+  rewardOnly?: boolean;
+}
+
+/** Whether a reward-only tier has an eatable one after it (tiers are ordered by foods), which the server refuses. */
+export function rewardOnlyOutOfPlace(tiers: PerkTierConfig[] | undefined): boolean {
+  const ordered = [...(tiers ?? [])].sort((first, second) => first.foodsRequired - second.foodsRequired);
+  const first = ordered.findIndex((tier) => tier.rewardOnly);
+  return first >= 0 && ordered.slice(first).some((tier) => !tier.rewardOnly);
 }
 
 export interface PerkDefinition {
@@ -600,7 +609,7 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     const copy = clone(config);
     for (const perk of copy.perks.perks) {
       perk.enabled ??= true;
-      perk.tiers ??= [];
+      perk.tiers = (perk.tiers ?? []).map((tier) => ({ ...tier, rewardOnly: tier.rewardOnly ?? false }));
       perk.effects ??= [];
       perk.rooms ??= [];
       perk.excludedRooms ??= [];
@@ -701,7 +710,7 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     const body = clone(draft.value);
     body.perks.perks.sort((first, second) => first.foodsRequired - second.foodsRequired);
     for (const perk of body.perks.perks) {
-      perk.tiers = [...(perk.tiers ?? [])].sort((first, second) => first.foodsRequired - second.foodsRequired);
+      perk.tiers = [...(perk.tiers ?? [])].sort((first, second) => first.foodsRequired - second.foodsRequired).map((tier) => ({ ...tier, rewardOnly: tier.rewardOnly === true }));
       perk.rooms = perk.rooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       perk.excludedRooms = perk.excludedRooms.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
       for (const entry of perk.effects) {
@@ -786,7 +795,7 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
   const newEffect = (): PerkEffectEntry => ({ effect: effects.value[0] ?? "ExtraShots", amount: 1 });
 
   /** Most tiers a perk can have after its first. */
-  const MAX_EXTRA_TIERS = 4;
+  const MAX_EXTRA_TIERS = 9;
 
   /** A tier that asks for another helping of foods and does half as much again as the one before. */
   function addTier(perkIndex: number) {
@@ -795,7 +804,7 @@ export function useAdminGameplay(options: UseAdminGameplayOptions = {}) {
     const tiers = (perk.tiers ??= []);
     if (tiers.length >= MAX_EXTRA_TIERS) return;
     const last = tiers[tiers.length - 1];
-    tiers.push({ foodsRequired: (last?.foodsRequired ?? perk.foodsRequired) + perk.foodsRequired, multiplier: (last?.multiplier ?? 1) + 0.5 });
+    tiers.push({ foodsRequired: (last?.foodsRequired ?? perk.foodsRequired) + perk.foodsRequired, multiplier: (last?.multiplier ?? 1) + 0.5, rewardOnly: false });
   }
 
   function removeTier(perkIndex: number, tierIndex: number) {

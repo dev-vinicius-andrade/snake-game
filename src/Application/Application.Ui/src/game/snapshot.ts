@@ -60,12 +60,12 @@ function parseSingleColor(raw: unknown): GameColor {
   return color ? { fillColor: color, border: color } : { ...DEFAULT_COLOR };
 }
 
-/** The tier of each perk: one for each, the first when it says nothing or something that is not a tier from 1 to 5. */
+/** The tier of each perk: one for each, the first when it says nothing or something that is not a tier from 1 to 10. */
 function parseTiers(raw: unknown, count: number): number[] {
   const sent = asList(raw);
   return Array.from({ length: count }, (_, index) => {
     const tier = sent[index];
-    return isFinite(tier) && Number.isInteger(tier) && tier >= 1 && tier <= 5 ? tier : 1;
+    return isFinite(tier) && Number.isInteger(tier) && tier >= 1 && tier <= 10 ? tier : 1;
   });
 }
 

@@ -287,6 +287,14 @@ describe("parseSnapshot", () => {
     expect(new Set(parseSnapshot(raw)!.foods.map((food) => food.guid)).size).toBe(2);
   });
 
+  it("reads tiers up to ten, and the first tier for one that is not a tier", () => {
+    const raw = clone(fixture) as any;
+    raw.snakes[0].perks = ["a", "b", "c", "d"];
+    raw.snakes[0].pt = [7, 10, 11, 0];
+
+    expect(parseSnapshot(raw)!.snakes[0].perkTiers).toEqual([7, 10, 1, 1]);
+  });
+
   it("reads the lives, the protection and the cooldown perks of a snake", () => {
     const raw = clone(fixture) as any;
     raw.snakes[0].lives = 2;

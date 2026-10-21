@@ -104,10 +104,39 @@ describe("perkInfo for rewards", () => {
   });
 });
 
+describe("reward-only tiers", () => {
+  const perk = {
+    foodsRequired: 6,
+    tiers: [
+      { foodsRequired: 12, multiplier: 1.5 },
+      { foodsRequired: 24, multiplier: 2, rewardOnly: true },
+      { foodsRequired: 48, multiplier: 4, rewardOnly: true },
+    ],
+  };
+
+  it("does not say foods for the next tier when it can only come from a reward", () => {
+    expect(tierInfo(perk, 1)).toEqual({ multiplier: 1, nextFoods: 12, nextRewardOnly: false });
+    expect(tierInfo(perk, 2)).toEqual({ multiplier: 1.5, nextFoods: null, nextRewardOnly: true });
+    expect(tierInfo(perk, 3)).toEqual({ multiplier: 2, nextFoods: null, nextRewardOnly: true });
+  });
+
+  it("has the multiplier of a reward-only tier like any other", () => {
+    expect(tierInfo(perk, 4)).toEqual({ multiplier: 4, nextFoods: null, nextRewardOnly: false });
+  });
+
+  it("names tiers up to ten with numerals", () => {
+    expect([6, 7, 8, 9, 10].map(tierLabel)).toEqual(["VI", "VII", "VIII", "IX", "X"]);
+  });
+
+  it("has the sentence about tiers that only a reward gives, in both languages", () => {
+    for (const messages of [en, pt]) expect((messages as any).game.perkRewardTier).toBeTruthy();
+  });
+});
+
 describe("tierLabel", () => {
   it("is the roman numeral of the tier", () => {
     expect([1, 2, 3, 4, 5].map(tierLabel)).toEqual(["I", "II", "III", "IV", "V"]);
-    expect(tierLabel(7)).toBe("7");
+    expect(tierLabel(11)).toBe("11");
   });
 });
 
@@ -115,15 +144,15 @@ describe("tierInfo", () => {
   const perk = { foodsRequired: 6, tiers: [{ foodsRequired: 24, multiplier: 2 }, { foodsRequired: 12, multiplier: 1.5 }] };
 
   it("says what a tier multiplies by and what the next one asks for, whatever order the tiers came in", () => {
-    expect(tierInfo(perk, 1)).toEqual({ multiplier: 1, nextFoods: 12 });
-    expect(tierInfo(perk, 2)).toEqual({ multiplier: 1.5, nextFoods: 24 });
-    expect(tierInfo(perk, 3)).toEqual({ multiplier: 2, nextFoods: null });
+    expect(tierInfo(perk, 1)).toEqual({ multiplier: 1, nextFoods: 12, nextRewardOnly: false });
+    expect(tierInfo(perk, 2)).toEqual({ multiplier: 1.5, nextFoods: 24, nextRewardOnly: false });
+    expect(tierInfo(perk, 3)).toEqual({ multiplier: 2, nextFoods: null, nextRewardOnly: false });
   });
 
   it("is the first tier for a perk that has none, or a tier that does not exist", () => {
-    expect(tierInfo({ foodsRequired: 6 }, 1)).toEqual({ multiplier: 1, nextFoods: null });
-    expect(tierInfo(perk, 9)).toEqual({ multiplier: 2, nextFoods: null });
-    expect(tierInfo(perk, 0)).toEqual({ multiplier: 1, nextFoods: 12 });
+    expect(tierInfo({ foodsRequired: 6 }, 1)).toEqual({ multiplier: 1, nextFoods: null, nextRewardOnly: false });
+    expect(tierInfo(perk, 9)).toEqual({ multiplier: 2, nextFoods: null, nextRewardOnly: false });
+    expect(tierInfo(perk, 0)).toEqual({ multiplier: 1, nextFoods: 12, nextRewardOnly: false });
   });
 });
 

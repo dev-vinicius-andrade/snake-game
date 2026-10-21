@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ADMIN_KEY_STORAGE_KEY } from "./useAdminRooms";
-import { EMPTY_REWARD, hasAbility, useAdminGameplay, type GameplayConfig, type GameplayHttp, type PrizeDefinition } from "./useAdminGameplay";
+import { EMPTY_REWARD, hasAbility, rewardOnlyOutOfPlace, useAdminGameplay, type GameplayConfig, type GameplayHttp, type PrizeDefinition } from "./useAdminGameplay";
 
 const config = (overrides: Partial<PrizeDefinition> = {}): GameplayConfig => ({
   perks: {
@@ -991,18 +991,18 @@ describe("perk tiers", () => {
     gameplay.addTier(0);
 
     expect(gameplay.draft.value!.perks.perks[0].tiers).toEqual([
-      { foodsRequired: 12, multiplier: 1.5 },
-      { foodsRequired: 18, multiplier: 2 },
+      { foodsRequired: 12, multiplier: 1.5, rewardOnly: false },
+      { foodsRequired: 18, multiplier: 2, rewardOnly: false },
     ]);
   });
 
-  it("allows four tiers after the first, no more", async () => {
+  it("allows nine tiers after the first, no more", async () => {
     const gameplay = create();
     await gameplay.load();
 
-    for (let count = 0; count < 8; count++) gameplay.addTier(0);
+    for (let count = 0; count < 12; count++) gameplay.addTier(0);
 
-    expect(gameplay.draft.value!.perks.perks[0].tiers).toHaveLength(4);
+    expect(gameplay.draft.value!.perks.perks[0].tiers).toHaveLength(9);
   });
 
   it("takes the last tier away", async () => {
@@ -1013,7 +1013,7 @@ describe("perk tiers", () => {
 
     gameplay.removeTier(0, 0);
 
-    expect(gameplay.draft.value!.perks.perks[0].tiers).toEqual([{ foodsRequired: 18, multiplier: 2 }]);
+    expect(gameplay.draft.value!.perks.perks[0].tiers).toEqual([{ foodsRequired: 18, multiplier: 2, rewardOnly: false }]);
   });
 
   it("does nothing for a perk that is not there", async () => {
@@ -1155,5 +1155,49 @@ describe("useAdminGameplay rewards and cooldown perks", () => {
 
     expect(second!.reward.extraLives).toBe(0);
     expect(EMPTY_REWARD.extraLives).toBe(0);
+  });
+});
+
+describe("useAdminGameplay reward-only tiers", () => {
+  it("lets a perk have nine tiers after its first, and no more", async () => {
+    const gameplay = create();
+    await gameplay.load();
+
+    for (let count = 0; count < 12; count++) gameplay.addTier(0);
+
+    expect(gameplay.draft.value!.perks.perks[0].tiers).toHaveLength(9);
+  });
+
+  it("fills in a tier from a server that does not send the flag as eatable", async () => {
+    const old = structuredClone(config());
+    old.perks.perks[0].tiers = [{ foodsRequired: 20, multiplier: 2 }];
+    http.get.mockResolvedValue({ ...payload, current: { revision: "r1", config: old } });
+    const gameplay = create();
+
+    await gameplay.load();
+
+    expect(gameplay.draft.value!.perks.perks[0].tiers![0].rewardOnly).toBe(false);
+    expect(gameplay.dirty.value).toBe(false);
+  });
+
+  it("says a reward-only tier is out of place when an eatable one comes after it, whatever the order in the form", () => {
+    const ok = [{ foodsRequired: 10, multiplier: 2 }, { foodsRequired: 20, multiplier: 3, rewardOnly: true }];
+    const bad = [{ foodsRequired: 10, multiplier: 2, rewardOnly: true }, { foodsRequired: 20, multiplier: 3 }];
+
+    expect(rewardOnlyOutOfPlace(ok)).toBe(false);
+    expect(rewardOnlyOutOfPlace(bad)).toBe(true);
+    expect(rewardOnlyOutOfPlace([...bad].reverse())).toBe(true);
+    expect(rewardOnlyOutOfPlace([])).toBe(false);
+  });
+
+  it("sends the flag of each tier", async () => {
+    const gameplay = create();
+    await gameplay.load();
+    gameplay.draft.value!.perks.perks[0].tiers = [{ foodsRequired: 20, multiplier: 2 }, { foodsRequired: 30, multiplier: 5, rewardOnly: true }];
+
+    await gameplay.save();
+
+    const sent = http.put.mock.calls[0][2] as GameplayConfig;
+    expect(sent.perks.perks.find((perk) => perk.id === "magnet")!.tiers!.map((tier) => tier.rewardOnly)).toEqual([false, true]);
   });
 });

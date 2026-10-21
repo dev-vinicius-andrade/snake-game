@@ -425,6 +425,8 @@ export const messages = {
       tierMultiplier: "Força (x)",
       addTier: "Adicionar nível",
       removeTier: "Remover nível",
+      tierRewardOnly: "Só por recompensa",
+      tierRewardOnlyProblem: "Um nível só por recompensa deve vir depois de todos os níveis que as comidas alcançam (a ordem é pelas comidas).",
       turretFoodsCredit: "Comidas que abatê-la vale (perks)",
       excludedRooms: "Não nestas salas",
       perkIcon: "Ícone (mdi-...)",
@@ -662,6 +664,7 @@ export const messages = {
     perks: "Poderes",
     prize: "Prêmio",
     perkNextTier: "Próximo nível com {foods} comidas. Abates e chefes também contam.",
+    perkRewardTier: "O próximo nível não se alcança comendo: só uma recompensa o dá.",
     lightning: { warning: "Raio a caminho!", danger: "Raio! Saia do círculo!" },
     boss: { name: "Torre" },
     zone: {

@@ -425,6 +425,8 @@ export const messages = {
       tierMultiplier: "Strength (x)",
       addTier: "Add a tier",
       removeTier: "Remove tier",
+      tierRewardOnly: "Reward only",
+      tierRewardOnlyProblem: "A reward-only tier must come after every tier that foods can reach (they are ordered by foods).",
       turretFoodsCredit: "Foods its kill counts for (perks)",
       excludedRooms: "Not in these rooms",
       perkIcon: "Icon (mdi-...)",
@@ -662,6 +664,7 @@ export const messages = {
     perks: "Perks",
     prize: "Prize",
     perkNextTier: "Next tier at {foods} foods. Kills and bosses count too.",
+    perkRewardTier: "The next tier cannot be eaten: only a reward gives it.",
     lightning: { warning: "Lightning incoming!", danger: "Lightning! Get out of the circle!" },
     boss: { name: "Turret" },
     zone: {
