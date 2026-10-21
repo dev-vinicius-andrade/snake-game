@@ -150,6 +150,28 @@ public sealed class RoomGameplayPassingTests
     }
 
     [Fact]
+    public void Request_CarriesWhatTheHostSwitchedOnAndOff_ByKindAndId()
+    {
+        var service = new RoomCreationService(_registry, new InviteCodeGenerator(), _publisher);
+
+        service.Request("c1", "Friends", 6, new Dictionary<string, string> { ["perk:magnet"] = "off", ["event:maze"] = "on", ["reward:big"] = "off" });
+
+        _publisher.Received(1).Publish(Arg.Is<RoomCreatePayload>(payload =>
+            payload.Gameplay!.ToggleOf("perk", "magnet") == false && payload.Gameplay.ToggleOf("event", "maze") == true && payload.Gameplay.ToggleOf("reward", "big") == false));
+    }
+
+    [Fact]
+    public void Request_AHostCannotSendAHugeListOfToggles()
+    {
+        var service = new RoomCreationService(_registry, new InviteCodeGenerator(), _publisher);
+        var flood = Enumerable.Range(0, 500).ToDictionary(index => $"perk:p{index}", _ => "off");
+
+        service.Request("c1", "Friends", 6, flood);
+
+        _publisher.Received(1).Publish(Arg.Is<RoomCreatePayload>(payload => payload.Gameplay!.Toggles.Count == RoomCreationService.MaxToggles));
+    }
+
+    [Fact]
     public void Request_WithoutChoices_LeavesTheRoomOnTheDefault()
     {
         var service = new RoomCreationService(_registry, new InviteCodeGenerator(), _publisher);

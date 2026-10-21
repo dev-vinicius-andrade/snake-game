@@ -17,6 +17,30 @@ public sealed class GameplayControllerTests
     }
 
     [Fact]
+    public void Toggles_ListsWhatARoomCanSwitch_ByNameAndNothingElse()
+    {
+        var store = new GameplayConfigStore();
+        store.Update(GameplayConfig.Defaults with
+        {
+            Perks = new PerkOptions { Perks = [new PerkDefinition { Id = "m", Name = "Magnet", FoodsRequired = 3, Effect = PerkEffect.Magnet, Amount = 10, Script = "function onTick(){}", Rooms = ["secret-room"] }] },
+            Prize = new PrizeOptions { Prizes = [new PrizeDefinition { Id = "gold", Name = "Gold", Color = "#112233" }] },
+            Rewards = [new Library.Commons.Game.Domain.Entities.RewardDefinition { Id = "life", Name = "Extra life", Reward = new Library.Commons.Game.Domain.Entities.PerkReward { ExtraLives = 1 } }],
+        });
+
+        var result = Assert.IsType<JsonResult>(new GameplayController(store).Toggles());
+        var root = JsonDocument.Parse(JsonSerializer.Serialize(result.Value, GameplayConfig.Json)).RootElement;
+
+        Assert.Equal("Magnet", root.GetProperty("perks").EnumerateArray().Single().GetProperty("name").GetString());
+        Assert.False(root.GetProperty("perks").EnumerateArray().Single().GetProperty("onByDefault").GetBoolean());
+        Assert.Equal("gold", root.GetProperty("prizes").EnumerateArray().Single().GetProperty("id").GetString());
+        Assert.Equal("life", root.GetProperty("rewards").EnumerateArray().Single().GetProperty("id").GetString());
+        Assert.Contains("maze", root.GetProperty("events").EnumerateArray().Select(entry => entry.GetProperty("id").GetString()));
+        var text = root.GetRawText();
+        Assert.DoesNotContain("onTick", text);
+        Assert.DoesNotContain("secret-room", text);
+    }
+
+    [Fact]
     public void Perks_ShowsThePlayersTheTiersOfAPerk_WithoutTheFirstOne()
     {
         var config = GameplayConfig.Defaults with

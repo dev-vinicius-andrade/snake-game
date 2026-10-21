@@ -50,6 +50,9 @@ public sealed class RoomCreationService(RoomRegistry registry, InviteCodeGenerat
 {
     public const int MaxNameLength = 32;
     public const int MaxPlayersLimit = 64;
+
+    /// <summary>The most single things (perks, prizes, rewards, events) one host can switch in a room; the rest of the choices are dropped.</summary>
+    public const int MaxToggles = 64;
     private const int MinPlayersWhenSet = 2;
 
     public RoomCreationResult Request(string? requesterId, string? name, int maxPlayers, IReadOnlyDictionary<string, string>? gameplay = null)
@@ -58,13 +61,20 @@ public sealed class RoomCreationService(RoomRegistry registry, InviteCodeGenerat
         var code = codes.Generate(registry.IsCodeTaken);
         try
         {
-            publisher.Publish(new RoomCreatePayload { RequesterId = requesterId, Name = CleanName(name), Code = code, MaxPlayers = LimitPlayers(maxPlayers), Gameplay = RoomGameplay.FromMap(gameplay) });
+            publisher.Publish(new RoomCreatePayload { RequesterId = requesterId, Name = CleanName(name), Code = code, MaxPlayers = LimitPlayers(maxPlayers), Gameplay = RoomGameplay.FromMap(Capped(gameplay)) });
         }
         catch (Exception)
         {
             return new RoomCreationResult(false, Error: "unavailable");
         }
         return new RoomCreationResult(true, code);
+    }
+
+    private static IReadOnlyDictionary<string, string>? Capped(IReadOnlyDictionary<string, string>? gameplay)
+    {
+        if (gameplay is null) return null;
+        var toggles = gameplay.Where(pair => pair.Key.Contains(':')).ToList();
+        return toggles.Count <= MaxToggles ? gameplay : gameplay.Except(toggles.Skip(MaxToggles)).ToDictionary(pair => pair.Key, pair => pair.Value);
     }
 
     private static string? CleanName(string? name)

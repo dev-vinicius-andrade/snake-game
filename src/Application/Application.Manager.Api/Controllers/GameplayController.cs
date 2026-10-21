@@ -32,6 +32,37 @@ public class GameplayController(IGameplayConfigStore store) : Controller
         return Json(new { revision = current.Revision, perks });
     }
 
+    /// <summary>
+    /// What a room can switch on or off: the perks, prizes, rewards and world events the administrator made, by id and name, and whether each is
+    /// on in a room that changes nothing. This is what the room page lists; a host can only choose among these. No scripts, no room names.
+    /// </summary>
+    [HttpGet("toggles")]
+    [AllowAnonymous]
+    public IActionResult Toggles()
+    {
+        var current = store.Current;
+        var config = current.Config;
+        var events = config.WorldEvents;
+        var perks = config.Perks.Perks.Select(perk => new { id = perk.Id, name = perk.Name, icon = perk.Icon, onByDefault = perk.Enabled && !perk.HasScript });
+        var prizes = config.Prize.Definitions().Select(prize => new { id = prize.Id, name = prize.Name, color = prize.Color, onByDefault = prize.Enabled });
+        var rewards = config.Rewards.Select(reward => new { id = reward.Id, name = reward.Name, onByDefault = true });
+        var kinds = new (string Id, bool On, bool Intensity)[]
+        {
+            ("lightning", events.Lightning.Enabled, true), ("meteors", events.Meteors.Enabled, true), ("turret", events.Turret.Enabled, true), ("zone", events.Zone.Enabled, true),
+            ("fruit_shower", events.FruitShower.Enabled, false), ("bounty", events.Bounty.Enabled, false), ("mine_field", events.Mines.Enabled, false),
+            ("sugar_rush", events.SugarRush.Enabled, false), ("maze", events.Maze.Enabled, false),
+        };
+        return Json(new
+        {
+            revision = current.Revision,
+            perksEnabled = config.Perks.Enabled,
+            prizesEnabled = config.Prize.Enabled,
+            worldEventsEnabled = events.Enabled,
+            perks, prizes, rewards,
+            events = kinds.Select(kind => new { id = kind.Id, onByDefault = kind.On, intensity = kind.Intensity }),
+        });
+    }
+
     private new JsonResult Json(object value) => new(value, GameplayConfig.Json);
 }
 
