@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 
@@ -98,7 +99,7 @@ public sealed record PerkDefinition
     /// <summary>True when the perk works in <paramref name="room"/> (null: no room is known).</summary>
     public bool AppliesTo(IRoom? room)
     {
-        return Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: HasScript);
+        return Enabled && RoomNames.Allows("perk", Id, Rooms, ExcludedRooms, room, offUntilNamed: HasScript);
     }
 }
 
@@ -196,7 +197,17 @@ public sealed record PrizeDefinition
     /// <summary>Rooms it does not appear in. Wins over <see cref="Rooms"/>.</summary>
     public List<string> ExcludedRooms { get; init; } = [];
 
-    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
+    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows("prize", Id, Rooms, ExcludedRooms, room, offUntilNamed: false);
+
+    /// <summary>The ids of the catalog rewards it gives, all of them. See <see cref="GameplayConfig.Rewards"/>.</summary>
+    public List<string> RewardIds { get; init; } = [];
+
+    /// <summary>The catalog rewards <see cref="RewardIds"/> name, filled in when the config is normalized. Never written.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<RewardDefinition> PickedRewards { get; init; } = [];
+
+    /// <summary>What it gives in <paramref name="room"/>: the rewards it picked, but those the room switched off.</summary>
+    public PerkReward RewardFor(IRoom? room) => RewardPicks.For(Reward, PickedRewards, room);
 }
 
 /// <summary>Tunable prizes. See docs/PERKS.md. Bound from the <c>PrizeConfiguration</c> section.</summary>

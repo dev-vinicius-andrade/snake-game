@@ -81,7 +81,7 @@ public sealed class MazeRunner(WorldEventRules rules, EventSchedule schedule, IO
             FoodsCredit = maze.PrizeFoodsCredit,
             PrizeId = MazeOptions.PrizeId,
             GrantsPerk = string.IsNullOrWhiteSpace(maze.PrizeGrantsPerk) ? null : maze.PrizeGrantsPerk,
-            Reward = maze.PrizeReward.IsEmpty ? null : maze.PrizeReward,
+            Reward = maze.RewardFor(gameState.Room) is { IsEmpty: false } reward ? reward : null,
         };
         gameState.Foods.Add(prize.Guid, prize);
         return prize;

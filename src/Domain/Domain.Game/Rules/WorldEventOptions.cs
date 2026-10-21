@@ -1,4 +1,5 @@
-﻿using Library.Commons.Game.Domain.Entities;
+﻿using System.Text.Json.Serialization;
+using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 
 namespace Domain.Game.Rules;
@@ -121,7 +122,7 @@ public sealed record LightningOptions : IStormSettings
     IReadOnlyList<string> IStormSettings.Rooms => Rooms;
     IReadOnlyList<string> IStormSettings.ExcludedRooms => ExcludedRooms;
 
-    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
+    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows("event", "lightning", Rooms, ExcludedRooms, room, offUntilNamed: false);
 }
 
 /// <summary>Meteor rain: a shower of meteors, each shown by a big shadow for a while before it lands.</summary>
@@ -162,7 +163,7 @@ public sealed record MeteorOptions : IStormSettings
     IReadOnlyList<string> IStormSettings.Rooms => Rooms;
     IReadOnlyList<string> IStormSettings.ExcludedRooms => ExcludedRooms;
 
-    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
+    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows("event", "meteors", Rooms, ExcludedRooms, room, offUntilNamed: false);
 }
 
 /// <summary>
@@ -221,7 +222,17 @@ public sealed record TurretOptions
     /// <summary>Rooms it does not appear in. Wins over <see cref="Rooms"/>.</summary>
     public List<string> ExcludedRooms { get; init; } = [];
 
-    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
+    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows("event", "turret", Rooms, ExcludedRooms, room, offUntilNamed: false);
+
+    /// <summary>The ids of the catalog rewards it gives, all of them. See <see cref="GameplayConfig.Rewards"/>.</summary>
+    public List<string> RewardIds { get; init; } = [];
+
+    /// <summary>The catalog rewards <see cref="RewardIds"/> name, filled in when the config is normalized. Never written.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<RewardDefinition> PickedRewards { get; init; } = [];
+
+    /// <summary>What it gives in <paramref name="room"/>: the rewards it picked, but those the room switched off.</summary>
+    public PerkReward RewardFor(IRoom? room) => RewardPicks.For(Reward, PickedRewards, room);
 }
 
 /// <summary>
@@ -265,5 +276,5 @@ public sealed record ZoneOptions
     /// <summary>Rooms it is not for. Wins over <see cref="Rooms"/>.</summary>
     public List<string> ExcludedRooms { get; init; } = [];
 
-    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
+    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows("event", "zone", Rooms, ExcludedRooms, room, offUntilNamed: false);
 }

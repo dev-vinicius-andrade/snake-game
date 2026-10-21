@@ -320,6 +320,22 @@ public sealed partial class GameStateServiceTests
     }
 
     [Fact]
+    public void Reward_SeveralPicked_AreAllGiven_EvenTwoTierSurgesOfDifferentPerks()
+    {
+        var service = WithPerks(
+            RewardPerk("magnet", PerkEffect.Magnet, 100, tiers: FourTiers), RewardPerk("armor", PerkEffect.Armor, 0.1, tiers: FourTiers));
+        var player = AddFed("p", 500, 500, score: 10);
+
+        Eat(service, player, PerkReward.Combine([
+            new PerkReward { BonusMass = 20, ExtraLives = 1, TierSurgeMin = 1, TierSurgeMax = 1, TierSurgePerk = "magnet" },
+            new PerkReward { ExtraLives = 1, TierSurgeMin = 2, TierSurgeMax = 2, TierSurgePerk = "armor" }]));
+
+        Assert.Equal(10 + 1 + 20, player.Score);
+        Assert.Equal(2, player.BonusLives);
+        Assert.Equal((1, 2), (player.TierSurges["magnet"], player.TierSurges["armor"]));
+    }
+
+    [Fact]
     public void Reward_ARandomPerk_IsOneTheSnakeDoesNotHave()
     {
         var service = WithPerks(RewardPerk("have", PerkEffect.Magnet, 10), RewardPerk("other", PerkEffect.Armor, 0.2, foods: 100));

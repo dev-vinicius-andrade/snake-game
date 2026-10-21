@@ -275,6 +275,26 @@ public sealed class PrizeSpawnerTests
     }
 
     [Fact]
+    public void Update_APrizeThatPickedRewards_CarriesThemAll_ButThoseTheRoomSwitchedOff()
+    {
+        AddPlayers(1);
+        _state.Room.Gameplay.Returns(new RoomGameplay().WithToggle("reward", "mass", false));
+        RewardDefinition[] picked =
+        [
+            new() { Id = "life", Name = "Life", Reward = new PerkReward { ExtraLives = 1 } },
+            new() { Id = "mass", Name = "Mass", Reward = new PerkReward { BonusMass = 40 } },
+            new() { Id = "mend", Name = "Mend", Reward = new PerkReward { Mend = true } }
+        ];
+        var spawner = SpawnerWith(Kind("gift") with { RewardIds = ["life", "mass", "mend"], PickedRewards = picked });
+        spawner.Update(_state);
+
+        _time.Now = _time.Now.AddSeconds(60);
+        spawner.Update(_state);
+
+        Assert.Equal(new PerkReward { ExtraLives = 1, Mend = true }, Prizes().Single().Reward);
+    }
+
+    [Fact]
     public void Update_OnlyOnePrizeOfAKindAtATime_ButDifferentKindsTogether()
     {
         AddPlayers(1);

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Library.Commons.Game.Domain.Entities;
 using Library.Commons.Game.Domain.Interfaces.Entities;
 
@@ -39,7 +40,7 @@ public sealed record FruitShowerOptions : IScheduledEvent
     /// <summary>Rooms it does not fall in. Wins over <see cref="Rooms"/>.</summary>
     public List<string> ExcludedRooms { get; init; } = [];
 
-    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
+    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows("event", "fruit_shower", Rooms, ExcludedRooms, room, offUntilNamed: false);
 }
 
 /// <summary>Bounty: one random living snake is marked wanted for a while. Whoever kills it is paid, and the mark ends when it dies or the time is up.</summary>
@@ -74,7 +75,17 @@ public sealed record BountyOptions : IScheduledEvent
     /// <summary>Rooms it is not for. Wins over <see cref="Rooms"/>.</summary>
     public List<string> ExcludedRooms { get; init; } = [];
 
-    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
+    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows("event", "bounty", Rooms, ExcludedRooms, room, offUntilNamed: false);
+
+    /// <summary>The ids of the catalog rewards it gives, all of them. See <see cref="GameplayConfig.Rewards"/>.</summary>
+    public List<string> RewardIds { get; init; } = [];
+
+    /// <summary>The catalog rewards <see cref="RewardIds"/> name, filled in when the config is normalized. Never written.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<RewardDefinition> PickedRewards { get; init; } = [];
+
+    /// <summary>What it gives in <paramref name="room"/>: the rewards it picked, but those the room switched off.</summary>
+    public PerkReward RewardFor(IRoom? room) => RewardPicks.For(Reward, PickedRewards, room);
 }
 
 /// <summary>
@@ -115,7 +126,7 @@ public sealed record MineFieldOptions : IScheduledEvent
     /// <summary>Rooms it is not for. Wins over <see cref="Rooms"/>.</summary>
     public List<string> ExcludedRooms { get; init; } = [];
 
-    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
+    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows("event", "mine_field", Rooms, ExcludedRooms, room, offUntilNamed: false);
 }
 
 /// <summary>Sugar rush: for a while boosting costs no mass, for every snake in the room.</summary>
@@ -141,7 +152,7 @@ public sealed record SugarRushOptions : IScheduledEvent
     /// <summary>Rooms it is not for. Wins over <see cref="Rooms"/>.</summary>
     public List<string> ExcludedRooms { get; init; } = [];
 
-    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
+    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows("event", "sugar_rush", Rooms, ExcludedRooms, room, offUntilNamed: false);
 }
 
 /// <summary>
@@ -206,5 +217,15 @@ public sealed record MazeOptions : IScheduledEvent
     /// <summary>Rooms it is not for. Wins over <see cref="Rooms"/>.</summary>
     public List<string> ExcludedRooms { get; init; } = [];
 
-    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows(Rooms, ExcludedRooms, room, offUntilNamed: false);
+    public bool AppliesTo(IRoom? room) => Enabled && RoomNames.Allows("event", "maze", Rooms, ExcludedRooms, room, offUntilNamed: false);
+
+    /// <summary>The ids of the catalog rewards it gives, all of them. See <see cref="GameplayConfig.Rewards"/>.</summary>
+    public List<string> RewardIds { get; init; } = [];
+
+    /// <summary>The catalog rewards <see cref="RewardIds"/> name, filled in when the config is normalized. Never written.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<RewardDefinition> PickedRewards { get; init; } = [];
+
+    /// <summary>What it gives in <paramref name="room"/>: the rewards it picked, but those the room switched off.</summary>
+    public PerkReward RewardFor(IRoom? room) => RewardPicks.For(PrizeReward, PickedRewards, room);
 }

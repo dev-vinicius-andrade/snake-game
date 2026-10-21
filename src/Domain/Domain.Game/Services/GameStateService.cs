@@ -466,6 +466,7 @@ public class GameStateService : IGameStateService
         if (reward.Mend) player.SegmentHealth = player.SegmentHealth.Select(_ => 1.0).ToList();
         if (reward.GrantsRandomPerk) GrantRandomPerk(gameState, player);
         if (reward.HasTierSurge) SurgeTier(gameState, player, reward);
+        foreach (var other in reward.Alongside) ApplyReward(gameState, player, other);
     }
 
     private void GrantRandomPerk(IGameState gameState, IPlayer player)
