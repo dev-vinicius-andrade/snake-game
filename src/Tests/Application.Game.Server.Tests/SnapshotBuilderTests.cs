@@ -90,13 +90,25 @@ public sealed class SnapshotBuilderTests
     }
 
     [Fact]
-    public void Build_SnakePathIsOneFlatListOfCoordinatesRoundedToATenth()
+    public void Build_SnakePathIsTheTailInTenthsThenOneStepFromEachSegmentToTheNext()
     {
         AddPlayer("ana", (100.04, 200.06), (115.449, 200.0), (130.5, 200.0));
 
         var snake = Json().GetProperty("snakes")[0];
 
-        Assert.Equal(new[] { 100.0, 200.1, 115.4, 200.0, 130.5, 200.0 }, snake.GetProperty("path").EnumerateArray().Select(n => n.GetDouble()));
+        Assert.Equal(new[] { 1000, 2001, 154, -1, 151, 0 }, snake.GetProperty("pd").EnumerateArray().Select(n => n.GetInt32()));
+        Assert.False(snake.TryGetProperty("path", out _));
+    }
+
+    [Fact]
+    public void Build_SnakePathInSteps_IsMuchSmallerThanTheCoordinatesThemselves()
+    {
+        var path = Enumerable.Range(0, 100).Select(i => (X: 300 + i * 15.37, Y: 400 + Math.Sin(i / 7.0) * 60)).ToArray();
+        AddPlayer("ana", path);
+
+        var bytes = JsonSerializer.Serialize(SnapshotBuilder.Build(_state), Options).Length;
+
+        Assert.True(bytes < 1000, $"a 100 segment snake took {bytes} bytes");
     }
 
     [Fact]

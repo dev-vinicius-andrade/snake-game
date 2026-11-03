@@ -364,14 +364,14 @@ describe("parseSnapshot", () => {
 
   it("skips snakes that are not objects or have no body", () => {
     const raw = clone(fixture) as any;
-    raw.snakes.push("nope", { name: "ghost" }, { name: "empty", path: [] });
+    raw.snakes.push("nope", { name: "ghost" }, { name: "empty", pd: [] });
 
     expect(parseSnapshot(raw)!.snakes.map((snake) => snake.name)).toEqual(["ana"]);
   });
 
-  it("reads the path as pairs and ignores a stray last number", () => {
+  it("reads the path as the tail in tenths then a step to each next segment, ignoring a stray last number", () => {
     const raw = clone(fixture) as any;
-    raw.snakes[0].path = [1, 2, 3, 4, 5];
+    raw.snakes[0].pd = [10, 20, 20, 20, 5];
     raw.snakes[0].health = undefined;
 
     expect(parseSnapshot(raw)!.snakes[0].path).toEqual([
@@ -380,9 +380,9 @@ describe("parseSnapshot", () => {
     ]);
   });
 
-  it("drops path points that are not finite numbers", () => {
+  it("drops path steps that are not finite numbers and goes on from the segment before", () => {
     const raw = clone(fixture) as any;
-    raw.snakes[0].path = [1, 2, "a", 2, 3, 4];
+    raw.snakes[0].pd = [10, 20, "a", 2, 20, 20];
     raw.snakes[0].health = undefined;
 
     expect(parseSnapshot(raw)!.snakes[0].path).toEqual([

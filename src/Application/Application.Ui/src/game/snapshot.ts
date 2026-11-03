@@ -42,14 +42,22 @@ function alignHealth(raw: unknown, length: number): number[] {
   return padded.slice(padded.length - length);
 }
 
-/** The path comes as one flat list, x0, y0, x1, y1, ...; a pair with something that is not a number is dropped. */
+/**
+ * The path comes in tenths of a unit as one flat list: x0, y0 of the tail, then the step (dx, dy) from each segment to the next.
+ * A pair with something that is not a number is dropped, and the next step goes on from the segment before it.
+ */
 function parsePath(raw: unknown): GamePoint[] {
   const flat = asList(raw);
   const points: GamePoint[] = [];
+  let x = 0;
+  let y = 0;
   for (let index = 0; index + 1 < flat.length; index += 2) {
-    const x = flat[index];
-    const y = flat[index + 1];
-    if (isFinite(x) && isFinite(y)) points.push({ x, y });
+    const dx = flat[index];
+    const dy = flat[index + 1];
+    if (!isFinite(dx) || !isFinite(dy)) continue;
+    x += dx;
+    y += dy;
+    points.push({ x: x / 10, y: y / 10 });
   }
   return points;
 }
@@ -83,7 +91,7 @@ function parseAbilities(raw: unknown): AbilitySnapshot[] | undefined {
 
 function parseSnake(player: unknown): SnakeSnapshot | null {
   if (!isDictionary(player)) return null;
-  const path = parsePath(player.path);
+  const path = parsePath(player.pd);
   if (path.length === 0) return null;
   const perks = asList(player.perks).filter((perk): perk is string => typeof perk === "string");
   return {

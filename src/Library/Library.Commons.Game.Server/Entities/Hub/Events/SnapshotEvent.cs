@@ -265,9 +265,12 @@ public record SnapshotSnake
     [JsonPropertyName("ab")]
     public List<SnapshotAbility>? Abilities { get; set; }
 
-    /// <summary>x0, y0, x1, y1, ... of the body segments, tail first and the head last, to a tenth of a unit.</summary>
-    [JsonPropertyName("path")]
-    public List<double> Path { get; set; } = new();
+    /// <summary>
+    /// The body segments, tail first and the head last, in tenths of a unit: x0, y0 of the tail, then for each next segment how far it is
+    /// from the one before (dx, dy). Steps are a few digits where coordinates are six, and a long snake is most of a snapshot.
+    /// </summary>
+    [JsonPropertyName("pd")]
+    public List<int> Path { get; set; } = new();
 
     /// <summary>HP per segment in whole percents, aligned with the path. Left out while nothing is hurt.</summary>
     [JsonPropertyName("health")]

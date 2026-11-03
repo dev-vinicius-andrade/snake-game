@@ -142,7 +142,7 @@ public static class SnapshotBuilder
         Lives = player.LivesLeft,
         Protected = player.ProtectedUntil is { } until ? MillisecondsUntil(until, now) : 0,
         Abilities = ToAbilities(player, now),
-        Path = player.Path.SelectMany(point => new[] { Tenth(point.X), Tenth(point.Y) }).ToList(),
+        Path = PathInSteps(player.Path),
         Health = HealthPercents(player.SegmentHealth),
     };
 
@@ -169,6 +169,24 @@ public static class SnapshotBuilder
         Size = shot.Size,
         Owner = shot.CreatedyBy.Guid,
     };
+
+    /// <summary>The tail in tenths, then the step to each next segment, so every number after the first two is small.</summary>
+    private static List<int> PathInSteps(IEnumerable<IPointAxis> path)
+    {
+        var steps = new List<int>();
+        int previousX = 0, previousY = 0;
+        foreach (var point in path)
+        {
+            int x = InTenths(point.X), y = InTenths(point.Y);
+            steps.Add(x - previousX);
+            steps.Add(y - previousY);
+            previousX = x;
+            previousY = y;
+        }
+        return steps;
+    }
+
+    private static int InTenths(double value) => (int)Math.Round(value * 10, MidpointRounding.AwayFromZero);
 
     private static double Tenth(double value) => Math.Round(value, 1, MidpointRounding.AwayFromZero);
 
