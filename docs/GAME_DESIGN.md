@@ -129,6 +129,7 @@ Why events-then-apply: with parallel or sequential in-place mutation, who dies i
 - `Domain.Game/Rules/DamageCalculator` and `SegmentHealth`: pure, static-free services, unit tested against the table in section 4.
 - `Domain.Game/Services/RoomSimulation.Step(dt)`: orchestrator, one level of nesting, calls steps 1-8 above.
 - `GameWorkerService`: only schedules timesteps and snapshot sends per room. No game logic.
+- Snapshots go to each player on its own through `LatestOnlySender`: one send in flight per connection, and only the newest snapshot waits behind it. A player on a slow link skips snapshots instead of queueing seconds of them (the ping, an invoke answered on the same connection, was 17 to 28 s for a 90+ point snake before), and it cannot hold the room's loop back. The size of a snapshot still grows with the snakes (about 5 KB for four snakes of 100 segments); trimming it (cull by view, deltas, binary) is the next step if the link is still the limit.
 - `IPlayer` gains `Mass`, `Segments` (hp per segment), `Boosting`; `Score` becomes derived (or kills + mass, decision needed).
 - Tests first: damage table, heal targeting, order-independent head-to-head, projectile moved exactly once per step. `src/Tests` is empty today, so this adds the first test project.
 

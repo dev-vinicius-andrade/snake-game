@@ -41,6 +41,8 @@ public class GameWorkerService : BackgroundService
     /// <summary>What each room last heard as its ranking, and what each player last heard as their score: said again only when it changes.</summary>
     private readonly ConcurrentDictionary<Guid, string> _lastRanking = new();
     private readonly ConcurrentDictionary<string, long> _lastScores = new();
+    /// <summary>A snapshot goes to each player on its own, so a player on a slow link skips ahead instead of holding the room (and itself) back.</summary>
+    private readonly LatestOnlySender<SnapshotEvent> _snapshots;
 
     public GameWorkerService(
         Serilog.ILogger logger,
@@ -61,6 +63,9 @@ public class GameWorkerService : BackgroundService
         MazeRunner mazes,
         TimeProvider time)
     {
+        _snapshots = new LatestOnlySender<SnapshotEvent>(
+            (connectionId, snapshot) => gameHub.Clients.Client(connectionId).Snapshot(snapshot),
+            (connectionId, failure) => logger.Warning(failure, "Could not send a snapshot to {ConnectionId}", connectionId));
         _fruitShowers = fruitShowers;
         _bounties = bounties;
         _mines = mines;
@@ -160,10 +165,10 @@ public class GameWorkerService : BackgroundService
 
     private async Task BroadcastSnapshotAsync(Guid roomId, IGameState gameState)
     {
-        var group = _gameHub.Clients.Group(roomId.ToString());
         await SendRankingAsync(roomId, gameState);
         await SendPlayerScoresAsync(gameState);
-        await group.Snapshot(SnapshotBuilder.Build(gameState, _time.GetUtcNow()));
+        var snapshot = SnapshotBuilder.Build(gameState, _time.GetUtcNow());
+        foreach (var player in gameState.Players.Values.ToArray()) _snapshots.Send(player.Id, snapshot);
     }
 
     private async Task SendRankingAsync(Guid roomId, IGameState gameState)
