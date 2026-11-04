@@ -2,6 +2,7 @@ import { computed, getCurrentScope, nextTick, onScopeDispose, shallowRef } from 
 import { parseUnlockedIds } from "@/game/achievements";
 import { parseDamage } from "@/game/damage";
 import { recentDamage } from "@/render/damageNumbers";
+import { markArrival } from "@/render/perfTiming";
 import { parseFoods, parseLeaderboard, parseRoomSize, parseSnapshot } from "@/game/snapshot";
 import { angleDistance } from "@/input/angles";
 import { createHubClient, type HubClient, type HubClientFactory } from "@/services/hub";
@@ -104,6 +105,7 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
       },
       Snapshot: (raw: unknown) => {
         const arrived = performance.now();
+        markArrival(arrived);
         const next = parseSnapshot(raw);
         const parsed = performance.now();
         if (!next) return;

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useScrollLock, useStorage } from "@vueuse/core";
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onBeforeUpdate, onMounted, onUpdated, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import InviteBadge from "@/components/rooms/InviteBadge.vue";
 import type { JoinTarget } from "@/composables/useManagerJoin";
@@ -41,6 +41,7 @@ import { timedEvents } from "@/render/timedEvents";
 import { prizeCompass } from "@/render/prizeCompass";
 import { DEFAULT_HEAD_SIZE } from "@/render/pixelRenderer";
 import { perfSwitches } from "@/render/perfSwitches";
+import { sinceArrival } from "@/render/perfTiming";
 import { usePlayerStore } from "@/store/usePlayerStore";
 
 const router = useRouter();
@@ -161,6 +162,9 @@ async function start() {
   if (readStoredAccountToken()) await accounts.loadMe();
   return nickname.value || readStoredAccountToken() ? play() : router.replace({ name: "home" });
 }
+// With `?perf`: when, after a snapshot arrived, this view starts and ends its update.
+onBeforeUpdate(() => sinceArrival("view update starts"));
+onUpdated(() => sinceArrival("view update ends"));
 onBeforeUnmount(() => {
   scrollLock.value = false;
   void session.stop();

@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import PerfOverlay from "@/components/game/PerfOverlay.vue";
 import { onDetectTiming } from "@/input/gaze/detectTimings";
 import { FramePerf } from "@/render/framePerf";
+import { sinceArrival, timed } from "@/render/perfTiming";
 import { useCanvasRenderer } from "@/composables/useCanvasRenderer";
 import { followCamera, viewLayout, type Camera } from "@/render/camera";
 import { MineTracker } from "@/render/mines";
@@ -81,13 +82,16 @@ watch(
   () => props.snapshot,
   (snapshot) => {
     if (snapshot) {
-      buffer.push(snapshot, performance.now());
-      perf.snapshot(
-        performance.now(),
-        snapshot.snakes.reduce((total, snake) => total + snake.path.length, 0)
+      sinceArrival("stage watch at");
+      timed("stage buffer", () => buffer.push(snapshot, performance.now()));
+      timed("stage stats", () =>
+        perf.snapshot(
+          performance.now(),
+          snapshot.snakes.reduce((total, snake) => total + snake.path.length, 0)
+        )
       );
-      strikeTracker.observeFrame(snapshot, performance.now());
-      mineTracker.observe(snapshot.mines ?? [], performance.now());
+      timed("stage strikes", () => strikeTracker.observeFrame(snapshot, performance.now()));
+      timed("stage mines", () => mineTracker.observe(snapshot.mines ?? [], performance.now()));
     } else {
       buffer.clear();
       strikeTracker.clear();
