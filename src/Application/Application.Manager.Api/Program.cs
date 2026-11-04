@@ -51,6 +51,7 @@ namespace Application.Manager.Api
             services.AddCorsPolicy(appSettings.CorsConfiguration);
             services.AddApiKeyAuth(configuration);
             services.AddSingleton(TimeProvider.System);
+            services.AddSingleton<Telemetry.PerfReportStore>();
             services.AddSingleton<RoomRegistry>();
             services.AddSingleton<InviteCodeGenerator>();
             services.AddSingleton<IRoomCreatePublisher, EventbusRoomCreatePublisher>();
