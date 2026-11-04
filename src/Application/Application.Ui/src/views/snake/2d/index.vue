@@ -20,6 +20,8 @@ import { useAchievementToasts } from "@/composables/useAchievementToasts";
 import { useEyeControl } from "@/composables/useEyeControl";
 import { useGameConnection } from "@/composables/useGameConnection";
 import { usePerkCatalog } from "@/composables/usePerkCatalog";
+import { useStableValue } from "@/composables/useStableValue";
+import { cooldownKey, perksKey } from "@/game/perkList";
 import { useGazeControls } from "@/composables/useGazeControls";
 import { useGameSounds } from "@/composables/useGameSounds";
 import { useManagerJoin } from "@/composables/useManagerJoin";
@@ -53,6 +55,10 @@ const sounds = useGameSounds({ snapshot: game.snapshot, damage: game.damage, dea
 const perkCatalog = usePerkCatalog();
 const stage = ref<InstanceType<typeof GameStage> | null>(null);
 const ownSnake = computed(() => game.snapshot.value?.snakes.find((snake) => snake.guid === game.self.value?.guid) ?? null);
+/** What PerkList shows changes seldom, so it is handed the same arrays until it does and is not rebuilt with every snapshot. */
+const ownPerks = useStableValue(() => ownSnake.value?.perks ?? [], (perks) => perksKey(perks, undefined));
+const ownTiers = useStableValue(() => ownSnake.value?.perkTiers, (tiers) => (tiers ?? []).join(","));
+const ownAbilities = useStableValue(() => ownSnake.value?.abilities, cooldownKey);
 const compass = computed(() => (game.snapshot.value ? prizeCompass(game.snapshot.value, game.self.value?.guid) : null));
 const boss = computed(() => (game.snapshot.value ? bossCompass(game.snapshot.value, game.self.value?.guid) : null));
 const zone = computed(() => (game.snapshot.value ? zoneWarning(game.snapshot.value, game.self.value?.guid) : null));
@@ -187,10 +193,10 @@ onBeforeUnmount(() => {
       </template>
     </GameHud>
     <PerkList
-      :perks="ownSnake?.perks ?? []"
-      :tiers="ownSnake?.perkTiers"
+      :perks="ownPerks"
+      :tiers="ownTiers"
       :catalog="perkCatalog.perks.value"
-      :abilities="ownSnake?.abilities"
+      :abilities="ownAbilities"
       :lives="ownSnake?.lives"
     />
     <PrizeHint :compass="compass" />
