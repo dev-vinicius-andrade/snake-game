@@ -1,7 +1,7 @@
 import { onBeforeUnmount, onMounted } from "vue";
 import { resolveManagerUrl } from "@/config/env";
 import type { FramePerf } from "@/render/framePerf";
-import { perfModeOf } from "@/render/perfMode";
+import { currentPerfMode } from "@/render/perfMode";
 import { startPerfReporting, type PerfContext } from "@/render/perfReport";
 
 /** What the page knows of the player's game that the frame meter does not. */
@@ -14,7 +14,7 @@ const newSession = () => (typeof crypto !== "undefined" && crypto.randomUUID ? c
  * screenshots. The report holds numbers and a random id of this page; nothing of the player.
  */
 export function usePerfReporting(state: () => PerfGameState) {
-  if (typeof window === "undefined" || perfModeOf(window.location.search) === "off") return;
+  if (currentPerfMode() === "off") return;
 
   const session = newSession();
   const url = `${resolveManagerUrl()}/telemetry/perf`;

@@ -4,7 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import PerfOverlay from "@/components/game/PerfOverlay.vue";
 import { onDetectTiming } from "@/input/gaze/detectTimings";
 import { FramePerf } from "@/render/framePerf";
-import { perfModeOf } from "@/render/perfMode";
+import { currentPerfMode } from "@/render/perfMode";
 import { sinceArrival, timed } from "@/render/perfTiming";
 import { useCanvasRenderer } from "@/composables/useCanvasRenderer";
 import { followCamera, viewLayout, type Camera } from "@/render/camera";
@@ -46,7 +46,7 @@ const smoother = new CameraSmoother();
 /** How smooth the game is: also at `window.__snakePerf`, so it can be read from the console. */
 const perf = new FramePerf();
 /** `?perf` shows the overlay; `?perf=hide` keeps the meter (and its reports to the manager) without it. F3 shows or hides it either way. */
-const showPerf = ref(perfModeOf(window.location.search) === "show");
+const showPerf = ref(currentPerfMode() === "show");
 function togglePerf(event: KeyboardEvent) {
   if (event.key === "F3") {
     event.preventDefault();
