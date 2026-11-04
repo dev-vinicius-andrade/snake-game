@@ -40,6 +40,7 @@ import { mazeWarning } from "@/render/maze";
 import { timedEvents } from "@/render/timedEvents";
 import { prizeCompass } from "@/render/prizeCompass";
 import { DEFAULT_HEAD_SIZE } from "@/render/pixelRenderer";
+import { perfSwitches } from "@/render/perfSwitches";
 import { usePlayerStore } from "@/store/usePlayerStore";
 
 const router = useRouter();
@@ -170,6 +171,7 @@ onBeforeUnmount(() => {
   <div class="snake-view">
     <GameStage ref="stage" :snapshot="game.snapshot.value" :self-guid="game.self.value?.guid" :damage="game.damage.value" />
     <GameHud
+      v-if="perfSwitches.hud"
       :nickname="nickname"
       :score="game.score.value"
       :ping="game.ping.value"
@@ -193,20 +195,23 @@ onBeforeUnmount(() => {
       </template>
     </GameHud>
     <PerkList
+      v-if="perfSwitches.perks"
       :perks="ownPerks"
       :tiers="ownTiers"
       :catalog="perkCatalog.perks.value"
       :abilities="ownAbilities"
       :lives="ownSnake?.lives"
     />
-    <PrizeHint :compass="compass" />
-    <StrikeHint :warning="strikes" />
-    <BossHint :compass="boss" />
-    <ZoneHint :warning="zone" />
-    <BountyHint :warning="bounty" />
-    <MazeHint :warning="maze" />
-    <TimedEventHint :events="timed" />
-    <TouchControls v-if="session.phase.value === 'playing'" :abilities="(ownSnake?.abilities?.length ?? 0) > 0" @intent="session.handleIntent" />
+    <template v-if="perfSwitches.hints">
+      <PrizeHint :compass="compass" />
+      <StrikeHint :warning="strikes" />
+      <BossHint :compass="boss" />
+      <ZoneHint :warning="zone" />
+      <BountyHint :warning="bounty" />
+      <MazeHint :warning="maze" />
+      <TimedEventHint :events="timed" />
+    </template>
+    <TouchControls v-if="perfSwitches.touch && session.phase.value === 'playing'" :abilities="(ownSnake?.abilities?.length ?? 0) > 0" @intent="session.handleIntent" />
     <EyeControlPanel
       v-if="showDetails || eye.phase.value === 'error'"
       :phase="eye.phase.value"
