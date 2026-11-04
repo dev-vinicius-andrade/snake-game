@@ -151,6 +151,21 @@ the release is uninstalled (`helm.sh/resource-policy: keep`); delete it by hand 
   nothing rate-limits the endpoints. Cloudflare can help without touching the cluster: a WAF rate-limiting rule, or a
   Zero Trust Access policy on `snake.andradev.io/api/admin*` (and on `snake.andradev.io/admin`) limiting it to your email.
 
+## Site access dashboard (Grafana + Loki)
+
+The `snake-ui` pod (nginx) answers every request, because the tunnel passes all of them through it. It writes one JSON line per request to
+stdout (`log_format snake` in `src/Application/Application.Ui/nginx.conf`); Alloy ships it to Loki like any other pod log. A line has the
+client address Cloudflare passes on (`CF-Connecting-IP`), the country (`CF-IPCountry`), the method, the path without its query string (a join
+link is `/join/:code`), the status, bytes, seconds, the content type, the referer and the user agent. The cluster's own probes are not logged.
+
+Import `grafana/snake-site-access.json` (Dashboards, New, Import). Pick the Loki datasource at the top; `Namespace` (default `home-apps`) and
+`Pod (regex)` (default `snake-ui-.*`) are text boxes, change them if Alloy labels the pod differently. It shows page views, unique visitors,
+games joined (POST `/api/join...`), requests by status, visitors by country, pages, referrers, phone or computer, data sent and the slowest
+paths. A page view is a request answered with HTML; a visitor is a distinct client address, so one person on two networks counts twice.
+
+The queries were run against a Loki with sample lines of this format. The addresses are in the logs for as long as Loki keeps them: keep the
+retention short and say so in the privacy text if it is longer than a few weeks.
+
 ## Design notes and limits
 
 - **One game server replica.** Rooms live in the pod's memory, and the tunnel and ingress balance across pods, not rooms,
