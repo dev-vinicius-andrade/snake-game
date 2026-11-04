@@ -40,10 +40,12 @@ const messageOf = (failure: unknown) => (failure instanceof Error ? failure.mess
  * (replaced on every update, never deeply proxied) and sends player controls.
  */
 /** Tells the frame meter (see GameStage, `?perf`) how long a message took, if it is there. */
-function reportMessageCost(arrivedMs: number) {
+function reportMessageCost(arrivedMs: number, parsedMs: number, reactedMs: number) {
   if (typeof window === "undefined") return;
   const now = performance.now();
-  (window as unknown as { __snakePerf?: { message(at: number, ms: number): void } }).__snakePerf?.message(now, now - arrivedMs);
+  const meter = (window as unknown as { __snakePerf?: { message(at: number, ms: number): void; messageParts(at: number, parse: number, sync: number): void } }).__snakePerf;
+  meter?.message(now, now - arrivedMs);
+  meter?.messageParts(now, parsedMs - arrivedMs, reactedMs - parsedMs);
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
@@ -103,14 +105,16 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
       Snapshot: (raw: unknown) => {
         const arrived = performance.now();
         const next = parseSnapshot(raw);
+        const parsed = performance.now();
         if (!next) return;
         // The foods seldom change, so the server tells of them when they do instead of with every snapshot.
         if (isRecord(raw) && "foods" in raw) foods = next.foods;
         else next.foods = foods;
         snapshot.value = next;
         room.value = next.room;
+        const reacted = performance.now();
         // After the page has been updated for it: what a message costs the phone, with the components that show it.
-        void nextTick().then(() => reportMessageCost(arrived));
+        void nextTick().then(() => reportMessageCost(arrived, parsed, reacted));
       },
       RoomDetailsUpdated: (raw: unknown) => {
         const size = parseRoomSize(raw);

@@ -17,6 +17,13 @@ export interface Hitch {
   frameMs: number;
 }
 
+/** A component that updated: how much time its updates took in all (with its children's), and how many there were. */
+export interface ComponentCost {
+  name: string;
+  totalMs: number;
+  count: number;
+}
+
 export interface FramePerfStats {
   fps: number;
   /** Time from one frame to the next. */
@@ -49,6 +56,11 @@ export interface FramePerfStats {
   /** Time a frame's work took in all (the world blended, the camera stepped, the drawing), and a snapshot message from its arrival until the page was updated. */
   tickMs: Spread;
   messageMs: Spread;
+  /** Of a message's time: reading it, and the page reacting at once (the watchers that run as the snapshot is set). The rest is the components updating. */
+  parseMs: Spread;
+  syncMs: Spread;
+  /** The components whose updates took the most, worst first. */
+  componentTop: ComponentCost[];
   /** The last frames that took over 50 ms, newest last. */
   hitches: Hitch[];
   /** Body points in the latest snapshot, and the most in the window: the size of the snapshot grows with the snakes. */
@@ -74,6 +86,7 @@ const TELEPORT_STEP = 400;
 const GC_FALL_BYTES = 1024 * 1024;
 const MEGABYTE = 1024 * 1024;
 const MAX_HITCHES = 10;
+const MAX_COMPONENTS = 5;
 
 interface Sample<T> {
   at: number;
@@ -111,6 +124,8 @@ export class FramePerf {
   private detects: Sample<number>[] = [];
   private ticks: Sample<number>[] = [];
   private messages: Sample<number>[] = [];
+  private parts: Sample<{ parse: number; sync: number }>[] = [];
+  private components: Sample<{ name: string; ms: number }>[] = [];
   private heaps: Sample<number>[] = [];
   private hitchList: Array<{ at: number; frameMs: number }> = [];
   private lastFrameAt: number | null = null;
@@ -150,6 +165,16 @@ export class FramePerf {
   /** A snapshot message took `durationMs` to be read and for the page to be updated for it, ending at `nowMs`. */
   message(nowMs: number, durationMs: number) {
     this.messages.push({ at: nowMs, value: durationMs });
+  }
+
+  /** Of the snapshot message that ended at `nowMs`: reading it took `parseMs`, and the page reacting at once `syncMs`. */
+  messageParts(nowMs: number, parseMs: number, syncMs: number) {
+    this.parts.push({ at: nowMs, value: { parse: parseMs, sync: syncMs } });
+  }
+
+  /** The component `name` updated at `nowMs`, which took `ms` (its children's updates included). */
+  component(nowMs: number, name: string, ms: number) {
+    this.components.push({ at: nowMs, value: { name, ms } });
   }
 
   /** The main thread was blocked for `durationMs`, until `endMs` (what the browser calls a long task). */
@@ -204,6 +229,9 @@ export class FramePerf {
       ...this.memory(),
       tickMs: spread(this.ticks.map((sample) => sample.value)),
       messageMs: spread(this.messages.map((sample) => sample.value)),
+      parseMs: spread(this.parts.map((sample) => sample.value.parse)),
+      syncMs: spread(this.parts.map((sample) => sample.value.sync)),
+      componentTop: this.worstComponents(),
       hitches: this.hitchList.map((hitch) => ({ agoMs: nowMs - hitch.at, frameMs: hitch.frameMs })),
       points: this.sizes.length === 0 ? 0 : this.sizes[this.sizes.length - 1].value,
       maxPoints: maximum(this.sizes.map((sample) => sample.value)),
@@ -221,7 +249,9 @@ export class FramePerf {
     return (
       `${Math.round(stats.fps)} fps | frame ${one(stats.frameMs.avg)}/${one(stats.frameMs.max)} ms | draw ${one(stats.drawMs.avg)}/${one(stats.drawMs.max)} ms | ` +
       `drop ${stats.dropped} long ${stats.longFrames} | snap ${one(stats.snapshotMs.avg)} +-${one(stats.snapshotJitterMs)} ms stalls ${stats.stalls} pts ${stats.points}/${stats.maxPoints} | ` +
-      `face ${one(stats.detectMs.avg)}/${one(stats.detectMs.max)} ms ${Math.round(stats.detectHz)} Hz | blocked ${stats.longTasks}x max ${one(stats.longTaskMaxMs)} ms | gc ${stats.gcs} mem ${stats.heapMB} MB +${one(stats.allocMBps)}/s | starved ${Math.round(stats.starvedShare * 100)}% | cam jerk ${one(stats.cameraJerk)} rev ${stats.cameraReversals} | work ${one(stats.samplesPerFrame)}/frame | tick ${one(stats.tickMs.avg)}/${one(stats.tickMs.max)} ms | msg ${one(stats.messageMs.avg)}/${one(stats.messageMs.max)} ms`
+      `face ${one(stats.detectMs.avg)}/${one(stats.detectMs.max)} ms ${Math.round(stats.detectHz)} Hz | blocked ${stats.longTasks}x max ${one(stats.longTaskMaxMs)} ms | gc ${stats.gcs} mem ${stats.heapMB} MB +${one(stats.allocMBps)}/s | starved ${Math.round(stats.starvedShare * 100)}% | cam jerk ${one(stats.cameraJerk)} rev ${stats.cameraReversals} | work ${one(stats.samplesPerFrame)}/frame | tick ${one(stats.tickMs.avg)}/${one(stats.tickMs.max)} ms | msg ${one(stats.messageMs.avg)}/${one(stats.messageMs.max)} ms | parse ${one(stats.parseMs.avg)} sync ${one(stats.syncMs.avg)} ms | top ${
+        stats.componentTop.map((entry) => `${entry.name} ${one(entry.totalMs)}/${entry.count}`).join(", ") || "-"
+      }`
     );
   }
 
@@ -235,12 +265,25 @@ export class FramePerf {
     this.detects = [];
     this.ticks = [];
     this.messages = [];
+    this.parts = [];
+    this.components = [];
     this.heaps = [];
     this.hitchList = [];
     this.lastFrameAt = null;
     this.lastSnapshotAt = null;
     this.lastCamera = null;
     this.worst = 0;
+  }
+
+  private worstComponents(): ComponentCost[] {
+    const totals = new Map<string, ComponentCost>();
+    for (const { value } of this.components) {
+      const entry = totals.get(value.name) ?? { name: value.name, totalMs: 0, count: 0 };
+      entry.totalMs += value.ms;
+      entry.count++;
+      totals.set(value.name, entry);
+    }
+    return [...totals.values()].sort((a, b) => b.totalMs - a.totalMs).slice(0, MAX_COMPONENTS);
   }
 
   /** Events a second over the time they span; zero for fewer than two. */
@@ -299,6 +342,8 @@ export class FramePerf {
     this.detects = this.detects.filter((sample) => sample.at >= limit);
     this.ticks = this.ticks.filter((sample) => sample.at >= limit);
     this.messages = this.messages.filter((sample) => sample.at >= limit);
+    this.parts = this.parts.filter((sample) => sample.at >= limit);
+    this.components = this.components.filter((sample) => sample.at >= limit);
     this.heaps = this.heaps.filter((sample) => sample.at >= limit);
     this.hitchList = this.hitchList.filter((hitch) => hitch.at >= nowMs - this.windowMs * 6);
   }

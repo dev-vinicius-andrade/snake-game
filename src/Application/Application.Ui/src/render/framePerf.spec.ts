@@ -301,6 +301,55 @@ describe("FramePerf cost of the work", () => {
   });
 });
 
+describe("FramePerf where the cost is", () => {
+  it("splits a message into reading it and the page reacting at once", () => {
+    const perf = new FramePerf();
+    perf.messageParts(1000, 1, 3);
+    perf.messageParts(1033, 3, 5);
+
+    const stats = perf.stats(1100);
+
+    expect(stats.parseMs).toEqual({ avg: 2, max: 3 });
+    expect(stats.syncMs).toEqual({ avg: 4, max: 5 });
+  });
+
+  it("names the components that took the most to update, the worst first", () => {
+    const perf = new FramePerf();
+    perf.component(1000, "PerkList", 10);
+    perf.component(1010, "GameHud", 2);
+    perf.component(1020, "PerkList", 14);
+    perf.component(1030, "TouchControls", 5);
+
+    expect(perf.stats(1100).componentTop).toEqual([
+      { name: "PerkList", totalMs: 24, count: 2 },
+      { name: "TouchControls", totalMs: 5, count: 1 },
+      { name: "GameHud", totalMs: 2, count: 1 },
+    ]);
+  });
+
+  it("keeps only the five worst components", () => {
+    const perf = new FramePerf();
+    for (let index = 0; index < 8; index++) perf.component(1000, `C${index}`, index + 1);
+
+    expect(perf.stats(1100).componentTop.map((entry) => entry.name)).toEqual(["C7", "C6", "C5", "C4", "C3"]);
+  });
+
+  it("forgets components older than the window", () => {
+    const perf = new FramePerf({ windowMs: 1000 });
+    perf.component(1000, "PerkList", 10);
+
+    expect(perf.stats(5000).componentTop).toEqual([]);
+  });
+
+  it("shows the parts and the worst components in the summary", () => {
+    const perf = new FramePerf();
+    perf.messageParts(1000, 1, 3);
+    perf.component(1000, "PerkList", 10);
+
+    expect(perf.summary(1100)).toMatch(/parse 1\.0 sync 3\.0 ms \| top PerkList 10\.0\/1/);
+  });
+});
+
 describe("FramePerf camera", () => {
   it("is calm when the camera moves in a straight line at a steady speed", () => {
     const perf = new FramePerf();
