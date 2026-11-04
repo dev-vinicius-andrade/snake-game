@@ -1,5 +1,7 @@
 using Application.Game.Server.Entities.Configurations;
 using Application.Game.Server.Hubs;
+using Application.Game.Server.Services;
+using Library.Commons.Game.Server.Entities.Hub.Events;
 using Domain.Game.Services;
 using Library.Commons.Game.Domain.Exceptions;
 using Library.Commons.Game.Domain.Interfaces.Entities;
@@ -73,7 +75,9 @@ public class FoodGeneratorWorkerService : BackgroundService
         if(!_gameStateService.CanGenerateFood(gameState)) return;
             
         var food = _gameStateService.GenerateFood(gameState.Room);
-        await _gameHub.Clients.Group(room.Key.ToString()).FoodGenerated(new() { Food = food, Count = gameState.Foods.Count });
+        var generated = new FoodGeneratedEvent { Food = food, Count = gameState.Foods.Count };
+        Detached.Run(() => _gameHub.Clients.Group(room.Key.ToString()).FoodGenerated(generated),
+            failure => _logger.Warning(failure, "Could not announce a food in room {RoomId}", room.Key));
 
     }
 }

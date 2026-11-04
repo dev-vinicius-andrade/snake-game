@@ -43,6 +43,9 @@ public class GameWorkerService : BackgroundService
     private readonly ConcurrentDictionary<string, long> _lastScores = new();
     /// <summary>A snapshot goes to each player on its own, so a player on a slow link skips ahead instead of holding the room (and itself) back.</summary>
     private readonly LatestOnlySender<SnapshotEvent> _snapshots;
+    /// <summary>The score and the ranking go the same way: a player behind only needs the newest.</summary>
+    private readonly LatestOnlySender<long> _scores;
+    private readonly LatestOnlySender<IList<IScore>> _rankings;
 
     public GameWorkerService(
         Serilog.ILogger logger,
@@ -66,6 +69,12 @@ public class GameWorkerService : BackgroundService
         _snapshots = new LatestOnlySender<SnapshotEvent>(
             (connectionId, snapshot) => gameHub.Clients.Client(connectionId).Snapshot(snapshot),
             (connectionId, failure) => logger.Warning(failure, "Could not send a snapshot to {ConnectionId}", connectionId));
+        _scores = new LatestOnlySender<long>(
+            (connectionId, score) => gameHub.Clients.Client(connectionId).PlayerScoreUpdated(score),
+            (connectionId, failure) => logger.Warning(failure, "Could not send a score to {ConnectionId}", connectionId));
+        _rankings = new LatestOnlySender<IList<IScore>>(
+            (connectionId, ranking) => gameHub.Clients.Client(connectionId).ScoreUpdated(ranking),
+            (connectionId, failure) => logger.Warning(failure, "Could not send the ranking to {ConnectionId}", connectionId));
         _fruitShowers = fruitShowers;
         _bounties = bounties;
         _mines = mines;
@@ -126,8 +135,8 @@ public class GameWorkerService : BackgroundService
             _sugarRushes.Update(gameState);
             _mazes.Update(gameState);
             var diedPlayers = (await StepAsync(gameState, ticks, cancellationToken)).Concat(struck).ToList();
-            await NotifyDamageAsync(gameState);
-            await NotifyDiedAsync(diedPlayers);
+            NotifyDamage(gameState);
+            NotifyDied(diedPlayers);
             if (diedPlayers.Count > 0 || ticks.Any(tick => tick.BroadcastSnapshot))
                 await BroadcastSnapshotAsync(roomId, gameState);
             await RemoveDiedAsync(gameState, diedPlayers);
@@ -151,22 +160,25 @@ public class GameWorkerService : BackgroundService
         return diedPlayers;
     }
 
-    private async Task NotifyDamageAsync(IGameState gameState)
+    private void NotifyDamage(IGameState gameState)
     {
         foreach (var notice in DamageNotices.Drain(gameState))
-            await _gameHub.Clients.Client(notice.ConnectionId).DamageDealt(notice.Event);
+            Detached.Run(() => _gameHub.Clients.Client(notice.ConnectionId).DamageDealt(notice.Event), FailedToTell(notice.ConnectionId));
     }
 
-    private async Task NotifyDiedAsync(IEnumerable<IPlayer> diedPlayers)
+    private Action<Exception> FailedToTell(string connectionId)
+        => failure => _logger.Warning(failure, "Could not send an event to {ConnectionId}", connectionId);
+
+    private void NotifyDied(IEnumerable<IPlayer> diedPlayers)
     {
         foreach (var player in diedPlayers)
-            await _gameHub.Clients.Client(player.Id).PlayerDied(new PlayerDiedEvent { Score = player.Score });
+            Detached.Run(() => _gameHub.Clients.Client(player.Id).PlayerDied(new PlayerDiedEvent { Score = player.Score }), FailedToTell(player.Id));
     }
 
     private async Task BroadcastSnapshotAsync(Guid roomId, IGameState gameState)
     {
         await SendRankingAsync(roomId, gameState);
-        await SendPlayerScoresAsync(gameState);
+        SendPlayerScores(gameState);
         var snapshot = SnapshotBuilder.Build(gameState, _time.GetUtcNow());
         foreach (var player in gameState.Players.Values.ToArray()) _snapshots.Send(player.Id, snapshot);
     }
@@ -177,16 +189,16 @@ public class GameWorkerService : BackgroundService
         var signature = string.Join('|', ranking.Select(entry => $"{entry.Nickname}:{entry.CurrentScore}"));
         if (_lastRanking.TryGetValue(roomId, out var last) && last == signature) return;
         _lastRanking[roomId] = signature;
-        await _gameHub.Clients.Group(roomId.ToString()).ScoreUpdated(ranking);
+        foreach (var player in gameState.Players.Values.ToArray()) _rankings.Send(player.Id, ranking);
     }
 
-    private async Task SendPlayerScoresAsync(IGameState gameState)
+    private void SendPlayerScores(IGameState gameState)
     {
         foreach (var player in gameState.Players.Values.ToArray())
         {
             if (_lastScores.TryGetValue(player.Id, out var last) && last == player.Score) continue;
             _lastScores[player.Id] = player.Score;
-            await _gameHub.Clients.Client(player.Id).PlayerScoreUpdated(player.Score);
+            _scores.Send(player.Id, player.Score);
         }
     }
 
