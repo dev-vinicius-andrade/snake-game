@@ -41,7 +41,8 @@ import { timedEvents } from "@/render/timedEvents";
 import { prizeCompass } from "@/render/prizeCompass";
 import { DEFAULT_HEAD_SIZE } from "@/render/pixelRenderer";
 import { usePerfReporting } from "@/composables/usePerfReporting";
-import { perfSwitches } from "@/render/perfSwitches";
+import { currentPerfMode } from "@/render/perfMode";
+import { perfSwitches, presetPerfSwitches } from "@/render/perfSwitches";
 import { sinceArrival } from "@/render/perfTiming";
 import { usePlayerStore } from "@/store/usePlayerStore";
 
@@ -163,6 +164,7 @@ async function start() {
   if (readStoredAccountToken()) await accounts.loadMe();
   return nickname.value || readStoredAccountToken() ? play() : router.replace({ name: "home" });
 }
+if (currentPerfMode() !== "off") presetPerfSwitches(window.location.search);
 usePerfReporting(() => ({ score: game.score.value, ping: game.ping.value, switches: { ...perfSwitches } }));
 // With `?perf`: when, after a snapshot arrived, this view starts and ends its update.
 onBeforeUpdate(() => sinceArrival("view update starts"));

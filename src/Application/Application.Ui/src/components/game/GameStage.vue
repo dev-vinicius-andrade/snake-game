@@ -5,6 +5,7 @@ import PerfOverlay from "@/components/game/PerfOverlay.vue";
 import { onDetectTiming } from "@/input/gaze/detectTimings";
 import { FramePerf } from "@/render/framePerf";
 import { currentPerfMode } from "@/render/perfMode";
+import { perfSwitches } from "@/render/perfSwitches";
 import { sinceArrival, timed } from "@/render/perfTiming";
 import { useCanvasRenderer } from "@/composables/useCanvasRenderer";
 import { followCamera, viewLayout, type Camera } from "@/render/camera";
@@ -150,7 +151,7 @@ useCanvasRenderer(
   () => {
   const frame = currentFrame();
   return {
-    snapshot: frame?.snapshot ?? null,
+    snapshot: perfSwitches.draw ? (frame?.snapshot ?? null) : null,
     options: {
       selfGuid: props.selfGuid,
       timeMs: performance.now(),
