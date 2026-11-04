@@ -2,13 +2,14 @@ import { computed, getCurrentScope, onScopeDispose, shallowRef } from "vue";
 import { parseUnlockedIds } from "@/game/achievements";
 import { parseDamage } from "@/game/damage";
 import { recentDamage } from "@/render/damageNumbers";
-import { parseLeaderboard, parseRoomSize, parseSnapshot } from "@/game/snapshot";
+import { parseFoods, parseLeaderboard, parseRoomSize, parseSnapshot } from "@/game/snapshot";
 import { angleDistance } from "@/input/angles";
 import { createHubClient, type HubClient, type HubClientFactory } from "@/services/hub";
 import type {
   ControlDirection,
   GameConnectionStatus,
   FloatingDamage,
+  FoodSnapshot,
   GameSnapshot,
   JoinAssignment,
   LeaderboardEntry,
@@ -38,6 +39,8 @@ const messageOf = (failure: unknown) => (failure instanceof Error ? failure.mess
  * One game hub session: joins a room, exposes the latest server state as `shallowRef`s
  * (replaced on every update, never deeply proxied) and sends player controls.
  */
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
+
 export function useGameConnection(options: UseGameConnectionOptions = {}) {
   const createClient: HubClientFactory = options.createClient ?? createHubClient;
   const pingIntervalMs = options.pingIntervalMs ?? 0;
@@ -55,6 +58,8 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
   const connectionId = shallowRef<string | null>(null);
   /** Round trip to the game server in milliseconds, smoothed; null until measured. */
   const ping = shallowRef<number | null>(null);
+  /** The foods the server last told of; the snapshots of play come without them. */
+  let foods: FoodSnapshot[] = [];
   let pingTimer: ReturnType<typeof setInterval> | null = null;
   /** Damage numbers still on their way up the screen, oldest first. */
   const damage = shallowRef<FloatingDamage[]>([]);
@@ -85,9 +90,15 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
       PlayerLefted: ignored,
       ConnectedPlayersUpdated: ignored,
       FoodGenerated: ignored,
+      FoodsUpdated: (raw: unknown) => {
+        if (isRecord(raw)) foods = parseFoods(raw.foods);
+      },
       Snapshot: (raw: unknown) => {
         const next = parseSnapshot(raw);
         if (!next) return;
+        // The foods seldom change, so the server tells of them when they do instead of with every snapshot.
+        if (isRecord(raw) && "foods" in raw) foods = next.foods;
+        else next.foods = foods;
         snapshot.value = next;
         room.value = next.room;
       },
@@ -123,6 +134,7 @@ export function useGameConnection(options: UseGameConnectionOptions = {}) {
 
   function resetState() {
     snapshot.value = null;
+    foods = [];
     room.value = null;
     leaderboard.value = [];
     score.value = 0;

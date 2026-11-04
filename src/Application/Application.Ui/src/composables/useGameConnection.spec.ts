@@ -36,6 +36,7 @@ describe("useGameConnection.connect", () => {
 
     for (const event of [
       "Snapshot",
+      "FoodsUpdated",
       "RoomDetailsUpdated",
       "ScoreUpdated",
       "PlayerScoreUpdated",
@@ -141,6 +142,41 @@ describe("useGameConnection server events", () => {
       width: 1920,
       height: 1080,
     });
+  });
+
+  it("draws the foods it was last told of when a snapshot comes without any", async () => {
+    const { client, connection } = await connected();
+    const { foods, ...withoutFoods } = fixture as typeof fixture & { foods?: unknown };
+
+    client.emit("FoodsUpdated", { foods: [{ x: 11, y: 22, c: "#00ff00" }] });
+    client.emit("Snapshot", withoutFoods);
+
+    expect(connection.snapshot.value?.foods.map(({ position }) => position)).toEqual([{ x: 11, y: 22 }]);
+    expect(foods?.length).toBeGreaterThan(0);
+  });
+
+  it("takes the foods a snapshot carries, and keeps them for the ones without", async () => {
+    const { client, connection } = await connected();
+    const { foods: _foods, ...withoutFoods } = fixture as typeof fixture & { foods?: unknown };
+
+    client.emit("Snapshot", fixture);
+    const carried = connection.snapshot.value!.foods;
+    client.emit("Snapshot", withoutFoods);
+
+    expect(carried.length).toBeGreaterThan(0);
+    expect(connection.snapshot.value!.foods).toEqual(carried);
+  });
+
+  it("forgets the foods of a game it left", async () => {
+    const { client, connection } = await connected();
+    const { foods: _foods, ...withoutFoods } = fixture as typeof fixture & { foods?: unknown };
+    client.emit("FoodsUpdated", { foods: [{ x: 11, y: 22, c: "#00ff00" }] });
+
+    await connection.leave();
+    await connection.connect(assignment);
+    client.emit("Snapshot", withoutFoods);
+
+    expect(connection.snapshot.value?.foods).toEqual([]);
   });
 
   it("keeps the previous snapshot when a new one is unusable", async () => {

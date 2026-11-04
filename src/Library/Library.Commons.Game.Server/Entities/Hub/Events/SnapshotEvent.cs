@@ -16,8 +16,9 @@ public record SnapshotEvent
     [JsonPropertyName("snakes")]
     public List<SnapshotSnake> Snakes { get; set; } = new();
 
+    /// <summary>The foods on the map. Left out of the snapshots a player is sent while play goes on: they are sent as <see cref="FoodsEvent"/> when they change.</summary>
     [JsonPropertyName("foods")]
-    public List<SnapshotFood> Foods { get; set; } = new();
+    public List<SnapshotFood>? Foods { get; set; } = new();
 
     [JsonPropertyName("shots")]
     public List<SnapshotShot> Shots { get; set; } = new();
@@ -53,6 +54,13 @@ public record SnapshotEvent
     /// <summary>The maze that stands in the room. Left out while there is none.</summary>
     [JsonPropertyName("maze")]
     public SnapshotMaze? Maze { get; set; }
+}
+
+/// <summary>All the foods on the map. A food seldom changes, so this goes out when the foods change instead of with every snapshot.</summary>
+public record FoodsEvent
+{
+    [JsonPropertyName("foods")]
+    public List<SnapshotFood> Foods { get; set; } = new();
 }
 
 /// <summary>

@@ -9,6 +9,8 @@ public interface IGameHubSendEvents
 {
     /// <summary>The state of the room as the players draw it; see SnapshotBuilder.</summary>
     Task Snapshot(SnapshotEvent snapshot);
+    /// <summary>The foods on the map, sent when they change; a snapshot sent without foods draws the ones last heard of.</summary>
+    Task FoodsUpdated(FoodsEvent foods);
     Task PlayerJoined(PlayerJoinedEvent eventArgs);
     
     Task PlayerLefted(PlayerLeftedEvent eventArgs);

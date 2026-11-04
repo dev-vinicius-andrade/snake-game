@@ -45,6 +45,9 @@ public class GameWorkerService : BackgroundService
     private readonly LatestOnlySender<SnapshotEvent> _snapshots;
     /// <summary>The score and the ranking go the same way: a player behind only needs the newest.</summary>
     private readonly LatestOnlySender<long> _scores;
+    /// <summary>The foods are not in every snapshot: a player is sent them when they differ from the ones it last heard of.</summary>
+    private readonly LatestOnlySender<FoodsEvent> _foods;
+    private readonly ConcurrentDictionary<string, int> _foodsHeard = new();
     private readonly LatestOnlySender<IList<IScore>> _rankings;
 
     public GameWorkerService(
@@ -72,6 +75,9 @@ public class GameWorkerService : BackgroundService
         _scores = new LatestOnlySender<long>(
             (connectionId, score) => gameHub.Clients.Client(connectionId).PlayerScoreUpdated(score),
             (connectionId, failure) => logger.Warning(failure, "Could not send a score to {ConnectionId}", connectionId));
+        _foods = new LatestOnlySender<FoodsEvent>(
+            (connectionId, foods) => gameHub.Clients.Client(connectionId).FoodsUpdated(foods),
+            (connectionId, failure) => logger.Warning(failure, "Could not send the foods to {ConnectionId}", connectionId));
         _rankings = new LatestOnlySender<IList<IScore>>(
             (connectionId, ranking) => gameHub.Clients.Client(connectionId).ScoreUpdated(ranking),
             (connectionId, failure) => logger.Warning(failure, "Could not send the ranking to {ConnectionId}", connectionId));
@@ -179,8 +185,23 @@ public class GameWorkerService : BackgroundService
     {
         await SendRankingAsync(roomId, gameState);
         SendPlayerScores(gameState);
-        var snapshot = SnapshotBuilder.Build(gameState, _time.GetUtcNow());
-        foreach (var player in gameState.Players.Values.ToArray()) _snapshots.Send(player.Id, snapshot);
+        var snapshot = SnapshotBuilder.Build(gameState, _time.GetUtcNow(), includeFoods: false);
+        var players = gameState.Players.Values.ToArray();
+        SendFoodsThatChanged(gameState, players);
+        foreach (var player in players) _snapshots.Send(player.Id, snapshot);
+    }
+
+    private void SendFoodsThatChanged(IGameState gameState, IReadOnlyList<IPlayer> players)
+    {
+        var signature = SnapshotBuilder.FoodsSignature(gameState);
+        var behind = players.Where(player => !_foodsHeard.TryGetValue(player.Id, out var heard) || heard != signature).ToArray();
+        if (behind.Length == 0) return;
+        var foods = SnapshotBuilder.BuildFoods(gameState);
+        foreach (var player in behind)
+        {
+            _foodsHeard[player.Id] = signature;
+            _foods.Send(player.Id, foods);
+        }
     }
 
     private async Task SendRankingAsync(Guid roomId, IGameState gameState)
@@ -211,6 +232,7 @@ public class GameWorkerService : BackgroundService
         foreach (var player in diedPlayers)
         {
             _lastScores.TryRemove(player.Id, out _);
+            _foodsHeard.TryRemove(player.Id, out _);
             await _gameStateService.DisconnectPlayer(gameState.Room, player);
         }
     }

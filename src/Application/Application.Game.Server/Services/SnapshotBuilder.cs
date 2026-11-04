@@ -12,7 +12,8 @@ namespace Application.Game.Server.Services;
 public static class SnapshotBuilder
 {
     /// <param name="now">The moment the snapshot is for; lightning warnings count down to it. Defaults to the clock.</param>
-    public static SnapshotEvent Build(IGameState gameState, DateTimeOffset? now = null)
+    /// <param name="includeFoods">False for the snapshots of play: the foods go out on their own, when they change (<see cref="BuildFoods"/>).</param>
+    public static SnapshotEvent Build(IGameState gameState, DateTimeOffset? now = null, bool includeFoods = true)
     {
         ArgumentNullException.ThrowIfNull(gameState);
         var at = now ?? DateTimeOffset.UtcNow;
@@ -20,7 +21,7 @@ public static class SnapshotBuilder
         {
             Room = new SnapshotRoom { Guid = gameState.Room.Guid, Width = gameState.Room.Width, Height = gameState.Room.Height },
             Snakes = gameState.Players.Values.Where(player => player.Path.Count > 0).Select(player => ToSnake(player, at)).ToList(),
-            Foods = gameState.Foods.Values.Select(ToFood).ToList(),
+            Foods = includeFoods ? gameState.Foods.Values.Select(ToFood).ToList() : null,
             Shots = gameState.Obstacles.Values.Select(ToShot).ToList(),
             Strikes = ToStrikes(gameState, now ?? DateTimeOffset.UtcNow),
             Boss = ToBoss(gameState.Boss),
@@ -31,6 +32,22 @@ public static class SnapshotBuilder
             Rush = MillisecondsLeft(gameState.SugarRushEndsAt, at),
             Maze = ToMaze(gameState.Maze, at),
         };
+    }
+
+    public static FoodsEvent BuildFoods(IGameState gameState)
+    {
+        ArgumentNullException.ThrowIfNull(gameState);
+        return new FoodsEvent { Foods = gameState.Foods.Values.Select(ToFood).ToList() };
+    }
+
+    /// <summary>Tells one set of foods from another, whatever the order they are listed in.</summary>
+    public static int FoodsSignature(IGameState gameState)
+    {
+        ArgumentNullException.ThrowIfNull(gameState);
+        var signature = gameState.Foods.Count;
+        foreach (var food in gameState.Foods.Values)
+            signature ^= HashCode.Combine(food.Guid, (int)Math.Round(food.Position.X), (int)Math.Round(food.Position.Y), food.Value);
+        return signature;
     }
 
     private static int? MillisecondsLeft(DateTimeOffset? endsAt, DateTimeOffset now)

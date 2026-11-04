@@ -229,6 +229,11 @@ export function parseRoomSize(raw: unknown): RoomDimensions | null {
   return raw.width > 0 && raw.height > 0 ? { width: raw.width, height: raw.height } : null;
 }
 
+/** Turns the foods of a snapshot, or of the `FoodsUpdated` event that carries them on their own, into the client model. */
+export function parseFoods(raw: unknown): FoodSnapshot[] {
+  return asList(raw).map(parseFood).filter((f): f is FoodSnapshot => f !== null);
+}
+
 /** Turns the `Snapshot` payload into the client model. Returns null when it is not a usable snapshot. */
 export function parseSnapshot(raw: unknown): GameSnapshot | null {
   if (!isDictionary(raw)) return null;
@@ -239,7 +244,7 @@ export function parseSnapshot(raw: unknown): GameSnapshot | null {
   return {
     room: { guid: asString(room.guid) ?? null, ...size },
     snakes: asList(raw.snakes).map(parseSnake).filter((s): s is SnakeSnapshot => s !== null),
-    foods: asList(raw.foods).map(parseFood).filter((f): f is FoodSnapshot => f !== null),
+    foods: parseFoods(raw.foods),
     shots: asList(raw.shots).map(parseShot).filter((s): s is ShotSnapshot => s !== null),
     strikes: asList(raw.strikes).map(parseStrike).filter((s): s is StrikeSnapshot => s !== null),
     boss: parseBoss(raw.boss),

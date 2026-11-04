@@ -522,4 +522,40 @@ public sealed class SnapshotBuilderTests
 
         Assert.Equal(0, JsonAt(now).GetProperty("shower").GetInt32());
     }
+
+    [Fact]
+    public void Build_WithoutFoods_LeavesTheListOut()
+    {
+        AddFood(10, 20);
+
+        var json = JsonSerializer.SerializeToElement(SnapshotBuilder.Build(_state, includeFoods: false), Options);
+
+        Assert.False(json.TryGetProperty("foods", out _));
+    }
+
+    [Fact]
+    public void BuildFoods_TheSameFoodsAsASnapshotCarries()
+    {
+        AddFood(10, 20);
+        AddFood(30, 40, value: 20, kind: FoodKind.Prize, color: "#ffd23f");
+
+        var withSnapshot = SnapshotBuilder.Build(_state).Foods;
+
+        Assert.Equal(JsonSerializer.Serialize(withSnapshot, Options), JsonSerializer.Serialize(SnapshotBuilder.BuildFoods(_state).Foods, Options));
+    }
+
+    [Fact]
+    public void FoodsSignature_ChangesWhenAFoodIsEatenOrAppears_NotWithTheOrder()
+    {
+        var first = AddFood(10, 20);
+        AddFood(30, 40);
+        var before = SnapshotBuilder.FoodsSignature(_state);
+
+        Assert.Equal(before, SnapshotBuilder.FoodsSignature(_state));
+        AddFood(50, 60);
+        var grown = SnapshotBuilder.FoodsSignature(_state);
+        Assert.NotEqual(before, grown);
+        _foods.Remove(first.Guid, out _);
+        Assert.NotEqual(grown, SnapshotBuilder.FoodsSignature(_state));
+    }
 }
