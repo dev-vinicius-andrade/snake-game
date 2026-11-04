@@ -271,6 +271,36 @@ describe("FramePerf work", () => {
   });
 });
 
+describe("FramePerf cost of the work", () => {
+  it("tells how long a frame's work and a snapshot message took", () => {
+    const perf = new FramePerf();
+    perf.tick(1000, 4);
+    perf.tick(1016, 8);
+    perf.message(1000, 10);
+    perf.message(1033, 30);
+
+    const stats = perf.stats(1100);
+
+    expect(stats.tickMs).toEqual({ avg: 6, max: 8 });
+    expect(stats.messageMs).toEqual({ avg: 20, max: 30 });
+  });
+
+  it("forgets what is older than the window", () => {
+    const perf = new FramePerf({ windowMs: 1000 });
+    perf.message(1000, 50);
+
+    expect(perf.stats(5000).messageMs).toEqual({ avg: 0, max: 0 });
+  });
+
+  it("shows them in the summary", () => {
+    const perf = new FramePerf();
+    perf.tick(1000, 4);
+    perf.message(1000, 10);
+
+    expect(perf.summary(1100)).toMatch(/tick 4\.0\/4\.0 ms \| msg 10\.0\/10\.0 ms/);
+  });
+});
+
 describe("FramePerf camera", () => {
   it("is calm when the camera moves in a straight line at a steady speed", () => {
     const perf = new FramePerf();

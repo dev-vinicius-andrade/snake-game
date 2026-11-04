@@ -14,12 +14,13 @@ export interface RenderSource {
 export function useCanvasRenderer(
   canvas: Ref<HTMLCanvasElement | null>,
   source: () => RenderSource,
-  /** Told after each frame is drawn: when, and how long the drawing took. */
-  onFrame?: (nowMs: number, drawMs: number) => void
+  /** Told after each frame is drawn: when, how long the drawing took, and how long the work of the whole frame took. */
+  onFrame?: (nowMs: number, drawMs: number, tickMs: number) => void
 ) {
   let frame = 0;
 
   function tick() {
+    const tickStarted = performance.now();
     frame = requestAnimationFrame(tick);
     const element = canvas.value;
     const { snapshot, options } = source();
@@ -33,7 +34,7 @@ export function useCanvasRenderer(
     const started = performance.now();
     drawFrame(context, snapshot, options);
     const finished = performance.now();
-    onFrame?.(finished, finished - started);
+    onFrame?.(finished, finished - started, finished - tickStarted);
   }
 
   onMounted(() => {

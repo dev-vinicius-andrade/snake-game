@@ -46,6 +46,9 @@ export interface FramePerfStats {
   gcs: number;
   allocMBps: number;
   heapMB: number;
+  /** Time a frame's work took in all (the world blended, the camera stepped, the drawing), and a snapshot message from its arrival until the page was updated. */
+  tickMs: Spread;
+  messageMs: Spread;
   /** The last frames that took over 50 ms, newest last. */
   hitches: Hitch[];
   /** Body points in the latest snapshot, and the most in the window: the size of the snapshot grows with the snakes. */
@@ -106,6 +109,8 @@ export class FramePerf {
   private samples: number[] = [];
   private tasks: Sample<number>[] = [];
   private detects: Sample<number>[] = [];
+  private ticks: Sample<number>[] = [];
+  private messages: Sample<number>[] = [];
   private heaps: Sample<number>[] = [];
   private hitchList: Array<{ at: number; frameMs: number }> = [];
   private lastFrameAt: number | null = null;
@@ -135,6 +140,16 @@ export class FramePerf {
   /** A face detection for the camera took `durationMs`, ending at `nowMs`. */
   detect(nowMs: number, durationMs: number) {
     this.detects.push({ at: nowMs, value: durationMs });
+  }
+
+  /** The work of one frame took `durationMs` in all, ending at `nowMs`. */
+  tick(nowMs: number, durationMs: number) {
+    this.ticks.push({ at: nowMs, value: durationMs });
+  }
+
+  /** A snapshot message took `durationMs` to be read and for the page to be updated for it, ending at `nowMs`. */
+  message(nowMs: number, durationMs: number) {
+    this.messages.push({ at: nowMs, value: durationMs });
   }
 
   /** The main thread was blocked for `durationMs`, until `endMs` (what the browser calls a long task). */
@@ -187,6 +202,8 @@ export class FramePerf {
       longTaskMaxMs: maximum(this.tasks.map((sample) => sample.value)),
       longTaskTotalMs: this.tasks.reduce((sum, sample) => sum + sample.value, 0),
       ...this.memory(),
+      tickMs: spread(this.ticks.map((sample) => sample.value)),
+      messageMs: spread(this.messages.map((sample) => sample.value)),
       hitches: this.hitchList.map((hitch) => ({ agoMs: nowMs - hitch.at, frameMs: hitch.frameMs })),
       points: this.sizes.length === 0 ? 0 : this.sizes[this.sizes.length - 1].value,
       maxPoints: maximum(this.sizes.map((sample) => sample.value)),
@@ -204,7 +221,7 @@ export class FramePerf {
     return (
       `${Math.round(stats.fps)} fps | frame ${one(stats.frameMs.avg)}/${one(stats.frameMs.max)} ms | draw ${one(stats.drawMs.avg)}/${one(stats.drawMs.max)} ms | ` +
       `drop ${stats.dropped} long ${stats.longFrames} | snap ${one(stats.snapshotMs.avg)} +-${one(stats.snapshotJitterMs)} ms stalls ${stats.stalls} pts ${stats.points}/${stats.maxPoints} | ` +
-      `face ${one(stats.detectMs.avg)}/${one(stats.detectMs.max)} ms ${Math.round(stats.detectHz)} Hz | blocked ${stats.longTasks}x max ${one(stats.longTaskMaxMs)} ms | gc ${stats.gcs} mem ${stats.heapMB} MB +${one(stats.allocMBps)}/s | starved ${Math.round(stats.starvedShare * 100)}% | cam jerk ${one(stats.cameraJerk)} rev ${stats.cameraReversals} | work ${one(stats.samplesPerFrame)}/frame`
+      `face ${one(stats.detectMs.avg)}/${one(stats.detectMs.max)} ms ${Math.round(stats.detectHz)} Hz | blocked ${stats.longTasks}x max ${one(stats.longTaskMaxMs)} ms | gc ${stats.gcs} mem ${stats.heapMB} MB +${one(stats.allocMBps)}/s | starved ${Math.round(stats.starvedShare * 100)}% | cam jerk ${one(stats.cameraJerk)} rev ${stats.cameraReversals} | work ${one(stats.samplesPerFrame)}/frame | tick ${one(stats.tickMs.avg)}/${one(stats.tickMs.max)} ms | msg ${one(stats.messageMs.avg)}/${one(stats.messageMs.max)} ms`
     );
   }
 
@@ -216,6 +233,8 @@ export class FramePerf {
     this.samples = [];
     this.tasks = [];
     this.detects = [];
+    this.ticks = [];
+    this.messages = [];
     this.heaps = [];
     this.hitchList = [];
     this.lastFrameAt = null;
@@ -278,6 +297,8 @@ export class FramePerf {
     this.samples = this.samples.filter((at) => at >= limit);
     this.tasks = this.tasks.filter((sample) => sample.at >= limit);
     this.detects = this.detects.filter((sample) => sample.at >= limit);
+    this.ticks = this.ticks.filter((sample) => sample.at >= limit);
+    this.messages = this.messages.filter((sample) => sample.at >= limit);
     this.heaps = this.heaps.filter((sample) => sample.at >= limit);
     this.hitchList = this.hitchList.filter((hitch) => hitch.at >= nowMs - this.windowMs * 6);
   }

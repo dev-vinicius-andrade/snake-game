@@ -156,7 +156,10 @@ useCanvasRenderer(
     },
   };
   },
-  (now, drawMs) => perf.frame(now, drawMs, buffer.starved)
+  (now, drawMs, tickMs) => {
+    perf.frame(now, drawMs, buffer.starved);
+    perf.tick(now, tickMs);
+  }
 );
 </script>
 
