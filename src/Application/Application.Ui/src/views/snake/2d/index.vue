@@ -169,6 +169,12 @@ usePerfReporting(() => ({ score: game.score.value, ping: game.ping.value, switch
 // With `?perf`: when, after a snapshot arrived, this view starts and ends its update.
 onBeforeUpdate(() => sinceArrival("view update starts"));
 onUpdated(() => sinceArrival("view update ends"));
+watch(game.snapshot, () => sinceArrival("post flush begins"), { flush: "post" });
+/** Used in the template, in the first and the last element, to tell when the render of this view starts and ends. */
+function mark(name: string): undefined {
+  sinceArrival(name);
+  return undefined;
+}
 onBeforeUnmount(() => {
   scrollLock.value = false;
   void session.stop();
@@ -176,7 +182,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="snake-view">
+  <div class="snake-view" :data-perf="mark('render starts')">
     <GameStage ref="stage" :snapshot="game.snapshot.value" :self-guid="game.self.value?.guid" :damage="game.damage.value" />
     <GameHud
       v-if="perfSwitches.hud"
@@ -245,6 +251,7 @@ onBeforeUnmount(() => {
       @cancel="eye.disable"
     />
     <SessionOverlay
+      :data-perf="mark('render ends')"
       :phase="session.phase.value"
       :score="game.death.value?.score ?? 0"
       :error="session.error.value"

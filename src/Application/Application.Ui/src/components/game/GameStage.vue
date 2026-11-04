@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useElementSize } from "@vueuse/core";
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onBeforeUpdate, onMounted, onUpdated, ref, watch } from "vue";
 import PerfOverlay from "@/components/game/PerfOverlay.vue";
 import { onDetectTiming } from "@/input/gaze/detectTimings";
 import { FramePerf } from "@/render/framePerf";
@@ -54,6 +54,8 @@ function togglePerf(event: KeyboardEvent) {
     showPerf.value = !showPerf.value;
   }
 }
+onBeforeUpdate(() => sinceArrival("stage update starts"));
+onUpdated(() => sinceArrival("stage update ends"));
 let stopDetectTiming: (() => void) | null = null;
 let longTaskObserver: PerformanceObserver | null = null;
 let heapTimer = 0;

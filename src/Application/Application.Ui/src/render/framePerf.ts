@@ -86,7 +86,8 @@ const TELEPORT_STEP = 400;
 const GC_FALL_BYTES = 1024 * 1024;
 const MEGABYTE = 1024 * 1024;
 const MAX_HITCHES = 10;
-const MAX_COMPONENTS = 5;
+const MAX_COMPONENTS = 12;
+const SUMMARY_COMPONENTS = 5;
 
 interface Sample<T> {
   at: number;
@@ -250,7 +251,7 @@ export class FramePerf {
       `${Math.round(stats.fps)} fps | frame ${one(stats.frameMs.avg)}/${one(stats.frameMs.max)} ms | draw ${one(stats.drawMs.avg)}/${one(stats.drawMs.max)} ms | ` +
       `drop ${stats.dropped} long ${stats.longFrames} | snap ${one(stats.snapshotMs.avg)} +-${one(stats.snapshotJitterMs)} ms stalls ${stats.stalls} pts ${stats.points}/${stats.maxPoints} | ` +
       `face ${one(stats.detectMs.avg)}/${one(stats.detectMs.max)} ms ${Math.round(stats.detectHz)} Hz | blocked ${stats.longTasks}x max ${one(stats.longTaskMaxMs)} ms | gc ${stats.gcs} mem ${stats.heapMB} MB +${one(stats.allocMBps)}/s | starved ${Math.round(stats.starvedShare * 100)}% | cam jerk ${one(stats.cameraJerk)} rev ${stats.cameraReversals} | work ${one(stats.samplesPerFrame)}/frame | tick ${one(stats.tickMs.avg)}/${one(stats.tickMs.max)} ms | msg ${one(stats.messageMs.avg)}/${one(stats.messageMs.max)} ms | parse ${one(stats.parseMs.avg)} sync ${one(stats.syncMs.avg)} ms | top ${
-        stats.componentTop.map((entry) => `${entry.name} ${one(entry.totalMs)}/${entry.count}`).join(", ") || "-"
+        stats.componentTop.slice(0, SUMMARY_COMPONENTS).map((entry) => `${entry.name} ${one(entry.totalMs)}/${entry.count}`).join(", ") || "-"
       }`
     );
   }

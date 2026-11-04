@@ -327,11 +327,15 @@ describe("FramePerf where the cost is", () => {
     ]);
   });
 
-  it("keeps only the five worst components", () => {
+  it("keeps only the twelve worst components, and the summary shows the five worst", () => {
     const perf = new FramePerf();
-    for (let index = 0; index < 8; index++) perf.component(1000, `C${index}`, index + 1);
+    for (let index = 0; index < 15; index++) perf.component(1000, `C${index}`, index + 1);
 
-    expect(perf.stats(1100).componentTop.map((entry) => entry.name)).toEqual(["C7", "C6", "C5", "C4", "C3"]);
+    const names = perf.stats(1100).componentTop.map((entry) => entry.name);
+
+    expect(names).toHaveLength(12);
+    expect(names.slice(0, 3)).toEqual(["C14", "C13", "C12"]);
+    expect(perf.summary(1100)).toMatch(/top C14 15\.0\/1, C13 14\.0\/1, C12 13\.0\/1, C11 12\.0\/1, C10 11\.0\/1$/);
   });
 
   it("forgets components older than the window", () => {
