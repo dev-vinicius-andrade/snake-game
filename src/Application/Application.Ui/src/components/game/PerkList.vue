@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { shallowRef, watch } from "vue";
 import type { CatalogPerk } from "@/composables/usePerkCatalog";
 import type { AbilitySnapshot } from "@/types/game";
 import { perkLabel } from "@/game/perks";
+import { cooldownKey, cooldownOf as cooldownFrom, perksKey, type Cooldown } from "@/game/perkList";
 import { perkIcon, perkIconOf, perkParams, perkTooltipKey, tierInfo, tierLabel } from "@/game/perkInfo";
 import GameIcon from "@/components/game/GameIcon.vue";
 import { getText } from "@/helpers";
@@ -29,15 +30,7 @@ interface Shown {
   /** The roman numeral of the tier, only for a perk that has gone past the first. */
   badge: string;
   /** For a cooldown perk: ready, recharging or on, with the whole seconds left. */
-  cooldown: { state: "ready" | "recharging" | "active"; seconds: number } | null;
-}
-
-function cooldownOf(id: string): Shown["cooldown"] {
-  const ability = props.abilities?.find((candidate) => candidate.id === id);
-  if (!ability) return null;
-  if (ability.activeMs > 0) return { state: "active", seconds: Math.ceil(ability.activeMs / 1000) };
-  if (ability.readyMs > 0) return { state: "recharging", seconds: Math.ceil(ability.readyMs / 1000) };
-  return { state: "ready", seconds: 0 };
+  cooldown: Cooldown | null;
 }
 
 function cooldownLine(cooldown: Shown["cooldown"]): string[] {
@@ -49,7 +42,7 @@ function cooldownLine(cooldown: Shown["cooldown"]): string[] {
 function describe(id: string, index: number): Shown {
   const perk = props.catalog.find((candidate) => candidate.id === id);
   const tier = props.tiers?.[index] ?? 1;
-  const cooldown = cooldownOf(id);
+  const cooldown = cooldownFrom(id, props.abilities);
   if (!perk) return { id, icon: perkIcon(""), title: perkLabel(id), lines: [], badge: tier > 1 ? tierLabel(tier) : "", cooldown };
   const { multiplier, nextFoods, nextRewardOnly } = tierInfo(perk, tier);
   const hasTiers = perk.tiers.length > 0;
@@ -80,7 +73,18 @@ function describe(id: string, index: number): Shown {
   };
 }
 
-const shown = computed(() => props.perks.map((id, index) => describe(id, index)));
+/**
+ * Worked out again only when the perks, a tier, a cooldown's whole seconds or the catalog change. Every snapshot (30 a second) brings
+ * new arrays for the same perks, and describing a dozen perks with their tooltips that often is more than a phone can keep up with.
+ */
+const shown = shallowRef<Shown[]>([]);
+watch(
+  [() => perksKey(props.perks, props.tiers), () => cooldownKey(props.abilities), () => props.catalog],
+  () => {
+    shown.value = props.perks.map((id, index) => describe(id, index));
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
