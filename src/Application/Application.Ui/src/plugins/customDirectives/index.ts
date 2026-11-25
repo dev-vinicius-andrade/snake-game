@@ -1,5 +1,6 @@
 import { App, DirectiveBinding } from "vue";
 import { VNodeRenderer } from "@types";
+import { fillParent } from "./fillParent";
 
 export default {
   install: (app: App, options: any) => {
@@ -21,7 +22,7 @@ export default {
     app.directive(
       "fill-parent",
       (el, binding: DirectiveBinding, vnode: VNodeRenderer) => {
-        el.className += " fill-height fill-width";
+        fillParent(el);
       }
     );
     app.directive(
